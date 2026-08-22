@@ -29,7 +29,7 @@ function storeConversationId(id: string) {
 
 export function useAdminChatStream() {
   const { getToken } = useAuth();
-  const { apiBaseUrl } = useAdminConfig();
+  const { config, apiBaseUrl } = useAdminConfig();
   const { locale, t } = useAdminLanguage();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [status, setStatus] = useState<ChatStatusPhase | "idle">("idle");
@@ -52,18 +52,35 @@ export function useAdminChatStream() {
 
     try {
       const headers = await authHeaders();
-      const response = await fetch(`${apiBaseUrl}/api/v1/admin/chat/conversations/${storedId}`, { headers });
+      const response = await fetch(`${apiBaseUrl}/api/v1/admin/chat/conversations/${storedId}`, {
+        headers
+      });
       if (!response.ok) return;
       const payload = (await response.json()) as {
         success: boolean;
-        data?: { messages: Array<{ id: string; role: string; content: string | null; toolCall: { toolName: string; artifact: ChatArtifact } | null }> };
+        data?: {
+          messages: Array<{
+            id: string;
+            role: string;
+            content: string | null;
+            toolCall: { toolName: string; artifact: ChatArtifact } | null;
+          }>;
+        };
       };
       if (!payload.success || !payload.data) return;
       const restored: ChatMessage[] = payload.data.messages.flatMap((row): ChatMessage[] => {
         if (row.role === "user" && row.content) return [{ id: row.id, role: "user", content: row.content }];
         if (row.role === "assistant" && row.content) return [{ id: row.id, role: "assistant", content: row.content }];
         if (row.role === "tool" && row.toolCall) {
-          return [{ id: row.id, role: "tool", toolName: row.toolCall.toolName, content: row.content ?? "", artifact: row.toolCall.artifact }];
+          return [
+            {
+              id: row.id,
+              role: "tool",
+              toolName: row.toolCall.toolName,
+              content: row.content ?? "",
+              artifact: row.toolCall.artifact
+            }
+          ];
         }
         return [];
       });
@@ -100,7 +117,14 @@ export function useAdminChatStream() {
         });
 
         if (!response.ok || !response.body) {
-          setMessages((current) => [...current, { id: crypto.randomUUID(), role: "system-error", content: t.chat.couldNotRespond }]);
+          setMessages((current) => [
+            ...current,
+            {
+              id: crypto.randomUUID(),
+              role: "system-error",
+              content: t.chat.couldNotRespond.replace("{brand}", config.brand.name)
+            }
+          ]);
           setStatus("idle");
           setSending(false);
           return;
@@ -137,7 +161,11 @@ export function useAdminChatStream() {
                 setMessages((current) => current.map((message) => (message.id === id ? { ...message, content: assistantText } : message)));
               }
             } else if (event === "chat.tool_result") {
-              const { toolName, message, artifact } = data as { toolName: string; message: string; artifact: ChatArtifact };
+              const { toolName, message, artifact } = data as {
+                toolName: string;
+                message: string;
+                artifact: ChatArtifact;
+              };
               setMessages((current) => [...current, { id: crypto.randomUUID(), role: "tool", toolName, content: message, artifact }]);
             } else if (event === "chat.error") {
               const { message } = data as { message: string };
@@ -151,13 +179,20 @@ export function useAdminChatStream() {
           }
         }
       } catch {
-        setMessages((current) => [...current, { id: crypto.randomUUID(), role: "system-error", content: t.chat.connectionInterrupted }]);
+        setMessages((current) => [
+          ...current,
+          {
+            id: crypto.randomUUID(),
+            role: "system-error",
+            content: t.chat.connectionInterrupted.replace("{brand}", config.brand.name)
+          }
+        ]);
       } finally {
         setStatus("idle");
         setSending(false);
       }
     },
-    [getToken, sending, locale, t, apiBaseUrl]
+    [getToken, sending, locale, t, config.brand.name, apiBaseUrl]
   );
 
   const confirmPendingAction = useCallback(
@@ -170,14 +205,24 @@ export function useAdminChatStream() {
           headers,
           body: JSON.stringify({ language: locale })
         });
-        const payload = (await response.json()) as { success: boolean; data?: Record<string, unknown>; error?: { message?: string } };
+        const payload = (await response.json()) as {
+          success: boolean;
+          data?: Record<string, unknown>;
+          error?: { message?: string };
+        };
         setResolvedOperationIds((current) => new Set(current).add(operationId));
 
         if (!payload.success || !payload.data) {
           const summary = payload.error?.message ?? t.chat.actionCouldNotComplete;
           setMessages((current) => [
             ...current,
-            { id: crypto.randomUUID(), role: "tool", toolName: "confirm_action", content: summary, artifact: { type: "receipt", operationId, status: "failed", summary, result: {} } }
+            {
+              id: crypto.randomUUID(),
+              role: "tool",
+              toolName: "confirm_action",
+              content: summary,
+              artifact: { type: "receipt", operationId, status: "failed", summary, result: {} }
+            }
           ]);
           return;
         }
@@ -191,7 +236,13 @@ export function useAdminChatStream() {
             role: "tool",
             toolName: "confirm_action",
             content: t.chat.actionCompleted,
-            artifact: { type: "receipt", operationId, status: "succeeded", summary: t.chat.actionCompleted, result: result as Record<string, unknown> }
+            artifact: {
+              type: "receipt",
+              operationId,
+              status: "succeeded",
+              summary: t.chat.actionCompleted,
+              result: result as Record<string, unknown>
+            }
           }
         ]);
       } catch {
@@ -203,5 +254,13 @@ export function useAdminChatStream() {
     [getToken, locale, t, apiBaseUrl]
   );
 
-  return { messages, status, sending, resolvedOperationIds, hydrate, sendMessage, confirmPendingAction };
+  return {
+    messages,
+    status,
+    sending,
+    resolvedOperationIds,
+    hydrate,
+    sendMessage,
+    confirmPendingAction
+  };
 }

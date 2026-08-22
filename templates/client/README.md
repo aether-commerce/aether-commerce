@@ -112,10 +112,18 @@ The workflow doesn't touch `apps/ai/` - there's no AI Worker to deploy yet
 
 Add the repository secret `AETHER_PACKAGES_TOKEN` with read access to the
 Aether package registry. Dependabot groups Aether releases into a weekly pull
-request. You can also run **Update Aether platform** manually; it updates every
-workspace dependency, synchronizes D1 migrations, validates the store and opens
-a pull request. The normal deployment synchronizes migrations once more before
-applying them.
+request against `develop`. You can also run **Update Aether platform** manually;
+it updates every workspace dependency, synchronizes D1 migrations, validates
+the store and opens a pull request against `develop`. Promote the validated
+`develop` branch to `main` through the normal production pull request. The
+deployment synchronizes migrations once more before applying them.
+
+Versioned package changes (storefront/admin components, shared API behavior,
+schemas and migrations) reach existing clients through that update pull
+request. Generator/template files are intentionally not copied over an existing
+client: workflows, `config/`, `custom/` and client-owned assets must be migrated
+explicitly so an Aether release can never overwrite brand work or deployment
+policy without review.
 
 `config/` is public configuration (including `config/theme.ts` - colors and
 fonts, separate from `config/brand.ts`'s name/logo); `custom/` contains

@@ -3,15 +3,11 @@
 import { Menu, Search, Sparkles } from "lucide-react";
 import { useBrand } from "./useBrand";
 import { useAdminLanguage } from "./AdminLanguageProvider";
+import { useAdminConfig } from "./AetherAdminProvider";
 
-export function AdminTopBar({
-  onOpenMobileNav,
-  onOpenCommandMenu
-}: {
-  onOpenMobileNav: () => void;
-  onOpenCommandMenu: () => void;
-}) {
+export function AdminTopBar({ onOpenMobileNav, onOpenCommandMenu }: { onOpenMobileNav: () => void; onOpenCommandMenu: () => void }) {
   const brand = useBrand();
+  const { config } = useAdminConfig();
   const { t } = useAdminLanguage();
   return (
     <header className="sticky top-0 z-10 flex h-[var(--header-h)] items-center gap-3 border-b border-border bg-surface/95 px-4 backdrop-blur-sm lg:px-6">
@@ -31,7 +27,7 @@ export function AdminTopBar({
             <Sparkles size={14} aria-hidden />
           </span>
         )}
-        <span className="text-sm font-semibold text-ink">{t.topBar.adminAppName}</span>
+        <span className="text-sm font-semibold text-ink">{brand?.name ?? config.brand.name} Admin</span>
       </span>
 
       <button

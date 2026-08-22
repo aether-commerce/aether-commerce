@@ -47,7 +47,7 @@ export const adminDictionaries = {
       navLabel: "Admin"
     },
     sidebar: {
-      brand: "Aether",
+      brand: "Store",
       adminConsole: "Admin console",
       demo: "Demo",
       expandSidebar: "Expand sidebar",
@@ -62,7 +62,7 @@ export const adminDictionaries = {
     },
     topBar: {
       openNavigationMenu: "Open navigation menu",
-      adminAppName: "Aether Admin",
+      adminAppName: "{brand} Admin",
       searchOrJumpTo: "Search or jump to..."
     },
     commandMenu: {
@@ -445,7 +445,7 @@ export const adminDictionaries = {
       reactivateThisAccountTitle: "Reactivate this account?",
       suspendThisAccountTitle: "Suspend this account?",
       changeRoleTitle: "Change this person's role?",
-      changeRoleDescription: "Change this person's role to \"{role}\"? This calls Clerk directly and takes effect on their next request.",
+      changeRoleDescription: 'Change this person\'s role to "{role}"? This calls Clerk directly and takes effect on their next request.',
       customerNotFoundTitle: "Customer not found",
       customerNotFoundDescription: "It may have been deleted, or the link is incorrect.",
       actionCouldNotComplete: "The action could not be completed.",
@@ -461,7 +461,8 @@ export const adminDictionaries = {
     },
     integrationsPage: {
       title: "Integrations",
-      description: "Payment providers and third-party API keys (Stripe, Wompi, Resend, Gemini, Cloudinary). Secrets are encrypted at rest and never shown again after saving."
+      description:
+        "Payment providers and third-party API keys (Stripe, Wompi, Resend, Gemini, Cloudinary). Secrets are encrypted at rest and never shown again after saving."
     },
     platformPage: {
       title: "Platform",
@@ -493,7 +494,8 @@ export const adminDictionaries = {
       whatsappNumberHint: "Select the country, then type the local number - no spaces or dashes.",
       checkoutSaveError: "Could not save - check the number format and your permissions.",
       shippingSection: "Shipping",
-      shippingDescription: "Charge a flat shipping fee at checkout. Only asks the shopper for a delivery address when this is on and payment isn't WhatsApp (shipping is arranged directly over chat there).",
+      shippingDescription:
+        "Charge a flat shipping fee at checkout. Only asks the shopper for a delivery address when this is on and payment isn't WhatsApp (shipping is arranged directly over chat there).",
       shippingEnabledLabel: "Charge for shipping",
       shippingAmount: "Shipping cost",
       shippingAmountAriaLabel: "Shipping cost in dollars",
@@ -616,11 +618,11 @@ export const adminDictionaries = {
       viewRawJson: "View raw JSON"
     },
     chat: {
-      openAetherChat: "Open Aether Chat",
-      title: "Aether Chat",
+      openAetherChat: "Open {brand} Chat",
+      title: "{brand} Chat",
       subtitle: "Operational assistant",
-      minimize: "Minimize Aether Chat",
-      inputPlaceholder: "Ask Aether Chat...",
+      minimize: "Minimize {brand} Chat",
+      inputPlaceholder: "Ask {brand} Chat...",
       messageLabel: "Message",
       send: "Send",
       emptyState: "Ask about orders, products, inventory, or customers - e.g. “show me today’s pending orders”.",
@@ -697,8 +699,8 @@ export const adminDictionaries = {
       activityByAutomatic: "automatically",
       actionCompleted: "Action completed.",
       actionCouldNotComplete: "That action could not be completed.",
-      couldNotRespond: "Aether Chat could not respond right now.",
-      connectionInterrupted: "The connection to Aether Chat was interrupted.",
+      couldNotRespond: "{brand} Chat could not respond right now.",
+      connectionInterrupted: "The connection to {brand} Chat was interrupted.",
       couldNotReachServer: "Could not reach the server to confirm this action.",
       fieldOrderId: "Order",
       fieldProductId: "Product",
@@ -727,7 +729,8 @@ export const adminDictionaries = {
       levelDegraded: "Degraded",
       levelCritical: "Critical",
       componentErrors: "Errors",
-      componentErrorsTooltip: "Unexpected application errors reported to Sentry, counted over the last 24h (an absolute count, not a rate - no request-volume baseline is tracked).",
+      componentErrorsTooltip:
+        "Unexpected application errors reported to Sentry, counted over the last 24h (an absolute count, not a rate - no request-volume baseline is tracked).",
       componentLatency: "Latency",
       componentLatencyTooltip: "Approximate average response time for admin routes, sampled at a low rate over the last hour. Not a true p95 percentile.",
       componentWebhooks: "Webhooks",
@@ -737,7 +740,8 @@ export const adminDictionaries = {
       componentInventory: "Inventory",
       componentInventoryTooltip: "Flags any product with negative stock - should never happen; always indicates a real bug if it does.",
       componentSecurity: "Security",
-      componentSecurityTooltip: "Flags a burst of failed admin permission checks in the last hour - could be a misconfigured integration or a real intrusion attempt.",
+      componentSecurityTooltip:
+        "Flags a burst of failed admin permission checks in the last hour - could be a misconfigured integration or a real intrusion attempt.",
       componentScheduledTasks: "Scheduled tasks",
       componentScheduledTasksTooltip: "Flags when a critical background task (e.g. expiring stale cart reservations) hasn't run within its expected window.",
       statErrors24h: "Errors (24h)",
@@ -800,7 +804,7 @@ export const adminDictionaries = {
       navLabel: "Admin"
     },
     sidebar: {
-      brand: "Aether",
+      brand: "Tienda",
       adminConsole: "Consola de administración",
       demo: "Demo",
       expandSidebar: "Expandir barra lateral",
@@ -815,7 +819,7 @@ export const adminDictionaries = {
     },
     topBar: {
       openNavigationMenu: "Abrir menú de navegación",
-      adminAppName: "Aether Admin",
+      adminAppName: "{brand} Admin",
       searchOrJumpTo: "Buscar o ir a..."
     },
     commandMenu: {
@@ -1188,7 +1192,8 @@ export const adminDictionaries = {
       addressesSection: "Direcciones",
       noSavedAddresses: "No hay direcciones guardadas.",
       accountAccessSection: "Acceso a la cuenta",
-      suspendingBlocksText: "Suspender bloquea a esta persona de iniciar sesión o hacer cualquier solicitud autenticada en su próxima solicitud - no solo en futuros inicios de sesión.",
+      suspendingBlocksText:
+        "Suspender bloquea a esta persona de iniciar sesión o hacer cualquier solicitud autenticada en su próxima solicitud - no solo en futuros inicios de sesión.",
       reactivateAccount: "Reactivar cuenta",
       suspendAccount: "Suspender cuenta",
       roleSection: "Rol",
@@ -1198,7 +1203,7 @@ export const adminDictionaries = {
       reactivateThisAccountTitle: "¿Reactivar esta cuenta?",
       suspendThisAccountTitle: "¿Suspender esta cuenta?",
       changeRoleTitle: "¿Cambiar el rol de esta persona?",
-      changeRoleDescription: "¿Cambiar el rol de esta persona a \"{role}\"? Esto llama a Clerk directamente y aplica desde su próxima solicitud.",
+      changeRoleDescription: '¿Cambiar el rol de esta persona a "{role}"? Esto llama a Clerk directamente y aplica desde su próxima solicitud.',
       customerNotFoundTitle: "Cliente no encontrado",
       customerNotFoundDescription: "Puede que haya sido eliminado, o el enlace es incorrecto.",
       actionCouldNotComplete: "La acción no se pudo completar.",
@@ -1214,7 +1219,8 @@ export const adminDictionaries = {
     },
     integrationsPage: {
       title: "Integraciones",
-      description: "Proveedores de pago y llaves de API de terceros (Stripe, Wompi, Resend, Gemini, Cloudinary). Los secretos se cifran en reposo y nunca se vuelven a mostrar después de guardarlos."
+      description:
+        "Proveedores de pago y llaves de API de terceros (Stripe, Wompi, Resend, Gemini, Cloudinary). Los secretos se cifran en reposo y nunca se vuelven a mostrar después de guardarlos."
     },
     platformPage: {
       title: "Plataforma",
@@ -1246,13 +1252,15 @@ export const adminDictionaries = {
       whatsappNumberHint: "Selecciona el país y escribe el número local - sin espacios ni guiones.",
       checkoutSaveError: "No se pudo guardar - revisa el formato del número y tus permisos.",
       shippingSection: "Envío",
-      shippingDescription: "Cobra un costo de envío fijo al hacer checkout. Solo se le pide dirección de entrega al comprador cuando esto está activo y el pago no es por WhatsApp (ahí el envío se coordina directamente por chat).",
+      shippingDescription:
+        "Cobra un costo de envío fijo al hacer checkout. Solo se le pide dirección de entrega al comprador cuando esto está activo y el pago no es por WhatsApp (ahí el envío se coordina directamente por chat).",
       shippingEnabledLabel: "Cobrar por el envío",
       shippingAmount: "Costo de envío",
       shippingAmountAriaLabel: "Costo de envío en dólares",
       genericSaveError: "No se pudo guardar - revisa tus permisos.",
       cartReservationsSection: "Reservas de carrito",
-      cartReservationsDescription: "Cuánto tiempo se mantiene reservado un artículo para un comprador después de agregarlo al carrito, antes de liberarse de vuelta al stock disponible.",
+      cartReservationsDescription:
+        "Cuánto tiempo se mantiene reservado un artículo para un comprador después de agregarlo al carrito, antes de liberarse de vuelta al stock disponible.",
       reservationTtlLabel: "TTL de reserva (minutos)",
       reservationTtlAriaLabel: "TTL de reserva en minutos",
       imageUploadsNotConfigured: "La subida de imágenes no está configurada.",
@@ -1369,11 +1377,11 @@ export const adminDictionaries = {
       viewRawJson: "Ver JSON crudo"
     },
     chat: {
-      openAetherChat: "Abrir Aether Chat",
-      title: "Aether Chat",
+      openAetherChat: "Abrir el chat de {brand}",
+      title: "Chat de {brand}",
       subtitle: "Asistente operativo",
-      minimize: "Minimizar Aether Chat",
-      inputPlaceholder: "Pregúntale a Aether Chat...",
+      minimize: "Minimizar el chat de {brand}",
+      inputPlaceholder: "Pregúntale al chat de {brand}...",
       messageLabel: "Mensaje",
       send: "Enviar",
       emptyState: "Pregunta sobre pedidos, productos, inventario o clientes - ej. “muéstrame los pedidos pendientes de hoy”.",
@@ -1450,8 +1458,8 @@ export const adminDictionaries = {
       activityByAutomatic: "automáticamente",
       actionCompleted: "Acción completada.",
       actionCouldNotComplete: "No se pudo completar esa acción.",
-      couldNotRespond: "Aether Chat no pudo responder en este momento.",
-      connectionInterrupted: "Se interrumpió la conexión con Aether Chat.",
+      couldNotRespond: "El chat de {brand} no pudo responder en este momento.",
+      connectionInterrupted: "Se interrumpió la conexión con el chat de {brand}.",
       couldNotReachServer: "No se pudo contactar al servidor para confirmar esta acción.",
       fieldOrderId: "Pedido",
       fieldProductId: "Producto",
@@ -1480,19 +1488,24 @@ export const adminDictionaries = {
       levelDegraded: "Degradado",
       levelCritical: "Crítico",
       componentErrors: "Errores",
-      componentErrorsTooltip: "Errores inesperados de la aplicación reportados a Sentry, contados en las últimas 24h (un conteo absoluto, no una tasa - no se registra un valor base de volumen de solicitudes).",
+      componentErrorsTooltip:
+        "Errores inesperados de la aplicación reportados a Sentry, contados en las últimas 24h (un conteo absoluto, no una tasa - no se registra un valor base de volumen de solicitudes).",
       componentLatency: "Latencia",
-      componentLatencyTooltip: "Tiempo de respuesta promedio aproximado de las rutas de admin, muestreado a baja tasa durante la última hora. No es un percentil p95 real.",
+      componentLatencyTooltip:
+        "Tiempo de respuesta promedio aproximado de las rutas de admin, muestreado a baja tasa durante la última hora. No es un percentil p95 real.",
       componentWebhooks: "Webhooks",
       componentWebhooksTooltip: "Marca cuando entregas recientes de webhooks de Stripe/Clerk no se procesaron correctamente, la más reciente primero.",
       componentOrders: "Pedidos",
-      componentOrdersTooltip: "Marca un pedido pagado atascado sin cumplir más allá de la ventana esperada, o (cuando es detectable) un pago sin pedido local correspondiente.",
+      componentOrdersTooltip:
+        "Marca un pedido pagado atascado sin cumplir más allá de la ventana esperada, o (cuando es detectable) un pago sin pedido local correspondiente.",
       componentInventory: "Inventario",
       componentInventoryTooltip: "Marca cualquier producto con stock negativo - nunca debería ocurrir; siempre indica un bug real si ocurre.",
       componentSecurity: "Seguridad",
-      componentSecurityTooltip: "Marca una ráfaga de verificaciones de permisos de admin fallidas en la última hora - podría ser una integración mal configurada o un intento de intrusión real.",
+      componentSecurityTooltip:
+        "Marca una ráfaga de verificaciones de permisos de admin fallidas en la última hora - podría ser una integración mal configurada o un intento de intrusión real.",
       componentScheduledTasks: "Tareas programadas",
-      componentScheduledTasksTooltip: "Marca cuando una tarea de fondo crítica (ej. expirar reservas de carrito vencidas) no se ha ejecutado dentro de su ventana esperada.",
+      componentScheduledTasksTooltip:
+        "Marca cuando una tarea de fondo crítica (ej. expirar reservas de carrito vencidas) no se ha ejecutado dentro de su ventana esperada.",
       statErrors24h: "Errores (24h)",
       statWebhooksFailed24h: "Webhooks fallidos (24h)",
       statPaymentsFailed24h: "Pagos fallidos (24h)",

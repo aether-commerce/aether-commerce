@@ -28,7 +28,7 @@ export function MobileNav({ open, onClose }: Readonly<{ open: boolean; onClose: 
   const { isSignedIn } = useAuth();
   const { user } = useUser();
   const brand = useBrand();
-  const { storefrontUrl } = useAdminConfig();
+  const { config, storefrontUrl } = useAdminConfig();
   const { t } = useAdminLanguage();
   const navGroups = getNavGroups(t);
   const role = (user?.publicMetadata as { roles?: string[] } | undefined)?.roles?.[0];
@@ -51,7 +51,7 @@ export function MobileNav({ open, onClose }: Readonly<{ open: boolean; onClose: 
             </span>
           )}
           <div>
-            <p className="text-sm font-semibold text-ink">{t.sidebar.brand}</p>
+            <p className="text-sm font-semibold text-ink">{brand?.name ?? config.brand.name}</p>
             <p className="text-xs text-ink-subtle">{t.sidebar.adminConsole}</p>
           </div>
         </div>

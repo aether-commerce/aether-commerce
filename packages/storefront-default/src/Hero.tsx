@@ -10,12 +10,14 @@ import { StorefrontLink } from "./StorefrontLink";
 
 export function Hero() {
   const { t } = useLanguage();
-  const { apiBaseUrl } = useStorefrontConfig();
+  const { config, apiBaseUrl } = useStorefrontConfig();
   const [products, setProducts] = useState<Product[]>([]);
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`${apiBaseUrl}/api/v1/catalog/products?featured=true&pageSize=4&sort=rating`, { signal: controller.signal })
+    fetch(`${apiBaseUrl}/api/v1/catalog/products?featured=true&pageSize=4&sort=rating`, {
+      signal: controller.signal
+    })
       .then((response) => response.json())
       .then((payload: { success: boolean; data?: Product[] }) => {
         if (payload.success && payload.data) setProducts(payload.data);
@@ -28,7 +30,7 @@ export function Hero() {
     <section className="border-b border-zinc-200/60 py-8 sm:py-16">
       <div className="aether-shell grid items-center gap-6 lg:grid-cols-[1.1fr_0.9fr] lg:gap-10">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-accent">{t.heroEyebrow}</p>
+          <p className="text-sm font-semibold uppercase tracking-wide text-accent">{config.brand.name}</p>
           <h1 className="mt-2 text-3xl font-semibold leading-tight text-zinc-950 sm:mt-3 sm:text-4xl lg:text-5xl">{t.heroTitle}</h1>
           <p className="mt-3 max-w-xl text-base leading-7 text-zinc-600">{t.heroDescription}</p>
           <div className="mt-5 flex flex-wrap gap-3 sm:mt-7">
@@ -50,7 +52,7 @@ export function Hero() {
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          {(products.length > 0 ? products : Array.from<Product | undefined>({ length: 4 })).slice(0, 4).map((product, index) => (
+          {(products.length > 0 ? products : Array.from<Product | undefined>({ length: 4 })).slice(0, 4).map((product, index) =>
             product ? (
               <StorefrontLink
                 key={product.id}
@@ -71,7 +73,7 @@ export function Hero() {
                 <div className="skeleton h-full w-full" />
               </div>
             )
-          ))}
+          )}
         </div>
       </div>
     </section>

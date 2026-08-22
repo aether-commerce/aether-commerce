@@ -10,6 +10,7 @@ import { buildChatRequestContext } from "./useAdminChatContext";
 import { useAdminLanguage } from "../AdminLanguageProvider";
 import type { AdminDictionary } from "@aether-commerce/i18n";
 import type { ChatStatusPhase } from "./types";
+import { useAdminConfig } from "../AetherAdminProvider";
 
 function getSuggestionsByModule(t: AdminDictionary): Record<string, string[]> {
   return {
@@ -36,6 +37,8 @@ function resolveDisplayedPhase(sending: boolean, status: ChatStatusPhase | "idle
 export function AdminChatPanel() {
   const { open, closePanel, messages, status, sending, resolvedOperationIds, sendMessage, confirmPendingAction } = useAdminChat();
   const { t } = useAdminLanguage();
+  const { config } = useAdminConfig();
+  const chatTitle = t.chat.title.replace("{brand}", config.brand.name);
   const suggestionsByModule = useMemo(() => getSuggestionsByModule(t), [t]);
   const [input, setInput] = useState("");
   const listRef = useRef<HTMLDivElement>(null);
@@ -50,7 +53,7 @@ export function AdminChatPanel() {
     setInput("");
   }
 
-  const suggestions = messages.length === 0 ? suggestionsByModule[buildChatRequestContext().module] ?? suggestionsByModule.home! : [];
+  const suggestions = messages.length === 0 ? (suggestionsByModule[buildChatRequestContext().module] ?? suggestionsByModule.home!) : [];
 
   // "Waiting for confirmation" is a client-derived phase, not something the
   // server emits as chat.status (see StatusIndicator's comment) - it's true
@@ -69,14 +72,14 @@ export function AdminChatPanel() {
               <Sparkles size={16} aria-hidden />
             </span>
             <div>
-              <p className="text-sm font-semibold text-ink">{t.chat.title}</p>
+              <p className="text-sm font-semibold text-ink">{chatTitle}</p>
               <p className="text-xs text-ink-subtle">{t.chat.subtitle}</p>
             </div>
           </div>
           <button
             type="button"
             onClick={closePanel}
-            aria-label={t.chat.minimize}
+            aria-label={t.chat.minimize.replace("{brand}", config.brand.name)}
             className="focus-ring inline-flex h-9 w-9 items-center justify-center rounded-md text-ink-muted hover:bg-surface-hover hover:text-ink"
           >
             <X size={18} aria-hidden />
@@ -84,7 +87,11 @@ export function AdminChatPanel() {
         </div>
 
         <div ref={listRef} className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 py-4">
-          <MessageList messages={messages} resolvedOperationIds={resolvedOperationIds} onConfirmAction={(operationId) => void confirmPendingAction(operationId)} />
+          <MessageList
+            messages={messages}
+            resolvedOperationIds={resolvedOperationIds}
+            onConfirmAction={(operationId) => void confirmPendingAction(operationId)}
+          />
         </div>
 
         {displayedPhase ? (
@@ -109,6 +116,7 @@ export function AdminChatPanel() {
         ) : null}
 
         <form
+          noValidate
           className="flex items-center gap-2 border-t border-border p-3"
           onSubmit={(event) => {
             event.preventDefault();
@@ -118,7 +126,7 @@ export function AdminChatPanel() {
           <input
             value={input}
             onChange={(event) => setInput(event.target.value)}
-            placeholder={t.chat.inputPlaceholder}
+            placeholder={t.chat.inputPlaceholder.replace("{brand}", config.brand.name)}
             aria-label={t.chat.messageLabel}
             disabled={sending}
             className="focus-ring min-h-11 flex-1 rounded-md border border-border bg-bg px-3 text-sm text-ink placeholder:text-ink-subtle disabled:opacity-60"

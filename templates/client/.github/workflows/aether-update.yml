@@ -13,7 +13,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      # Platform updates are validated in develop before they can reach the
+      # production branch. Existing client customizations are never overwritten.
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: develop
       - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
         with:
           version: 8.15.9
@@ -48,4 +52,4 @@ jobs:
           git add package.json pnpm-lock.yaml apps database/migrations
           git commit -m "chore: update Aether platform packages"
           git push origin "$branch"
-          gh pr create --base main --head "$branch" --title "chore: update Aether platform" --body "Automated Aether package and D1 migration update. Validation passed before this pull request was opened."
+          gh pr create --base develop --head "$branch" --title "chore: update Aether platform" --body "Automated Aether package and D1 migration update. Validation passed before this pull request was opened."

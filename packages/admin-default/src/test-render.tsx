@@ -6,11 +6,44 @@ import { AdminLanguageProvider } from "./AdminLanguageProvider";
 
 export * from "@testing-library/react";
 
-// Mirrors apps/admin/test/render.tsx, but with relative imports since this
-// lives inside the package itself. `config` is never read by anything under
-// test today (only apiBaseUrl is), so an empty stub is enough - cast past
-// the full ClientConfiguration shape rather than fabricate one.
-const testAdminConfig = {} as ClientConfiguration;
+// Mirrors apps/admin/test/render.tsx with a real client-shaped configuration
+// so branding regressions fail in tests instead of being hidden by an unsafe cast.
+const testAdminConfig = {
+  brand: { name: "Test Store", primaryColor: "#111111", tagline: { en: "Test", es: "Prueba" } },
+  store: { currency: "USD", locale: "en-US", country: "US" },
+  features: {
+    reviews: true,
+    wishlist: true,
+    customerAccounts: true,
+    stripeCheckout: true,
+    aiAssistant: true,
+    inventory: true
+  },
+  theme: {
+    primary: "#111111",
+    secondary: "#444444",
+    background: "#ffffff",
+    surface: "#ffffff",
+    text: "#111111",
+    muted: "#666666",
+    border: "#dddddd",
+    radius: "0.5rem",
+    font: "system-ui"
+  },
+  checkout: { mode: "stripe", successPath: "/checkout/success", cancelPath: "/cart" },
+  integrations: {
+    api: {
+      productionBaseUrl: "https://api.test",
+      localBaseUrl: "http://localhost:8787",
+      publicUrlEnv: "NEXT_PUBLIC_API_BASE_URL"
+    },
+    auth: { provider: "clerk", publishableKeyEnv: "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY" },
+    media: { provider: "cloudinary" },
+    payments: { provider: "stripe" }
+  },
+  agent: { enabled: true, publicUrlEnv: "NEXT_PUBLIC_AI_ASSISTANT_URL", defaultLocale: "en" },
+  navigation: {}
+} satisfies ClientConfiguration;
 
 // Every packaged page/component reads its config through useAdminConfig()
 // and its copy through useAdminLanguage() - AdminChat's tests need both

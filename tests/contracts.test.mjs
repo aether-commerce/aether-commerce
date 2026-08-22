@@ -76,6 +76,31 @@ test("public demo admin blocks persistent changes", () => {
   assert.match(dashboard, /Modo de demostracion publica\. Los cambios estan deshabilitados\./);
 });
 
+test("distributed private clients never fall back to demo identity or metrics", () => {
+  const dashboard = read("packages/admin-default/src/AdminDashboard.tsx");
+  const topBar = read("packages/admin-default/src/AdminTopBar.tsx");
+  const sidebar = read("packages/admin-default/src/AdminSidebar.tsx");
+  const productGrid = read("packages/storefront-default/src/ProductGrid.tsx");
+  const productDetail = read("packages/storefront-default/src/ProductDetailClient.tsx");
+
+  assert.match(dashboard, /demo \? demoFallback : null/);
+  assert.match(dashboard, /authorization: `Bearer \$\{token\}`/);
+  assert.match(topBar, /config\.brand\.name/);
+  assert.match(sidebar, /brand\?\.name \?\? config\.brand\.name/);
+  assert.doesNotMatch(topBar, /Aether Admin/);
+  assert.doesNotMatch(productGrid, /t\.liveCatalog|t\.offlineCatalog|t\.demoReady/);
+  assert.doesNotMatch(productDetail, /t\.liveProductDetail|t\.offlineProductDetail|t\.demoProduct/);
+});
+
+test("generated clients validate Aether updates in develop before production", () => {
+  const workflow = read("templates/client/.github/workflows/aether-update.yml");
+  const dependabot = read("templates/client/.github/dependabot.yml");
+
+  assert.match(workflow, /ref: develop/);
+  assert.match(workflow, /gh pr create --base develop/);
+  assert.match(dependabot, /target-branch: develop/);
+});
+
 test("money values are represented as integer cents", () => {
   const productSchema = read("packages/schemas/src/product.ts");
   const orderAdr = read("docs/adr/0002-integer-cents.md");
@@ -103,16 +128,7 @@ test("public API includes the requested route groups", () => {
 
 test("order state machine includes required commerce states", () => {
   const schema = read("packages/schemas/src/order.ts");
-  for (const state of [
-    "pending_payment",
-    "payment_processing",
-    "paid",
-    "processing",
-    "shipped",
-    "refund_requested",
-    "returned",
-    "closed"
-  ]) {
+  for (const state of ["pending_payment", "payment_processing", "paid", "processing", "shipped", "refund_requested", "returned", "closed"]) {
     assert.match(schema, new RegExp(`"${state}"`));
   }
 });
@@ -247,10 +263,7 @@ test("CI uses deterministic guest auth and the assistant is a LangGraph Worker",
   const widget = read("packages/storefront-default/src/AssistantWidget.tsx");
 
   assert.match(packageJson, /NEXT_PUBLIC_AETHER_E2E=true/);
-  assert.doesNotMatch(
-    packageJson,
-    /NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_Y2xlcmsuZXhhbXBsZS5jb20k/
-  );
+  assert.doesNotMatch(packageJson, /NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_Y2xlcmsuZXhhbXBsZS5jb20k/);
   assert.match(workflow, /NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_Y2xlcmsuZXhhbXBsZS5jb20k/);
   assert.doesNotMatch(evaluationWorkflow, /GEMINI_API_KEY/);
   assert.match(evaluationWorkflow, /AETHER_AI_EVAL_URL/);
@@ -275,12 +288,7 @@ test("API rate limiting uses Cloudflare bindings with local fallback", () => {
   const wrangler = read("apps/api/wrangler.jsonc");
   const deployConfig = read("scripts/write-api-wrangler-config.mjs");
 
-  for (const binding of [
-    "RATE_LIMITER_GLOBAL",
-    "RATE_LIMITER_ACCOUNT",
-    "RATE_LIMITER_MUTATION",
-    "RATE_LIMITER_SENSITIVE"
-  ]) {
+  for (const binding of ["RATE_LIMITER_GLOBAL", "RATE_LIMITER_ACCOUNT", "RATE_LIMITER_MUTATION", "RATE_LIMITER_SENSITIVE"]) {
     assert.match(types, new RegExp(`${binding}\\?: RateLimit`));
     assert.match(wrangler, new RegExp(`"name": "${binding}"`));
     assert.match(deployConfig, new RegExp(`name: "${binding}"`));

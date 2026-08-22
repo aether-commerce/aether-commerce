@@ -8,6 +8,7 @@ import type { LucideIcon } from "lucide-react";
 import { useAdminConfig } from "./AetherAdminProvider";
 import { Metric } from "./Metric";
 import { EmptyState } from "./EmptyState";
+import { ErrorState } from "./ErrorState";
 import { StatusBadge, type StatusTone } from "./StatusBadge";
 import { useAdminLanguage } from "./AdminLanguageProvider";
 import { exportOrdersCsv } from "./admin-list-helpers";
@@ -44,6 +45,7 @@ type CustomerSummary = {
 
 type Summary = {
   mode: "private" | "demo";
+  currency: string;
   revenue: number;
   orders: number;
   // null on the real (private) summary - nothing in this codebase records
@@ -66,8 +68,9 @@ type ContactMessage = {
   created_at: string;
 };
 
-const fallback: Summary = {
+const demoFallback: Summary = {
   mode: "demo",
+  currency: "USD",
   revenue: 1842500,
   orders: 128,
   conversionRate: 4.8,
@@ -78,11 +81,18 @@ const fallback: Summary = {
   }
 };
 
-function money(cents: number, locale: string) {
-  return new Intl.NumberFormat(locale === "es" ? "es-ES" : "en-US", { style: "currency", currency: "USD" }).format(cents / 100);
+function money(cents: number, locale: string, currency: string, storeLocale: string) {
+  return new Intl.NumberFormat(locale === "es" ? storeLocale : "en-US", {
+    style: "currency",
+    currency
+  }).format(cents / 100);
 }
 
-const stockTone: Record<"in" | "low" | "out", StatusTone> = { in: "success", low: "warning", out: "error" };
+const stockTone: Record<"in" | "low" | "out", StatusTone> = {
+  in: "success",
+  low: "warning",
+  out: "error"
+};
 function stockStatus(product: ProductSummary, t: AdminDictionary): { label: string; tone: StatusTone } {
   if (product.stock <= 0) return { label: t.dashboard.outOfStock, tone: stockTone.out };
   if (product.stock <= product.lowStockThreshold) return { label: t.dashboard.lowStock, tone: stockTone.low };
@@ -214,15 +224,19 @@ type StatusKey = "statusDemoData" | "statusPrivateAdmin" | "statusPublicDemo" | 
 
 export function AdminDashboard({ demo = false }: Readonly<{ demo?: boolean }>) {
   const { t, locale } = useAdminLanguage();
-  const { apiBaseUrl } = useAdminConfig();
-  const [summary, setSummary] = useState<Summary>(fallback);
+  const { apiBaseUrl, config } = useAdminConfig();
+  const [summary, setSummary] = useState<Summary | null>(() => (demo ? demoFallback : null));
+  const [summaryStatus, setSummaryStatus] = useState<LoadStatus>("loading");
+  const [summaryReloadKey, setSummaryReloadKey] = useState(0);
   const [statusKey, setStatusKey] = useState<StatusKey>(demo ? "statusDemoData" : "statusPrivateAdmin");
   const [messages, setMessages] = useState<ContactMessage[]>([]);
   const [messagesStatus, setMessagesStatus] = useState<"loading" | "ready" | "forbidden" | "error">("loading");
   const [openMessageId, setOpenMessageId] = useState<string | null>(null);
   const [recentProducts, setRecentProducts] = useState<ProductSummary[]>([]);
   const [productsTotal, setProductsTotal] = useState<number | null>(null);
+  const [productsStatus, setProductsStatus] = useState<LoadStatus>("loading");
   const [lowStockProducts, setLowStockProducts] = useState<ProductSummary[]>([]);
+  const [inventoryStatus, setInventoryStatus] = useState<LoadStatus>("loading");
   const [recentOrders, setRecentOrders] = useState<OrderSummary[]>([]);
   const [ordersTotal, setOrdersTotal] = useState<number | null>(null);
   const [ordersStatus, setOrdersStatus] = useState<LoadStatus>("loading");
@@ -232,35 +246,93 @@ export function AdminDashboard({ demo = false }: Readonly<{ demo?: boolean }>) {
   const { isLoaded, getToken } = useAuth();
 
   useEffect(() => {
-    void fetch(`${apiBaseUrl}/api/v1/admin/products?pageSize=3&sort=updated_at`)
-      .then((response) => response.json())
-      .then((payload: { success: boolean; data?: { data: ProductSummary[]; pagination: { total: number } } }) => {
+    if (!isLoaded) return;
+    let cancelled = false;
+
+    void (async () => {
+      const token = await getToken().catch(() => null);
+      const headers = token ? { authorization: `Bearer ${token}` } : {};
+      const [productsResponse, inventoryResponse] = await Promise.all([
+        fetch(`${apiBaseUrl}/api/v1/admin/products?pageSize=3&sort=updated_at`, { headers }).catch(() => null),
+        fetch(`${apiBaseUrl}/api/v1/admin/products?stock=low&pageSize=4`, { headers }).catch(() => null)
+      ]);
+      if (cancelled) return;
+
+      if (productsResponse?.ok) {
+        const payload = (await productsResponse.json()) as {
+          success: boolean;
+          data?: { data: ProductSummary[]; pagination: { total: number } };
+        };
         if (payload.success && payload.data) {
           setRecentProducts(payload.data.data);
           setProductsTotal(payload.data.pagination.total);
+          setProductsStatus("ready");
+        } else {
+          setProductsStatus("error");
         }
-      })
-      .catch(() => {});
-    void fetch(`${apiBaseUrl}/api/v1/admin/products?stock=low&pageSize=4`)
-      .then((response) => response.json())
-      .then((payload: { success: boolean; data?: { data: ProductSummary[] } }) => {
-        if (payload.success && payload.data) setLowStockProducts(payload.data.data);
-      })
-      .catch(() => {});
-  }, [apiBaseUrl]);
+      } else {
+        setProductsStatus("error");
+      }
+
+      if (inventoryResponse?.ok) {
+        const payload = (await inventoryResponse.json()) as {
+          success: boolean;
+          data?: { data: ProductSummary[] };
+        };
+        if (payload.success && payload.data) {
+          setLowStockProducts(payload.data.data);
+          setInventoryStatus("ready");
+        } else {
+          setInventoryStatus("error");
+        }
+      } else {
+        setInventoryStatus("error");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoaded, getToken, apiBaseUrl]);
 
   useEffect(() => {
-    const path = demo ? "/api/v1/admin/demo/summary" : "/api/v1/admin/summary";
-    fetch(`${apiBaseUrl}${path}`)
-      .then((response) => response.json())
-      .then((payload: { success: boolean; data?: Summary }) => {
-        if (payload.success && payload.data) {
-          setSummary(payload.data);
-          setStatusKey(payload.data.mode === "demo" ? "statusPublicDemo" : "statusLivePrivateAdmin");
+    if (!demo && !isLoaded) return;
+    let cancelled = false;
+    setSummaryStatus("loading");
+    setSummary(demo ? demoFallback : null);
+
+    void (async () => {
+      try {
+        const token = demo ? null : await getToken().catch(() => null);
+        const path = demo ? "/api/v1/admin/demo/summary" : "/api/v1/admin/summary";
+        const response = await fetch(`${apiBaseUrl}${path}`, {
+          headers: token ? { authorization: `Bearer ${token}` } : {}
+        });
+        if (!response.ok) throw new Error("summary request failed");
+        const payload = (await response.json()) as { success: boolean; data?: Summary };
+        if (!payload.success || !payload.data) throw new Error("summary payload failed");
+        if (cancelled) return;
+        setSummary(payload.data);
+        setSummaryStatus("ready");
+        setStatusKey(payload.data.mode === "demo" ? "statusPublicDemo" : "statusLivePrivateAdmin");
+      } catch {
+        if (cancelled) return;
+        if (demo) {
+          setSummary(demoFallback);
+          setSummaryStatus("ready");
+          setStatusKey("statusOfflineDemo");
+        } else {
+          setSummary(null);
+          setSummaryStatus("error");
+          setStatusKey("statusPrivateAdmin");
         }
-      })
-      .catch(() => setStatusKey("statusOfflineDemo"));
-  }, [demo, apiBaseUrl]);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [demo, isLoaded, getToken, apiBaseUrl, summaryReloadKey]);
 
   useEffect(() => {
     if (!isLoaded) return;
@@ -359,18 +431,22 @@ export function AdminDashboard({ demo = false }: Readonly<{ demo?: boolean }>) {
   }, [demo, isLoaded, getToken, apiBaseUrl]);
 
   const metrics: Array<[string, string, LucideIcon]> = [
-    [t.dashboard.metricRevenue, money(summary.revenue, locale), PackageCheck],
-    [t.dashboard.metricOrders, String(summary.orders), Boxes],
-    [t.dashboard.metricConversion, summary.conversionRate === null ? t.dashboard.metricConversionUnavailable : `${summary.conversionRate}%`, UsersRound],
-    [t.dashboard.metricLowStock, String(summary.lowStock), AlertTriangle]
+    [t.dashboard.metricRevenue, summary ? money(summary.revenue, locale, summary.currency, config.store.locale) : "—", PackageCheck],
+    [t.dashboard.metricOrders, summary ? String(summary.orders) : "—", Boxes],
+    [
+      t.dashboard.metricConversion,
+      summary ? (summary.conversionRate === null ? t.dashboard.metricConversionUnavailable : `${summary.conversionRate}%`) : "—",
+      UsersRound
+    ],
+    [t.dashboard.metricLowStock, summary ? String(summary.lowStock) : "—", AlertTriangle]
   ];
 
   return (
     <main id="main-content" className="admin-shell py-8">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-accent-hover">{t.dashboard[statusKey]}</p>
-          <h1 className="mt-1 text-3xl font-semibold tracking-tight text-ink">{demo ? t.dashboard.publicDemoAdmin : t.dashboard.home}</h1>
+          {demo ? <p className="text-sm font-semibold uppercase tracking-wide text-accent-hover">{t.dashboard[statusKey]}</p> : null}
+          <h1 className={`${demo ? "mt-1 " : ""}text-3xl font-semibold tracking-tight text-ink`}>{demo ? t.dashboard.publicDemoAdmin : t.dashboard.home}</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-ink-muted">{t.dashboard.subtitle}</p>
         </div>
         <button
@@ -384,7 +460,7 @@ export function AdminDashboard({ demo = false }: Readonly<{ demo?: boolean }>) {
         </button>
       </div>
 
-      {summary.notice ? (
+      {summary?.notice ? (
         <section className="mt-5 rounded-lg border border-warning/25 bg-warning-soft p-4 text-sm text-ink">
           <div className="flex gap-3">
             <Shield size={18} aria-hidden className="mt-0.5 shrink-0 text-warning" />
@@ -393,9 +469,25 @@ export function AdminDashboard({ demo = false }: Readonly<{ demo?: boolean }>) {
         </section>
       ) : null}
 
+      {summaryStatus === "error" ? (
+        <div className="mt-5">
+          <ErrorState
+            action={
+              <button
+                type="button"
+                onClick={() => setSummaryReloadKey((current) => current + 1)}
+                className="focus-ring mt-2 min-h-9 rounded-md border border-danger/30 px-3 font-semibold hover:bg-danger/10"
+              >
+                {t.common.retry}
+              </button>
+            }
+          />
+        </div>
+      ) : null}
+
       <section className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label={t.dashboard.metricsLabel}>
         {metrics.map(([label, value, Icon]) => (
-          <Metric key={label} label={label} value={value} icon={Icon} />
+          <Metric key={label} label={label} value={value} icon={Icon} loading={summaryStatus === "loading"} />
         ))}
       </section>
 
@@ -404,14 +496,27 @@ export function AdminDashboard({ demo = false }: Readonly<{ demo?: boolean }>) {
           <div>
             <h2 className="text-base font-semibold text-ink">{t.dashboard.productsHeading}</h2>
             <p className="text-sm text-ink-muted">
-              {countSubtitle(productsTotal, t.dashboard.productsCountOne, t.dashboard.productsCountOther, t.dashboard.productsSubtitleFallback)}
+              {productsStatus === "loading"
+                ? t.common.loading
+                : countSubtitle(productsTotal, t.dashboard.productsCountOne, t.dashboard.productsCountOther, t.dashboard.productsSubtitleFallback)}
             </p>
           </div>
-          <a href="/products/" className="focus-ring min-h-9 shrink-0 rounded-md border border-border-strong px-3 text-sm font-semibold leading-9 text-ink hover:bg-surface-hover">
+          <a
+            href="/products/"
+            className="focus-ring min-h-9 shrink-0 rounded-md border border-border-strong px-3 text-sm font-semibold leading-9 text-ink hover:bg-surface-hover"
+          >
             {t.common.viewAll}
           </a>
         </div>
-        {recentProducts.length === 0 ? (
+        {productsStatus === "loading" ? (
+          <div className="grid gap-2 p-4">
+            {Array.from({ length: 3 }).map((_, index) => (
+              <div key={index} className="skeleton h-12 rounded-md" />
+            ))}
+          </div>
+        ) : productsStatus === "error" ? (
+          <p className="p-4 text-sm text-ink-muted">{t.errors.couldNotLoad}</p>
+        ) : recentProducts.length === 0 ? (
           <EmptyState title={t.dashboard.noProductsYetTitle} description={t.dashboard.noProductsYetDescription} />
         ) : (
           recentProducts.map((product) => (
@@ -437,14 +542,29 @@ export function AdminDashboard({ demo = false }: Readonly<{ demo?: boolean }>) {
           <div>
             <h2 className="text-base font-semibold text-ink">{t.dashboard.inventoryHeading}</h2>
             <p className="text-sm text-ink-muted">
-              {(summary.lowStock === 1 ? t.dashboard.inventoryCountOne : t.dashboard.inventoryCountOther).replace("{count}", String(summary.lowStock))}
+              {summary
+                ? (summary.lowStock === 1 ? t.dashboard.inventoryCountOne : t.dashboard.inventoryCountOther).replace("{count}", String(summary.lowStock))
+                : summaryStatus === "loading"
+                  ? t.common.loading
+                  : t.errors.couldNotLoad}
             </p>
           </div>
-          <a href="/inventory/" className="focus-ring min-h-9 shrink-0 rounded-md border border-border-strong px-3 text-sm font-semibold leading-9 text-ink hover:bg-surface-hover">
+          <a
+            href="/inventory/"
+            className="focus-ring min-h-9 shrink-0 rounded-md border border-border-strong px-3 text-sm font-semibold leading-9 text-ink hover:bg-surface-hover"
+          >
             {t.common.viewAll}
           </a>
         </div>
-        {lowStockProducts.length === 0 ? (
+        {inventoryStatus === "loading" ? (
+          <div className="grid gap-2 p-4">
+            {Array.from({ length: 3 }).map((_, index) => (
+              <div key={index} className="skeleton h-12 rounded-md" />
+            ))}
+          </div>
+        ) : inventoryStatus === "error" ? (
+          <p className="p-4 text-sm text-ink-muted">{t.errors.couldNotLoad}</p>
+        ) : lowStockProducts.length === 0 ? (
           <EmptyState title={t.dashboard.nothingRunningLowTitle} description={t.dashboard.nothingRunningLowDescription} />
         ) : (
           lowStockProducts.map((product) => (
@@ -475,7 +595,10 @@ export function AdminDashboard({ demo = false }: Readonly<{ demo?: boolean }>) {
               {countSubtitle(ordersTotal, t.dashboard.ordersCountOne, t.dashboard.ordersCountOther, t.dashboard.ordersSubtitleFallback)}
             </p>
           </div>
-          <a href="/orders/" className="focus-ring min-h-9 shrink-0 rounded-md border border-border-strong px-3 text-sm font-semibold leading-9 text-ink hover:bg-surface-hover">
+          <a
+            href="/orders/"
+            className="focus-ring min-h-9 shrink-0 rounded-md border border-border-strong px-3 text-sm font-semibold leading-9 text-ink hover:bg-surface-hover"
+          >
             {t.common.viewAll}
           </a>
         </div>
@@ -490,7 +613,10 @@ export function AdminDashboard({ demo = false }: Readonly<{ demo?: boolean }>) {
               {countSubtitle(customersTotal, t.dashboard.customersCountOne, t.dashboard.customersCountOther, t.dashboard.customersSubtitleFallback)}
             </p>
           </div>
-          <a href="/customers/" className="focus-ring min-h-9 shrink-0 rounded-md border border-border-strong px-3 text-sm font-semibold leading-9 text-ink hover:bg-surface-hover">
+          <a
+            href="/customers/"
+            className="focus-ring min-h-9 shrink-0 rounded-md border border-border-strong px-3 text-sm font-semibold leading-9 text-ink hover:bg-surface-hover"
+          >
             {t.common.viewAll}
           </a>
         </div>
@@ -502,15 +628,7 @@ export function AdminDashboard({ demo = false }: Readonly<{ demo?: boolean }>) {
           <h2 className="text-base font-semibold text-ink">{t.dashboard.contactMessagesHeading}</h2>
           <p className="text-sm text-ink-muted">{t.dashboard.contactMessagesSubtitle}</p>
         </div>
-        {messagesSectionBody(
-          messagesStatus,
-          messages,
-          demo,
-          openMessageId,
-          (id) => setOpenMessageId(openMessageId === id ? null : id),
-          locale,
-          t
-        )}
+        {messagesSectionBody(messagesStatus, messages, demo, openMessageId, (id) => setOpenMessageId(openMessageId === id ? null : id), locale, t)}
       </section>
 
       <section className="mt-6 grid gap-4 lg:grid-cols-3">
