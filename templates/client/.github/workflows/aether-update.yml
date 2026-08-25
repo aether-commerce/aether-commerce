@@ -54,4 +54,5 @@ jobs:
           git add package.json pnpm-lock.yaml apps database/migrations
           git commit -m "chore: update Aether platform packages"
           git push origin "$branch"
-          gh pr create --base develop --head "$branch" --title "chore: update Aether platform" --body "Automated Aether package and D1 migration update. Validation passed before this pull request was opened."
+          pr_url="$(gh pr create --base develop --head "$branch" --title "chore: update Aether platform" --body "Automated Aether package and D1 migration update. Validation passed before this pull request was opened.")"
+          gh pr merge "$pr_url" --squash --delete-branch
