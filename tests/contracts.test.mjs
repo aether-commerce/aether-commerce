@@ -403,6 +403,13 @@ test("admin security policy permits signed Cloudinary image uploads", () => {
   assert.match(headers, /img-src[^;]*https:\/\/res\.cloudinary\.com/);
 });
 
+test("storefront 404 resolves product slugs created after the static build", () => {
+  const notFound = read("apps/storefront/app/not-found.tsx");
+
+  assert.match(notFound, /ProductDetailClient/);
+  assert.match(notFound, /lastIndexOf\("products"\)/);
+  assert.match(notFound, /decodeURIComponent/);
+});
 
 test("checkout orders require an immutable server-side snapshot", () => {
   const migration = read("database/core/migrations/0021_security_hardening.sql");
