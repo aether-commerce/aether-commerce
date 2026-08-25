@@ -108,6 +108,38 @@ html[data-theme="dark"] {
   box-sizing: border-box;
 }
 
+/* Shared application baseline for every product-owned scroll surface. */
+* {
+  scrollbar-color: var(--color-border-strong) transparent;
+  scrollbar-width: thin;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+  background-color: var(--color-border-strong);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-ink-subtle);
+}
+
+@media (forced-colors: active) {
+  * {
+    scrollbar-color: CanvasText Canvas;
+  }
+}
+
 html {
   min-height: 100%;
   background: var(--color-bg);

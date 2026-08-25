@@ -2,7 +2,7 @@ import { getInventoryStatus, humanizeCategorySlug } from "@aether-commerce/core"
 import { foldCatalogText, queryCatalog } from "@aether-commerce/api-core";
 import { productSchema, type Product, type ProductQuery } from "@aether-commerce/schemas";
 import type { Env } from "../types";
-import { getRuntimeStoreConfig } from "./store-config";
+import { getStoreConfig } from "./store-config";
 
 export type ProductDetails = {
   shortDescription: string;
@@ -76,7 +76,7 @@ function flagsFor(row: ProductRow): Product["flags"] {
   return flags.length > 0 ? flags : ["featured"];
 }
 
-function normalizeRow(env: Env, row: ProductRow): Product {
+function normalizeRow(env: Env, row: ProductRow, currency: "USD" | "COP" = "USD"): Product {
   const details = JSON.parse(row.details_json) as ProductDetails;
   const finalPrice = row.final_price_cents;
   const price = row.compare_at_price_cents ?? finalPrice;
@@ -110,7 +110,7 @@ function normalizeRow(env: Env, row: ProductRow): Product {
     originalPrice: row.compare_at_price_cents ? price : null,
     finalPrice,
     discountPercentage,
-    currency: getRuntimeStoreConfig(env).currency,
+    currency,
     category: {
       id: row.category,
       externalId: null,
@@ -240,10 +240,11 @@ async function writeCachedProducts(env: Env, products: Product[]) {
 // entirely) so admin management always sees drafts/hidden products and
 // never a stale cached view of its own just-made edit.
 async function getCatalogSource(env: Env): Promise<Product[]> {
+  const { currency } = await getStoreConfig(env);
   const cached = await readCachedProducts(env);
   const all = cached ?? (await (async () => {
     const rows = await readAllRows(env);
-    const products = rows.map((row) => normalizeRow(env, row));
+    const products = rows.map((row) => normalizeRow(env, row, currency));
     await writeCachedProducts(env, products);
     return products;
   })());

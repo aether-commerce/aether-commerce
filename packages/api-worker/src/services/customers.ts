@@ -2,6 +2,7 @@ import type { Role } from "@aether-commerce/schemas";
 import type { Env } from "../types";
 import { updateUserRole } from "./clerk";
 import { CURRENT_ORDER_SELECT, orderWithCurrentData, type StoredOrderRow } from "./orders";
+import { getStoreConfig } from "./store-config";
 
 export type CustomerStatus = "active" | "suspended";
 export type CustomerSource = "registered" | "guest";
@@ -17,6 +18,7 @@ export type AdminCustomerSummary = {
   orderCount: number;
   totalSpent: number;
   lastOrderAt: string | null;
+  currency: "USD" | "COP";
 };
 
 export type AdminCustomerListQuery = {
@@ -79,6 +81,7 @@ type RosterRow = {
 };
 
 export async function listCustomersForAdmin(env: Env, query: AdminCustomerListQuery) {
+  const { currency } = await getStoreConfig(env);
   const where: string[] = [];
   const params: unknown[] = [];
 
@@ -136,7 +139,8 @@ export async function listCustomersForAdmin(env: Env, query: AdminCustomerListQu
       createdAt: row.created_at,
       orderCount: aggregate?.orderCount ?? 0,
       totalSpent: aggregate?.totalSpent ?? 0,
-      lastOrderAt: aggregate?.lastOrderAt ?? null
+      lastOrderAt: aggregate?.lastOrderAt ?? null,
+      currency
     };
   });
 

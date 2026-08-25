@@ -1,10 +1,9 @@
 import type { Env } from "../types";
 
-const currencyPattern = /^[A-Z]{3}$/;
 const countryPattern = /^[A-Z]{2}$/;
 
 export type RuntimeStoreConfig = {
-  currency: string;
+  currency: "USD" | "COP";
   locale: string;
   country: string;
 };
@@ -16,8 +15,24 @@ export function getRuntimeStoreConfig(env: Env): RuntimeStoreConfig {
   const locale = env.STORE_LOCALE?.trim();
 
   return {
-    currency: currency && currencyPattern.test(currency) ? currency : "USD",
+    currency: currency === "COP" ? "COP" : "USD",
     locale: locale || "en-US",
     country: country && countryPattern.test(country) ? country : "US"
   };
+}
+
+/**
+ * Resolves the live store setting. Admin-managed values override deploy-time
+ * defaults, while malformed or unavailable settings safely fall back to USD.
+ */
+export async function getStoreConfig(env: Env): Promise<RuntimeStoreConfig> {
+  const fallback = getRuntimeStoreConfig(env);
+  try {
+    const row = await env.DB.prepare("select value_json from application_settings where key = 'store'").first<{ value_json: string }>();
+    if (!row) return fallback;
+    const value = JSON.parse(row.value_json) as { currency?: unknown };
+    return { ...fallback, currency: value.currency === "COP" ? "COP" : value.currency === "USD" ? "USD" : fallback.currency };
+  } catch {
+    return fallback;
+  }
 }

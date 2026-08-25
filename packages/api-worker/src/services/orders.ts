@@ -8,7 +8,7 @@ import { buildStockDecrementStatements, convertCartReservations, getAvailableSto
 import { getLogger } from "./observability";
 import { completeCheckoutSnapshotStatement, loadCheckoutSnapshot } from "./checkout-snapshots";
 import { sendOrderEmail } from "./email";
-import { getRuntimeStoreConfig } from "./store-config";
+import { getRuntimeStoreConfig, getStoreConfig } from "./store-config";
 
 export type OrderTrackingColumns = {
   tracking_carrier: string | null;
@@ -273,7 +273,7 @@ export async function createManualOrder(
     return { error: "empty_items" };
   }
 
-  const { currency } = getRuntimeStoreConfig(env);
+  const { currency } = await getStoreConfig(env);
   const items: CartItem[] = [];
   const stockItems: Array<{ productId: string; sku: string; quantity: number }> = [];
   for (const line of input.items) {

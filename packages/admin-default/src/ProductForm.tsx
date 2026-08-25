@@ -9,6 +9,8 @@ import { FormSection } from "./FormSection";
 import { StickyFormActions } from "./StickyFormActions";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { useAdminLanguage } from "./AdminLanguageProvider";
+import { CategorySelect } from "./CategorySelect";
+import { MoneyInput } from "./MoneyInput";
 
 export type ProductFormValues = {
   name: string;
@@ -66,17 +68,6 @@ const inputClass =
 const labelClass = "grid gap-1 text-sm";
 const labelTextClass = "font-medium text-ink-muted";
 
-function centsToInput(cents: number | null): string {
-  return cents === null ? "" : (cents / 100).toFixed(2);
-}
-
-function inputToCents(value: string): number | null {
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  const parsed = Number(trimmed);
-  return Number.isFinite(parsed) ? Math.round(parsed * 100) : null;
-}
-
 export function ProductForm({
   mode,
   productId,
@@ -99,21 +90,32 @@ export function ProductForm({
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [categories, setCategories] = useState<CategoryOption[]>([]);
-  const [categoriesLoaded, setCategoriesLoaded] = useState(false);
+  const [categoryStatus, setCategoryStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<"name" | "category" | "shortDescription" | "description" | "price", string | undefined>>>({});
+  const storeCurrency: "USD" | "COP" = config.store.currency === "COP" ? "COP" : "USD";
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const nameRef = useRef<HTMLInputElement>(null);
 
   async function loadCategories() {
-    if (categoriesLoaded) return;
-    setCategoriesLoaded(true);
+    if (categoryStatus === "loading" || categoryStatus === "ready") return;
+    setCategoryStatus("loading");
     try {
       const response = await authorizedFetch("/api/v1/admin/categories", { method: "GET" });
       const payload = (await response.json()) as { success: boolean; data?: CategoryOption[] };
-      if (payload.success && payload.data) setCategories(payload.data.filter((category) => !category.isHidden || category.slug === values.category));
-    } catch { /* the free-text input remains usable while the API recovers */ }
+      if (!payload.success || !payload.data) throw new Error("categories unavailable");
+      setCategories(payload.data.filter((category) => !category.isHidden || category.slug === values.category));
+      setCategoryStatus("ready");
+    } catch {
+      setCategoryStatus("error");
+    }
   }
 
   function set<K extends keyof ProductFormValues>(key: K, value: ProductFormValues[K]) {
     setValues((current) => ({ ...current, [key]: value }));
+  }
+
+  function setCompareAtPrice(value: number | null) {
+    set("compareAtPriceCents", value);
   }
 
   function buildPayload() {
@@ -162,12 +164,21 @@ export function ProductForm({
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
+    if (status === "saving") return;
     setStatus("saving");
     setErrorMessage(null);
+    const nextErrors: typeof fieldErrors = {};
+    if (!values.name.trim()) nextErrors.name = t.productForm.nameRequired;
+    if (!values.category.trim()) nextErrors.category = t.productForm.categoryRequired;
+    if (!values.shortDescription.trim()) nextErrors.shortDescription = t.productForm.shortDescriptionRequired;
+    if (!values.description.trim()) nextErrors.description = t.productForm.descriptionRequired;
+    if (values.priceCents == null || values.priceCents < 0) nextErrors.price = t.productForm.priceRequired;
+    setFieldErrors(nextErrors);
 
-    if (!values.name.trim() || !values.category.trim() || !values.shortDescription.trim() || !values.description.trim()) {
+    if (Object.keys(nextErrors).length > 0) {
       setStatus("error");
       setErrorMessage(t.productForm.requiredFieldsMissing);
+      if (nextErrors.name) nameRef.current?.focus();
       return;
     }
     if (!values.images.main) {
@@ -323,19 +334,20 @@ export function ProductForm({
   const allImages = [values.images.main, ...values.images.gallery].filter(Boolean);
 
   return (
-    <form onSubmit={(event) => void handleSubmit(event)} className="grid gap-6 pb-16">
+    <form noValidate onSubmit={(event) => void handleSubmit(event)} className="grid gap-6 pb-16 lg:grid-cols-2">
       {errorMessage ? (
-        <div className="flex items-start gap-2 rounded-md border border-danger/20 bg-danger-soft p-3 text-sm text-danger">
+        <div role="alert" className="flex items-start gap-2 rounded-md border border-danger/20 bg-danger-soft p-3 text-sm text-danger lg:col-span-2">
           <AlertTriangle size={16} className="mt-0.5 shrink-0" aria-hidden />
           <p>{errorMessage}</p>
         </div>
       ) : null}
 
-      <FormSection title={t.productForm.basicInfoSection}>
+      <FormSection title={t.productForm.basicInfoSection} className="lg:col-span-2">
         <div className="grid gap-3 sm:grid-cols-2">
           <label className={labelClass}>
             <span className={labelTextClass}>{t.productForm.nameLabel}</span>
-            <input required className={inputClass} value={values.name} onChange={(event) => set("name", event.target.value)} />
+            <input ref={nameRef} required aria-invalid={Boolean(fieldErrors.name)} aria-describedby={fieldErrors.name ? "product-name-error" : undefined} autoComplete="off" className={inputClass} value={values.name} onChange={(event) => { set("name", event.target.value); setFieldErrors((current) => ({ ...current, name: undefined })); }} />
+            {fieldErrors.name ? <span id="product-name-error" className="text-xs text-danger">{fieldErrors.name}</span> : null}
           </label>
           <label className={labelClass}>
             <span className={labelTextClass}>{t.productForm.slugLabel}</span>
@@ -348,8 +360,18 @@ export function ProductForm({
           </label>
           <label className={labelClass}>
             <span className={labelTextClass}>{t.productForm.categoryLabel}</span>
-            <input required list="store-category-options" className={inputClass} value={values.category} onFocus={() => void loadCategories()} onChange={(event) => set("category", event.target.value)} />
-            <datalist id="store-category-options">{categories.map((category) => <option key={category.id} value={category.slug}>{category.name}</option>)}</datalist>
+            <CategorySelect
+              value={values.category}
+              options={categories}
+              loading={categoryStatus === "loading"}
+              error={categoryStatus === "error"}
+              invalid={Boolean(fieldErrors.category)}
+              onOpen={() => void loadCategories()}
+              onRetry={() => { setCategoryStatus("idle"); void loadCategories(); }}
+              onValueChange={(value) => { set("category", value); setFieldErrors((current) => ({ ...current, category: undefined })); }}
+              labels={{ placeholder: t.productForm.categoryPlaceholder, search: t.productForm.searchCategories, loading: t.productForm.loadingCategories, error: t.productForm.categoriesLoadError, empty: t.productForm.categoriesEmpty, noResults: t.productForm.categoriesNoResults, retry: t.productForm.retryCategories }}
+            />
+            {fieldErrors.category ? <span className="text-xs text-danger">{fieldErrors.category}</span> : null}
           </label>
           <label className={labelClass}>
             <span className={labelTextClass}>{t.productForm.subcategoryLabel}</span>
@@ -375,21 +397,28 @@ export function ProductForm({
             <span className={labelTextClass}>{t.productForm.shortDescriptionLabel}</span>
             <input
               required
+              aria-invalid={Boolean(fieldErrors.shortDescription)}
+              aria-describedby={fieldErrors.shortDescription ? "product-short-description-error" : undefined}
               maxLength={300}
               className={inputClass}
               value={values.shortDescription}
-              onChange={(event) => set("shortDescription", event.target.value)}
+              onChange={(event) => { set("shortDescription", event.target.value); setFieldErrors((current) => ({ ...current, shortDescription: undefined })); }}
             />
+            <span className="text-right text-xs text-ink-subtle">{values.shortDescription.length}/300</span>
+            {fieldErrors.shortDescription ? <span id="product-short-description-error" className="text-xs text-danger">{fieldErrors.shortDescription}</span> : null}
           </label>
           <label className={`${labelClass} sm:col-span-2`}>
             <span className={labelTextClass}>{t.productForm.descriptionLabel}</span>
             <textarea
               required
               rows={5}
-              className={`${inputClass} min-h-24`}
+              aria-invalid={Boolean(fieldErrors.description)}
+              aria-describedby={fieldErrors.description ? "product-description-error" : undefined}
+              className={`${inputClass} min-h-32 resize-none`}
               value={values.description}
-              onChange={(event) => set("description", event.target.value)}
+              onChange={(event) => { set("description", event.target.value); setFieldErrors((current) => ({ ...current, description: undefined })); }}
             />
+            {fieldErrors.description ? <span id="product-description-error" className="text-xs text-danger">{fieldErrors.description}</span> : null}
           </label>
           <label className={labelClass}>
             <span className={labelTextClass}>{t.productForm.tagsLabel}</span>
@@ -420,26 +449,12 @@ export function ProductForm({
         <div className="grid gap-3 sm:grid-cols-2">
           <label className={labelClass}>
             <span className={labelTextClass}>{t.productForm.priceLabel}</span>
-            <input
-              required
-              type="number"
-              min="0"
-              step="0.01"
-              className={inputClass}
-              value={centsToInput(values.priceCents)}
-              onChange={(event) => set("priceCents", inputToCents(event.target.value) ?? 0)}
-            />
+            <MoneyInput value={values.priceCents} currency={storeCurrency} className={inputClass} onValueChange={(value) => set("priceCents", value ?? 0)} />
+            {fieldErrors.price ? <span className="text-xs text-danger">{fieldErrors.price}</span> : null}
           </label>
           <label className={labelClass}>
             <span className={labelTextClass}>{t.productForm.compareAtPriceLabel}</span>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              className={inputClass}
-              value={centsToInput(values.compareAtPriceCents)}
-              onChange={(event) => set("compareAtPriceCents", inputToCents(event.target.value))}
-            />
+            <MoneyInput value={values.compareAtPriceCents} currency={storeCurrency} className={inputClass} onValueChange={setCompareAtPrice} />
             <span className="text-xs text-ink-subtle">{t.productForm.compareAtPriceHint}</span>
           </label>
         </div>
@@ -455,21 +470,25 @@ export function ProductForm({
             <span className={labelTextClass}>{t.productForm.stockLabel}</span>
             <input
               required
-              type="number"
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
               min="0"
               className={inputClass}
               value={values.stock}
-              onChange={(event) => set("stock", Math.max(0, Number(event.target.value) || 0))}
+              onChange={(event) => set("stock", Math.max(0, Number(event.target.value.replace(/[^0-9]/g, "")) || 0))}
             />
           </label>
           <label className={labelClass}>
             <span className={labelTextClass}>{t.productForm.lowStockThresholdLabel}</span>
             <input
-              type="number"
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
               min="0"
               className={inputClass}
               value={values.lowStockThreshold}
-              onChange={(event) => set("lowStockThreshold", Math.max(0, Number(event.target.value) || 0))}
+              onChange={(event) => set("lowStockThreshold", Math.max(0, Number(event.target.value.replace(/[^0-9]/g, "")) || 0))}
             />
           </label>
         </div>
@@ -489,7 +508,7 @@ export function ProductForm({
                 <button
                   type="button"
                   onClick={() => makeMainImage(url)}
-                  className="focus-ring absolute left-1 top-1 rounded bg-ink/70 p-1 text-surface opacity-0 group-hover:opacity-100"
+                  className="focus-ring absolute left-1 top-1 min-h-9 min-w-9 rounded bg-ink/70 p-2 text-surface sm:opacity-0 sm:group-hover:opacity-100"
                   aria-label={t.productForm.makeMainImage}
                 >
                   <Star size={11} aria-hidden />
@@ -498,7 +517,7 @@ export function ProductForm({
               <button
                 type="button"
                 onClick={() => removeImage(url)}
-                className="focus-ring absolute right-1 top-1 rounded bg-ink/70 p-1 text-surface opacity-0 group-hover:opacity-100"
+                className="focus-ring absolute right-1 top-1 min-h-9 min-w-9 rounded bg-ink/70 p-2 text-surface sm:opacity-0 sm:group-hover:opacity-100"
                 aria-label={t.productForm.removeImage}
               >
                 <X size={11} aria-hidden />
@@ -531,7 +550,7 @@ export function ProductForm({
         </div>
       </FormSection>
 
-      <FormSection title={t.productForm.seoSection}>
+      <FormSection title={t.productForm.seoSection} className="lg:col-span-2">
         <div className="grid gap-3">
           <label className={labelClass}>
             <span className={labelTextClass}>{t.productForm.seoTitleLabel}</span>

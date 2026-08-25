@@ -23,7 +23,7 @@ export const brandConfigSchema = z
 /** Store-level defaults used by adapters and presentation layers. */
 export const storeConfigSchema = z
   .object({
-    currency: z.string().length(3).transform((value) => value.toUpperCase()),
+    currency: z.enum(["USD", "COP"]),
     locale: z.string().min(2),
     country: z.string().length(2).transform((value) => value.toUpperCase())
   })

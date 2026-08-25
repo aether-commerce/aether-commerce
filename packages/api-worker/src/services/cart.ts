@@ -6,7 +6,7 @@ import { getProductBySlug, getCatalogProducts } from "./catalog";
 import { InsufficientStockError, getAvailableStock, releaseReservation, upsertActiveReservation } from "./inventory";
 import { createShippingSettingsService } from "./shipping-settings";
 import { defaultShippingSettings } from "../defaults";
-import { getRuntimeStoreConfig } from "./store-config";
+import { getStoreConfig } from "./store-config";
 
 // Reused by every cart-total recalculation below - the flat fee (see
 // packages/core/src/shipping.ts's ShippingSettings) only ever affects the
@@ -85,17 +85,18 @@ async function findProduct(env: Env, productId: string) {
   return data.find((product) => product.id === productId);
 }
 
-function emptyCart(env: Env, id: string): Cart {
+async function emptyCart(env: Env, id: string): Promise<Cart> {
+  const { currency } = await getStoreConfig(env);
   return {
     id,
     items: [],
-    totals: calculateCartTotals([], undefined, 0, 0, getRuntimeStoreConfig(env).currency),
+    totals: calculateCartTotals([], undefined, 0, 0, currency),
     updatedAt: new Date().toISOString()
   };
 }
 
 export async function createCart(env: Env, id = crypto.randomUUID()): Promise<Cart> {
-  return writeCart(env, emptyCart(env, id));
+  return writeCart(env, await emptyCart(env, id));
 }
 
 export async function readCart(env: Env, id: string): Promise<Cart> {
@@ -158,8 +159,8 @@ export async function addItem(env: Env, cartId: string, input: CartItemInput): P
       )
     : [...cart.items, item];
 
-  const [shipping, coupon] = await Promise.all([getShippingCents(env), resolveCartCoupon(env, cart)]);
-  const totals = calculateCartTotals(items, coupon, shipping);
+  const [shipping, coupon, store] = await Promise.all([getShippingCents(env), resolveCartCoupon(env, cart), getStoreConfig(env)]);
+  const totals = calculateCartTotals(items, coupon, shipping, 0, store.currency);
   const updatedCart = await writeCart(env, { ...cart, items, totals });
   await upsertActiveReservation(env, { cartId, productId: product.id, sku: product.sku, quantity: newQuantity });
   return updatedCart;
@@ -169,8 +170,8 @@ export async function applyCoupon(env: Env, cartId: string, code: string): Promi
   const coupon = await findActiveCoupon(env, code);
   if (!coupon) throw new InvalidCouponError();
   const cart = await readCart(env, cartId);
-  const shipping = await getShippingCents(env);
-  const totals = calculateCartTotals(cart.items, coupon, shipping);
+  const [shipping, store] = await Promise.all([getShippingCents(env), getStoreConfig(env)]);
+  const totals = calculateCartTotals(cart.items, coupon, shipping, 0, store.currency);
   return writeCart(env, { ...cart, couponCode: coupon.code, totals });
 }
 
@@ -182,8 +183,8 @@ export async function removeItem(env: Env, cartId: string, itemId: string): Prom
   const items = cart.items.filter(
     (item) => item.productId !== itemId && item.variantId !== itemId && item.slug !== itemId
   );
-  const [shipping, coupon] = await Promise.all([getShippingCents(env), resolveCartCoupon(env, cart)]);
-  const totals = calculateCartTotals(items, coupon, shipping);
+  const [shipping, coupon, store] = await Promise.all([getShippingCents(env), resolveCartCoupon(env, cart), getStoreConfig(env)]);
+  const totals = calculateCartTotals(items, coupon, shipping, 0, store.currency);
   const updatedCart = await writeCart(env, { ...cart, items, totals });
   if (removed) {
     await releaseReservation(env, cartId, removed.productId);
@@ -209,8 +210,8 @@ export async function updateItemQuantity(env: Env, cartId: string, itemId: strin
       ? { ...item, quantity, lineTotal: item.finalUnitPrice * quantity }
       : item
   );
-  const [shipping, coupon] = await Promise.all([getShippingCents(env), resolveCartCoupon(env, cart)]);
-  const totals = calculateCartTotals(items, coupon, shipping);
+  const [shipping, coupon, store] = await Promise.all([getShippingCents(env), resolveCartCoupon(env, cart), getStoreConfig(env)]);
+  const totals = calculateCartTotals(items, coupon, shipping, 0, store.currency);
   const updatedCart = await writeCart(env, { ...cart, items, totals });
 
   if (target) {

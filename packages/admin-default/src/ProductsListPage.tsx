@@ -31,6 +31,7 @@ type AdminProductSummary = {
   thumbnail: string | null;
   createdAt: string;
   updatedAt: string;
+  currency: "USD" | "COP";
 };
 
 type ListResponse = {
@@ -54,8 +55,8 @@ function readFiltersFromUrl() {
   };
 }
 
-function money(cents: number, locale: string) {
-  return new Intl.NumberFormat(locale === "es" ? "es-ES" : "en-US", { style: "currency", currency: "USD" }).format(cents / 100);
+function money(cents: number, currency: string, locale: string) {
+  return new Intl.NumberFormat(locale === "es" ? "es-CO" : "en-US", { style: "currency", currency }).format(cents / 100);
 }
 
 function stockColorClass(stock: number, lowStockThreshold: number): string {
@@ -195,8 +196,8 @@ export function ProductsListPage() {
       align: "end",
       render: (product) => (
         <>
-          {money(product.finalPriceCents, locale)}
-          {product.compareAtPriceCents ? <span className="ml-1.5 text-xs text-ink-subtle line-through">{money(product.compareAtPriceCents, locale)}</span> : null}
+          {money(product.finalPriceCents, product.currency, locale)}
+          {product.compareAtPriceCents ? <span className="ml-1.5 text-xs text-ink-subtle line-through">{money(product.compareAtPriceCents, product.currency, locale)}</span> : null}
         </>
       )
     },

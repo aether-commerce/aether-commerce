@@ -10,6 +10,7 @@ import { getBrands, getCatalogProducts, getCategories, getProductById, getProduc
 import { createPublicReviewService } from "../services/public-reviews";
 import { createShippingSettingsService } from "../services/shipping-settings";
 import { readBrandSettings } from "../services/brand-settings";
+import { getStoreConfig } from "../services/store-config";
 
 export const publicRoutes = new Hono<AppBindings>();
 
@@ -33,10 +34,14 @@ export function clerkPublishableKey(issuer: string | undefined, secretKey: strin
   return `${prefix}_${btoa(`${frontendApi}$`)}`;
 }
 
-publicRoutes.get("/runtime-config", (c) => {
+publicRoutes.get("/runtime-config", async (c) => {
   c.header("Cache-Control", "public, max-age=300, s-maxage=300");
+  const store = await getStoreConfig(c.env);
   return ok(c, {
-    clerkPublishableKey: clerkPublishableKey(c.env.CLERK_JWT_ISSUER, c.env.CLERK_SECRET_KEY)
+    clerkPublishableKey: clerkPublishableKey(c.env.CLERK_JWT_ISSUER, c.env.CLERK_SECRET_KEY),
+    currency: store.currency,
+    locale: store.locale,
+    country: store.country
   });
 });
 

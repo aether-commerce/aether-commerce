@@ -20,6 +20,7 @@ import { clerkPublishableKey, publicRoutes } from "./routes/public";
 import { userRoutes } from "./routes/user";
 import { webhookRoutes } from "./routes/webhooks";
 import { getLogger } from "./services/observability";
+import { getStoreConfig } from "./services/store-config";
 
 // Everything an API Worker's fetch handler needs, minus deployment-specific
 // wrapping (Sentry, the cron scheduled() handler) - those stay app-owned
@@ -43,10 +44,14 @@ export function createApiApp(): Hono<AppBindings> {
   app.get("/", (c) => ok(c, { name: `${c.env.BRAND_NAME ?? "Aether"} API`, version: "v1", basePath: "/api/v1" }));
 
   const api = new Hono<AppBindings>().basePath("/api/v1");
-  api.get("/runtime-config", (c) => {
+  api.get("/runtime-config", async (c) => {
     c.header("Cache-Control", "public, max-age=300, s-maxage=300");
+    const store = await getStoreConfig(c.env);
     return ok(c, {
-      clerkPublishableKey: clerkPublishableKey(c.env.CLERK_JWT_ISSUER, c.env.CLERK_SECRET_KEY)
+      clerkPublishableKey: clerkPublishableKey(c.env.CLERK_JWT_ISSUER, c.env.CLERK_SECRET_KEY),
+      currency: store.currency,
+      locale: store.locale,
+      country: store.country
     });
   });
 

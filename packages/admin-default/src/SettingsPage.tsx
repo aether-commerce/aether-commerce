@@ -35,6 +35,10 @@ type ReservationSettings = {
   ttlMinutes: number;
 };
 
+type StoreSettings = {
+  currency: "USD" | "COP";
+};
+
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 
 const defaultCheckout: CheckoutSettings = {
@@ -72,6 +76,8 @@ export function SettingsPage() {
   const [shippingSaveStatus, setShippingSaveStatus] = useState<SaveStatus>("idle");
   const [reservationsForm, setReservationsForm] = useState<ReservationSettings>(defaultReservations);
   const [reservationsSaveStatus, setReservationsSaveStatus] = useState<SaveStatus>("idle");
+  const [storeForm, setStoreForm] = useState<StoreSettings>(() => ({ currency: config.store.currency === "COP" ? "COP" : "USD" }));
+  const [storeSaveStatus, setStoreSaveStatus] = useState<SaveStatus>("idle");
   const [logoUploading, setLogoUploading] = useState(false);
   const [logoUploadError, setLogoUploadError] = useState<string | null>(null);
   const logoFileInputRef = useRef<HTMLInputElement>(null);
@@ -155,6 +161,10 @@ export function SettingsPage() {
           if (row.key === "checkout") setCheckoutForm(JSON.parse(row.value_json) as CheckoutSettings);
           if (row.key === "shipping") setShippingForm(JSON.parse(row.value_json) as ShippingSettings);
           if (row.key === "reservations") setReservationsForm(JSON.parse(row.value_json) as ReservationSettings);
+          if (row.key === "store") {
+            const parsed = JSON.parse(row.value_json) as Partial<StoreSettings>;
+            if (parsed.currency === "USD" || parsed.currency === "COP") setStoreForm({ currency: parsed.currency });
+          }
         }
         setLoadStatus("ready");
       } catch {
@@ -378,7 +388,7 @@ export function SettingsPage() {
                       className="focus-ring min-h-10 w-32 rounded-md border border-border bg-surface px-3 text-ink tabular-nums"
                     />
                     <span className="text-sm text-ink-muted tabular-nums">
-                      = {money(shippingForm.amountCents, locale, config.store.currency, config.store.locale)}
+                      = {money(shippingForm.amountCents, locale, storeForm.currency, config.store.locale)}
                     </span>
                   </div>
                 </label>
@@ -432,6 +442,33 @@ export function SettingsPage() {
                   {reservationsSaveStatus === "saving" ? t.settingsPage.saving : t.settingsPage.save}
                 </button>
                 {saveNote(reservationsSaveStatus, t.settingsPage.genericSaveError)}
+              </div>
+            </FormSection>
+
+            <FormSection title={t.settingsPage.storeSection} description={t.settingsPage.storeDescription}>
+              <label className="grid gap-1 text-sm">
+                <span className="font-medium text-ink-muted">{t.settingsPage.currencyLabel}</span>
+                <select
+                  value={storeForm.currency}
+                  onChange={(event) => setStoreForm({ currency: event.target.value as StoreSettings["currency"] })}
+                  className="focus-ring min-h-10 rounded-md border border-border bg-surface px-3 text-ink"
+                >
+                  <option value="USD">USD — US dollar</option>
+                  <option value="COP">COP — Colombian peso</option>
+                </select>
+                <span className="text-xs text-ink-subtle">{t.settingsPage.currencyHint}</span>
+              </label>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  aria-label="Save currency settings"
+                  disabled={storeSaveStatus === "saving"}
+                  onClick={() => void saveSettings("store", storeForm, setStoreSaveStatus)}
+                  className="focus-ring min-h-10 rounded-md border border-border-strong px-3 text-sm font-semibold text-ink hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {storeSaveStatus === "saving" ? t.settingsPage.saving : t.settingsPage.save}
+                </button>
+                {saveNote(storeSaveStatus, t.settingsPage.genericSaveError)}
               </div>
             </FormSection>
           </div>

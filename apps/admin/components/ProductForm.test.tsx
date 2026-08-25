@@ -38,13 +38,9 @@ describe("ProductForm", () => {
     vi.stubGlobal("fetch", fetchMock);
   });
 
-  it("blocks submission when required fields are missing (native HTML validation)", async () => {
-    // name/category/shortDescription/description all carry a native
-    // `required` attribute, so jsdom's constraint validation blocks the
-    // submit event before ProductForm's own onSubmit handler ever runs -
-    // the custom "...are required." message only fires past that point.
-    // What's actually verifiable here is the outcome both layers agree on:
-    // nothing gets submitted.
+  it("blocks submission when required fields are missing with inline validation", async () => {
+    // The form owns its validation so browser-native bubbles do not bypass
+    // the product's inline error experience.
     const user = userEvent.setup();
     render(<ProductForm mode="create" initialValues={emptyProductForm} />);
 

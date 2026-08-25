@@ -1,5 +1,6 @@
 import type { Env } from "../types";
 import { clearCatalogCache, type ProductDetails, type ProductRow } from "./catalog";
+import { getStoreConfig } from "./store-config";
 
 const currentStoreId = (env: Env) => env.STORE_ID?.trim() || "store_default";
 
@@ -32,6 +33,7 @@ export type AdminProductSummary = {
   thumbnail: string | null;
   createdAt: string;
   updatedAt: string;
+  currency: "USD" | "COP";
 };
 
 export type AdminProductListQuery = {
@@ -54,7 +56,7 @@ function firstImage(row: ProductRow): string | null {
   }
 }
 
-function rowToSummary(row: ProductRow): AdminProductSummary {
+function rowToSummary(row: ProductRow, currency: "USD" | "COP"): AdminProductSummary {
   return {
     id: row.id,
     sku: row.sku,
@@ -70,7 +72,8 @@ function rowToSummary(row: ProductRow): AdminProductSummary {
     visibility: row.visibility,
     thumbnail: firstImage(row),
     createdAt: row.created_at,
-    updatedAt: row.updated_at
+    updatedAt: row.updated_at,
+    currency
   };
 }
 
@@ -80,6 +83,7 @@ function rowToSummary(row: ProductRow): AdminProductSummary {
 // unlike the public catalog.ts read path, which still caches the full
 // visible set in memory/D1 for storefront browsing.
 export async function listProductsForAdmin(env: Env, query: AdminProductListQuery) {
+  const { currency } = await getStoreConfig(env);
   const where: string[] = [];
   const params: unknown[] = [];
 
@@ -123,7 +127,7 @@ export async function listProductsForAdmin(env: Env, query: AdminProductListQuer
 
   const totalCount = total?.count ?? 0;
   return {
-    data: (rows.results || []).map(rowToSummary),
+    data: (rows.results || []).map((row) => rowToSummary(row, currency)),
     pagination: {
       page: query.page,
       pageSize: query.pageSize,

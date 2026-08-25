@@ -14,12 +14,13 @@ type ProductOption = {
   name: string;
   sku: string;
   final_price_cents: number;
+  currency: "USD" | "COP";
 };
 
-type LineItem = { productId: string; name: string; unitPriceCents: number; quantity: number };
+type LineItem = { productId: string; name: string; unitPriceCents: number; quantity: number; currency: "USD" | "COP" };
 
-function money(cents: number, locale: string) {
-  return new Intl.NumberFormat(locale === "es" ? "es-ES" : "en-US", { style: "currency", currency: "USD" }).format(cents / 100);
+function money(cents: number, currency: string, locale: string) {
+  return new Intl.NumberFormat(locale === "es" ? "es-CO" : "en-US", { style: "currency", currency }).format(cents / 100);
 }
 
 export function OrdersNewPage() {
@@ -61,7 +62,7 @@ export function OrdersNewPage() {
       if (existing) {
         return current.map((item) => (item.productId === product.id ? { ...item, quantity: item.quantity + 1 } : item));
       }
-      return [...current, { productId: product.id, name: product.name, unitPriceCents: product.final_price_cents, quantity: 1 }];
+      return [...current, { productId: product.id, name: product.name, unitPriceCents: product.final_price_cents, quantity: 1, currency: product.currency }];
     });
   }
 
@@ -164,7 +165,7 @@ export function OrdersNewPage() {
                       <div>
                         <p className="text-sm font-medium text-ink">{product.name}</p>
                         <p className="text-xs text-ink-subtle">
-                          SKU {product.sku} &middot; {money(product.final_price_cents, locale)}
+                          SKU {product.sku} &middot; {money(product.final_price_cents, product.currency, locale)}
                         </p>
                       </div>
                       <button
@@ -209,7 +210,7 @@ export function OrdersNewPage() {
                           onChange={(event) => updateQuantity(item.productId, Number(event.target.value))}
                           className="focus-ring min-h-9 w-20 rounded-md border border-border bg-surface px-2 text-ink tabular-nums"
                         />
-                        <span className="tabular-nums">{money(item.unitPriceCents * item.quantity, locale)}</span>
+                        <span className="tabular-nums">{money(item.unitPriceCents * item.quantity, item.currency, locale)}</span>
                       </div>
                     </div>
                   ))}
@@ -217,7 +218,7 @@ export function OrdersNewPage() {
               )}
               <div className="flex justify-between border-t border-border pt-3 text-sm font-semibold text-ink">
                 <span>{t.newOrderPage.subtotal}</span>
-                <span className="tabular-nums">{money(subtotal, locale)}</span>
+                <span className="tabular-nums">{money(subtotal, items[0]?.currency ?? "USD", locale)}</span>
               </div>
 
               {submitError ? <p className="text-sm text-danger">{submitError}</p> : null}

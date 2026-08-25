@@ -24,6 +24,7 @@ type AdminCustomerSummary = {
   orderCount: number;
   totalSpent: number;
   lastOrderAt: string | null;
+  currency: "USD" | "COP";
 };
 
 type ListResponse = {
@@ -44,8 +45,8 @@ function readFiltersFromUrl() {
   };
 }
 
-function money(cents: number, locale: string) {
-  return new Intl.NumberFormat(locale === "es" ? "es-ES" : "en-US", { style: "currency", currency: "USD" }).format(cents / 100);
+function money(cents: number, currency: string, locale: string) {
+  return new Intl.NumberFormat(locale === "es" ? "es-CO" : "en-US", { style: "currency", currency }).format(cents / 100);
 }
 
 function formatOptionalDate(value: string | null, locale: string): string {
@@ -104,7 +105,7 @@ export function CustomersListPage() {
     },
     { key: "status", header: t.customersPage.colStatus, render: (customer) => <StatusBadge tone={customer.status === "suspended" ? "error" : "success"}>{t.customerStatus[customer.status]}</StatusBadge> },
     { key: "orders", header: t.customersPage.colOrders, align: "end", hideBelow: "md", render: (customer) => customer.orderCount },
-    { key: "spent", header: t.customersPage.colSpent, align: "end", hideBelow: "md", render: (customer) => money(customer.totalSpent, locale) },
+    { key: "spent", header: t.customersPage.colSpent, align: "end", hideBelow: "md", render: (customer) => money(customer.totalSpent, customer.currency, locale) },
     {
       key: "lastOrder",
       header: t.customersPage.colLastOrder,

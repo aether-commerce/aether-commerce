@@ -9,6 +9,7 @@ import type { AppBindings } from "../types";
 import { collection, fail, ok } from "../http";
 import { requirePermission } from "../middleware/admin";
 import { clearCatalogCache } from "../services/catalog";
+import { getStoreConfig } from "../services/store-config";
 import { createCouponService } from "../services/coupons";
 import { computeDashboardSummary } from "../services/dashboard-summary";
 import { createReviewModerationService } from "../services/review-moderation";
@@ -187,10 +188,10 @@ function sanitizeIntegrationSecretsUpdate(input: z.infer<typeof integrationSecre
 
 export const adminRoutes = new Hono<AppBindings>();
 
-adminRoutes.get("/demo/summary", (c) =>
+adminRoutes.get("/demo/summary", async (c) =>
   ok(c, {
     mode: "demo",
-    currency: c.env.STORE_CURRENCY ?? "USD",
+    currency: (await getStoreConfig(c.env)).currency,
     notice: {
       en: "Public demo mode. Changes are disabled.",
       es: "Modo de demostracion publica. Los cambios estan deshabilitados."
@@ -204,7 +205,7 @@ adminRoutes.get("/demo/summary", (c) =>
 
 adminRoutes.get("/summary", requirePermission("orders.read"), async (c) => {
   const summary = await computeDashboardSummary(c.env);
-  return ok(c, { mode: "private", currency: c.env.STORE_CURRENCY ?? "USD", ...summary });
+  return ok(c, { mode: "private", currency: (await getStoreConfig(c.env)).currency, ...summary });
 });
 
 const productListQuerySchema = z.object({
@@ -1084,6 +1085,17 @@ const checkoutSettingsSchema = z
     message: "whatsappNumber must be digits only with country code (e.g. 573001234567) when paymentMode is whatsapp",
     path: ["whatsappNumber"]
   });
+
+const storeSettingsSchema = z.object({
+  currency: z.enum(["USD", "COP"])
+});
+
+adminRoutes.patch("/settings/store", requirePermission("settings.manage"), zValidator("json", storeSettingsSchema), async (c) => {
+  const value = c.req.valid("json");
+  await saveApplicationSetting(c, "store", value);
+  await clearCatalogCache(c.env);
+  return ok(c, value);
+});
 
 // Scoped to this one key rather than a generic "patch any application_settings
 // key" route - the table also holds shipping/brand/reservations, and a
