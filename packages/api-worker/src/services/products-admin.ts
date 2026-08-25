@@ -1,6 +1,21 @@
 import type { Env } from "../types";
 import { clearCatalogCache, type ProductDetails, type ProductRow } from "./catalog";
 
+const currentStoreId = (env: Env) => env.STORE_ID?.trim() || "store_default";
+
+export class StoreCategoryOwnershipError extends Error {
+  readonly code = "CATEGORY_NOT_IN_STORE";
+  constructor() {
+    super("Category does not belong to this store.");
+  }
+}
+
+async function categoryForProduct(env: Env, slug: string, storeId: string, allowHidden = false) {
+  return env.DB.prepare(`select id, slug from store_categories where store_id = ? and slug = ?${allowHidden ? "" : " and is_hidden = 0"}`)
+    .bind(storeId, slug)
+    .first<{ id: string; slug: string }>();
+}
+
 export type AdminProductSummary = {
   id: string;
   sku: string;
@@ -69,39 +84,41 @@ export async function listProductsForAdmin(env: Env, query: AdminProductListQuer
   const params: unknown[] = [];
 
   if (query.search) {
-    where.push("(name like ? or sku like ? or slug like ?)");
+    where.push("(p.name like ? or p.sku like ? or p.slug like ?)");
     const needle = `%${query.search}%`;
     params.push(needle, needle, needle);
   }
   if (query.visibility) {
-    where.push("visibility = ?");
+    where.push("p.visibility = ?");
     params.push(query.visibility);
   }
   if (query.category) {
-    where.push("category = ?");
+    where.push("p.category = ?");
     params.push(query.category);
   }
   if (query.stockFilter === "out") {
-    where.push("stock <= 0");
+    where.push("p.stock <= 0");
   } else if (query.stockFilter === "low") {
-    where.push("stock > 0 and stock <= low_stock_threshold");
+    where.push("p.stock > 0 and p.stock <= p.low_stock_threshold");
   }
 
-  const whereClause = where.length > 0 ? `where ${where.join(" and ")}` : "";
   const sortColumn = { name: "name", price: "final_price_cents", stock: "stock", updated_at: "updated_at" }[
     query.sort ?? "updated_at"
   ];
   const sortDirection = query.sortDirection === "asc" ? "asc" : "desc";
 
-  const total = await env.DB.prepare(`select count(*) as count from products ${whereClause}`)
-    .bind(...params)
+  const scopedWhere = ["p.store_id = ?", ...where];
+  const scopedParams = [currentStoreId(env), ...params];
+  const scopedWhereClause = `where ${scopedWhere.join(" and ")}`;
+  const total = await env.DB.prepare(`select count(*) as count from products p ${scopedWhereClause}`)
+    .bind(...scopedParams)
     .first<{ count: number }>();
 
   const offset = (query.page - 1) * query.pageSize;
   const rows = await env.DB.prepare(
-    `select * from products ${whereClause} order by ${sortColumn} ${sortDirection} limit ? offset ?`
+    `select p.*, c.name as category_name from products p left join store_categories c on c.id = p.store_category_id and c.store_id = p.store_id ${scopedWhereClause} order by p.${sortColumn} ${sortDirection} limit ? offset ?`
   )
-    .bind(...params, query.pageSize, offset)
+    .bind(...scopedParams, query.pageSize, offset)
     .all<ProductRow>();
 
   const totalCount = total?.count ?? 0;
@@ -124,7 +141,9 @@ export async function listProductsForAdmin(env: Env, query: AdminProductListQuer
 // same fix applied to orders' loadOrderRow after a live ORDER_NOT_FOUND
 // failure traced to this exact identifier gap.
 export async function getProductRow(env: Env, id: string): Promise<ProductRow | null> {
-  const row = await env.DB.prepare("select * from products where id = ? or upper(sku) = upper(?)").bind(id, id).first<ProductRow>();
+  const row = await env.DB.prepare("select p.*, c.name as category_name from products p left join store_categories c on c.id = p.store_category_id and c.store_id = p.store_id where p.store_id = ? and (p.id = ? or upper(p.sku) = upper(?))")
+    .bind(currentStoreId(env), id, id)
+    .first<ProductRow>();
   return row ?? null;
 }
 
@@ -204,6 +223,9 @@ function detailsFromInput(input: ProductWriteInput): ProductDetails {
 }
 
 export async function createProduct(env: Env, input: ProductWriteInput): Promise<ProductRow> {
+  const storeId = currentStoreId(env);
+  const category = await categoryForProduct(env, input.category, storeId);
+  if (!category) throw new StoreCategoryOwnershipError();
   const id = `prd_${crypto.randomUUID()}`;
   const slug = await uniqueSlug(env, input.slug || input.name);
   const sku = input.sku || (await uniqueSku(env, input.category));
@@ -218,16 +240,18 @@ export async function createProduct(env: Env, input: ProductWriteInput): Promise
 
   await env.DB.prepare(
     `insert into products
-       (id, sku, slug, name, brand, category, subcategory, price_cents, compare_at_price_cents, final_price_cents, stock, low_stock_threshold, visibility, featured, is_new, is_deal, rating_average, rating_count, details_json, created_at, updated_at)
-     values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?)`
+       (id, store_id, store_category_id, sku, slug, name, brand, category, subcategory, price_cents, compare_at_price_cents, final_price_cents, stock, low_stock_threshold, visibility, featured, is_new, is_deal, rating_average, rating_count, details_json, created_at, updated_at)
+     values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?)`
   )
     .bind(
       id,
+      storeId,
+      category.id,
       sku,
       slug,
       input.name,
       input.brand ?? null,
-      input.category,
+      category.slug,
       input.subcategory ?? null,
       compareAtPriceCents ?? finalPriceCents,
       compareAtPriceCents,
@@ -276,21 +300,26 @@ export async function updateProduct(env: Env, id: string, patch: ProductPatchInp
   const finalPriceCents = patch.priceCents ?? existing.final_price_cents;
   const compareAtPriceCents =
     patch.compareAtPriceCents !== undefined ? patch.compareAtPriceCents : existing.compare_at_price_cents;
+  const storeId = currentStoreId(env);
+  const categorySlug = patch.category ?? existing.category;
+  const category = await categoryForProduct(env, categorySlug, storeId, true);
+  if (!category) throw new StoreCategoryOwnershipError();
 
   await env.DB.prepare(
     `update products set
-       sku = ?, slug = ?, name = ?, brand = ?, category = ?, subcategory = ?,
+       store_category_id = ?, sku = ?, slug = ?, name = ?, brand = ?, category = ?, subcategory = ?,
        price_cents = ?, compare_at_price_cents = ?, final_price_cents = ?,
        stock = ?, low_stock_threshold = ?, visibility = ?, featured = ?, is_new = ?, is_deal = ?,
        details_json = ?, updated_at = ?
      where id = ?`
   )
     .bind(
+      category.id,
       patch.sku ?? existing.sku,
       slug,
       patch.name ?? existing.name,
       patch.brand !== undefined ? patch.brand : existing.brand,
-      patch.category ?? existing.category,
+      category.slug,
       patch.subcategory !== undefined ? patch.subcategory : existing.subcategory,
       compareAtPriceCents ?? finalPriceCents,
       compareAtPriceCents,
@@ -316,8 +345,8 @@ export async function setProductVisibility(
   id: string,
   visibility: ProductRow["visibility"]
 ): Promise<boolean> {
-  const result = await env.DB.prepare("update products set visibility = ?, updated_at = ? where id = ?")
-    .bind(visibility, new Date().toISOString(), id)
+  const result = await env.DB.prepare("update products set visibility = ?, updated_at = ? where store_id = ? and id = ?")
+    .bind(visibility, new Date().toISOString(), currentStoreId(env), id)
     .run();
   await clearCatalogCache(env);
   return (result.meta.changes ?? 0) > 0;
@@ -331,9 +360,9 @@ export async function bulkSetVisibility(
   if (ids.length === 0) return 0;
   const placeholders = ids.map(() => "?").join(",");
   const result = await env.DB.prepare(
-    `update products set visibility = ?, updated_at = ? where id in (${placeholders})`
+    `update products set visibility = ?, updated_at = ? where store_id = ? and id in (${placeholders})`
   )
-    .bind(visibility, new Date().toISOString(), ...ids)
+    .bind(visibility, new Date().toISOString(), currentStoreId(env), ...ids)
     .run();
   await clearCatalogCache(env);
   return result.meta.changes ?? 0;
@@ -351,9 +380,9 @@ export async function previewBulkPriceAdjustment(
   input: BulkPriceAdjustment
 ): Promise<BulkPriceAdjustmentPreviewRow[]> {
   const rows = await env.DB.prepare(
-    "select id, name, sku, final_price_cents from products where category = ?"
+    "select id, name, sku, final_price_cents from products where store_id = ? and category = ?"
   )
-    .bind(input.category)
+    .bind(currentStoreId(env), input.category)
     .all<{ id: string; name: string; sku: string; final_price_cents: number }>();
 
   return (rows.results || []).map((row) => ({
@@ -377,9 +406,9 @@ export async function bulkAdjustPriceByCategory(env: Env, input: BulkPriceAdjust
        compare_at_price_cents = case when compare_at_price_cents is null then null else max(0, round(compare_at_price_cents * ?)) end,
        final_price_cents = max(0, round(final_price_cents * ?)),
        updated_at = ?
-     where category = ?`
+     where store_id = ? and category = ?`
   )
-    .bind(factor, factor, factor, new Date().toISOString(), input.category)
+    .bind(factor, factor, factor, new Date().toISOString(), currentStoreId(env), input.category)
     .run();
   await clearCatalogCache(env);
   return result.meta.changes ?? 0;
@@ -391,19 +420,19 @@ export async function bulkAdjustPriceByCategory(env: Env, input: BulkPriceAdjust
 // break for any admin view that cross-references it. Archiving (visibility
 // = 'hidden') keeps the row around without exposing it to shoppers.
 export async function deleteProduct(env: Env, id: string): Promise<{ deleted: boolean; softDeleted: boolean }> {
-  const referenced = await env.DB.prepare("select count(*) as count from order_items where product_id = ?")
-    .bind(id)
+  const referenced = await env.DB.prepare("select count(*) as count from order_items oi join products p on p.id = oi.product_id where oi.product_id = ? and p.store_id = ?")
+    .bind(id, currentStoreId(env))
     .first<{ count: number }>();
 
   if ((referenced?.count ?? 0) > 0) {
-    await env.DB.prepare("update products set visibility = 'hidden', updated_at = ? where id = ?")
-      .bind(new Date().toISOString(), id)
+    await env.DB.prepare("update products set visibility = 'hidden', updated_at = ? where store_id = ? and id = ?")
+      .bind(new Date().toISOString(), currentStoreId(env), id)
       .run();
     await clearCatalogCache(env);
     return { deleted: false, softDeleted: true };
   }
 
-  const result = await env.DB.prepare("delete from products where id = ?").bind(id).run();
+  const result = await env.DB.prepare("delete from products where store_id = ? and id = ?").bind(currentStoreId(env), id).run();
   await clearCatalogCache(env);
   return { deleted: (result.meta.changes ?? 0) > 0, softDeleted: false };
 }
@@ -421,9 +450,10 @@ export async function adjustProductInventory(
   if (actualDelta === 0) return { stock: existing.stock };
 
   await env.DB.batch([
-    env.DB.prepare("update products set stock = ?, updated_at = ? where id = ?").bind(
+    env.DB.prepare("update products set stock = ?, updated_at = ? where store_id = ? and id = ?").bind(
       nextStock,
       new Date().toISOString(),
+      currentStoreId(env),
       id
     ),
     env.DB.prepare(

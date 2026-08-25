@@ -1,4 +1,4 @@
-import assert from "node:assert/strict";
+﻿import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -9,7 +9,7 @@ test("published migration sync adds missing files and protects immutable history
   const root = mkdtempSync(join(tmpdir(), "aether-published-migrations-"));
   try {
     const first = syncMigrations(root);
-    assert.equal(first.added.at(-1), "0023_low_stock_alerts.sql");
+    assert.equal(first.added.at(-1), "0026_store_category_scope.sql");
     assert.match(readFileSync(join(root, "0022_restock_notifications.sql"), "utf8"), /restock_notifications/i);
     assert.deepEqual(syncMigrations(root).added, []);
 

@@ -15,6 +15,8 @@ export type Env = {
   STORE_LOCALE?: string;
   /** ISO 3166-1 alpha-2 country used for checkout address defaults. */
   STORE_COUNTRY?: string;
+  /** D1 store scope. Defaults to the reference store for backwards compatibility. */
+  STORE_ID?: string;
   CLERK_SECRET_KEY?: string;
   CLERK_JWT_ISSUER?: string;
   CLERK_WEBHOOK_SECRET?: string;

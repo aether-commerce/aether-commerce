@@ -44,11 +44,15 @@ export type ProductRow = {
   details_json: string;
   created_at: string;
   updated_at: string;
+  category_name?: string | undefined;
+  store_category_id?: string | null | undefined;
+  store_id?: string | undefined;
 };
 
 export const catalogCacheKey = "products-v2";
+const storeId = (env: Env) => env.STORE_ID?.trim() || "store_default";
 const memoryCacheTtlMs = 5 * 60 * 1000;
-let memoryCatalogCache: { expiresAt: number; products: Product[] } | null = null;
+const memoryCatalogCache = new Map<string, { expiresAt: number; products: Product[] }>();
 
 function storefrontOrigin(env: Env) {
   return env.APP_ORIGIN_STORE ?? "http://localhost:3000";
@@ -80,7 +84,7 @@ function normalizeRow(env: Env, row: ProductRow): Product {
     ? Math.max(0, Math.min(95, Math.round((1 - finalPrice / row.compare_at_price_cents) * 100)))
     : 0;
 
-  const categoryName = humanizeCategorySlug(row.category);
+  const categoryName = row.category_name || humanizeCategorySlug(row.category);
   const availableStock = Math.max(0, row.stock);
   const availabilityStatus = getInventoryStatus(availableStock, row.low_stock_threshold);
 
@@ -183,26 +187,31 @@ function normalizeRow(env: Env, row: ProductRow): Product {
 }
 
 async function readAllRows(env: Env): Promise<ProductRow[]> {
-  const rows = await env.DB.prepare("select * from products order by updated_at desc").all<ProductRow>();
+  // The unscoped legacy read was: select * from products order by updated_at desc.
+  const rows = await env.DB.prepare(
+    "select p.*, c.name as category_name from products p left join store_categories c on c.id = p.store_category_id and c.store_id = p.store_id where p.store_id = ? order by p.updated_at desc"
+  ).bind(storeId(env)).all<ProductRow>();
   return rows.results || [];
 }
 
 async function readCachedProducts(env: Env): Promise<Product[] | null> {
-  if (memoryCatalogCache && memoryCatalogCache.expiresAt > Date.now()) {
-    return memoryCatalogCache.products;
+  const key = `${catalogCacheKey}:${storeId(env)}`;
+  const memory = memoryCatalogCache.get(key);
+  if (memory && memory.expiresAt > Date.now()) {
+    return memory.products;
   }
 
   try {
     const row = await env.DB.prepare(
       "select payload_json from products_cache where id = ? and expires_at > datetime('now')"
     )
-      .bind(catalogCacheKey)
+      .bind(key)
       .first<{ payload_json: string }>();
     if (!row) {
       return null;
     }
     const products = JSON.parse(row.payload_json) as Product[];
-    memoryCatalogCache = { products, expiresAt: Date.now() + memoryCacheTtlMs };
+    memoryCatalogCache.set(key, { products, expiresAt: Date.now() + memoryCacheTtlMs });
     return products;
   } catch {
     return null;
@@ -210,15 +219,16 @@ async function readCachedProducts(env: Env): Promise<Product[] | null> {
 }
 
 async function writeCachedProducts(env: Env, products: Product[]) {
+  const key = `${catalogCacheKey}:${storeId(env)}`;
   try {
     await env.DB.prepare(
       `insert into products_cache (id, source, payload_json, expires_at, created_at, updated_at)
        values (?, 'local', ?, datetime('now', '+15 minutes'), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
        on conflict(id) do update set source = 'local', payload_json = excluded.payload_json, expires_at = excluded.expires_at, updated_at = CURRENT_TIMESTAMP`
     )
-      .bind(catalogCacheKey, JSON.stringify(products))
+      .bind(key, JSON.stringify(products))
       .run();
-    memoryCatalogCache = { products, expiresAt: Date.now() + memoryCacheTtlMs };
+    memoryCatalogCache.set(key, { products, expiresAt: Date.now() + memoryCacheTtlMs });
   } catch {
     // Cache failures should never block the storefront.
   }
@@ -260,29 +270,39 @@ export async function getProductById(env: Env, id: string) {
 }
 
 export async function getCategories(env: Env) {
-  const data = await getCatalogSource(env);
-  const map = new Map<string, Product["category"]>();
-  data.forEach((product) => map.set(product.category.slug, product.category));
-  return [...map.values()];
+  const rows = await env.DB.prepare(
+    `select c.id, c.slug, c.name, min(p.details_json) as details_json
+     from store_categories c left join products p on p.store_category_id = c.id and p.store_id = c.store_id and p.visibility = 'visible'
+     where c.store_id = ? and c.is_hidden = 0
+     group by c.id order by c.sort_order asc, c.name collate nocase asc`
+  ).bind(storeId(env)).all<{ id: string; slug: string; name: string; details_json: string | null }>();
+  return (rows.results ?? []).map((row) => {
+    let image: string | null = null;
+    if (row.details_json) {
+      try { image = (JSON.parse(row.details_json) as { images?: { main?: string } }).images?.main ?? null; } catch { /* malformed product details are handled by the product path */ }
+    }
+    return { id: row.id, externalId: null, slug: row.slug, name: row.name, image: image ? absoluteImageUrl(env, image) : null };
+  });
 }
 
 // One pass over the already-cached catalog source instead of one filtered
 // query per category - lets callers show per-category counts (e.g. a
 // category grid) without firing N separate requests.
 export async function getCategoryCounts(env: Env) {
-  const data = await getCatalogSource(env);
-  const counts = new Map<string, number>();
-  data.forEach((product) => {
-    const slug = product.category.slug;
-    counts.set(slug, (counts.get(slug) ?? 0) + 1);
-  });
-  return [...counts.entries()].map(([slug, count]) => ({ slug, count }));
+  const rows = await env.DB.prepare(
+    `select c.slug, count(p.id) as count
+     from store_categories c left join products p on p.store_category_id = c.id and p.store_id = c.store_id and p.visibility = 'visible'
+     where c.store_id = ? and c.is_hidden = 0
+     group by c.id order by c.sort_order asc, c.name collate nocase asc`
+  ).bind(storeId(env)).all<{ slug: string; count: number }>();
+  return rows.results ?? [];
 }
 
 export async function clearCatalogCache(env: Env) {
-  memoryCatalogCache = null;
+  const key = `${catalogCacheKey}:${storeId(env)}`;
+  memoryCatalogCache.delete(key);
   try {
-    await env.DB.prepare("delete from products_cache where id = ?").bind(catalogCacheKey).run();
+    await env.DB.prepare("delete from products_cache where id = ?").bind(key).run();
   } catch {
     // Best-effort - a stale cache row just means a slower next read, not a failure.
   }

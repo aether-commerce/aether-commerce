@@ -59,6 +59,7 @@ export const emptyProductForm: ProductFormValues = {
 };
 
 type SaveStatus = "idle" | "saving" | "saved" | "error";
+type CategoryOption = { id: string; slug: string; name: string; isHidden: boolean };
 
 const inputClass =
   "focus-ring min-h-11 w-full rounded-md border border-border bg-surface px-3 text-sm text-ink disabled:cursor-not-allowed disabled:opacity-50";
@@ -97,7 +98,19 @@ export function ProductForm({
   const [uploading, setUploading] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [categories, setCategories] = useState<CategoryOption[]>([]);
+  const [categoriesLoaded, setCategoriesLoaded] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  async function loadCategories() {
+    if (categoriesLoaded) return;
+    setCategoriesLoaded(true);
+    try {
+      const response = await authorizedFetch("/api/v1/admin/categories", { method: "GET" });
+      const payload = (await response.json()) as { success: boolean; data?: CategoryOption[] };
+      if (payload.success && payload.data) setCategories(payload.data.filter((category) => !category.isHidden || category.slug === values.category));
+    } catch { /* the free-text input remains usable while the API recovers */ }
+  }
 
   function set<K extends keyof ProductFormValues>(key: K, value: ProductFormValues[K]) {
     setValues((current) => ({ ...current, [key]: value }));
@@ -335,7 +348,8 @@ export function ProductForm({
           </label>
           <label className={labelClass}>
             <span className={labelTextClass}>{t.productForm.categoryLabel}</span>
-            <input required className={inputClass} value={values.category} onChange={(event) => set("category", event.target.value)} />
+            <input required list="store-category-options" className={inputClass} value={values.category} onFocus={() => void loadCategories()} onChange={(event) => set("category", event.target.value)} />
+            <datalist id="store-category-options">{categories.map((category) => <option key={category.id} value={category.slug}>{category.name}</option>)}</datalist>
           </label>
           <label className={labelClass}>
             <span className={labelTextClass}>{t.productForm.subcategoryLabel}</span>

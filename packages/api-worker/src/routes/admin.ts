@@ -37,8 +37,17 @@ import {
   getProductRow,
   listProductsForAdmin,
   setProductVisibility,
-  updateProduct
+  updateProduct,
+  StoreCategoryOwnershipError
 } from "../services/products-admin";
+import {
+  createStoreCategory,
+  createStoreFromPackage,
+  deleteStoreCategory,
+  listStoreCategories,
+  reorderStoreCategories,
+  updateStoreCategory
+} from "../services/store-categories";
 
 const productImageSchema = z.object({
   main: z.string().min(1),
@@ -83,6 +92,12 @@ const productPatchSchema = productWriteSchema
     message: "compareAtPriceCents must be greater than priceCents",
     path: ["compareAtPriceCents"]
   });
+
+const categoryWriteSchema = z.object({
+  name: z.string().trim().min(1).max(80),
+  slug: z.string().trim().max(80).optional(),
+  isHidden: z.boolean().optional()
+});
 
 const checkoutCredentialsUpdateSchema = z.object({
   secretKey: z.string().min(1).optional(),
@@ -221,6 +236,63 @@ adminRoutes.get("/products", requirePermission("products.read"), zValidator("que
   return ok(c, result);
 });
 
+adminRoutes.get("/categories", requirePermission("products.read"), async (c) => ok(c, await listStoreCategories(c.env, true)));
+
+const storeProvisionSchema = z.object({
+  storeId: z.string().trim().regex(/^[a-z0-9][a-z0-9_-]{1,63}$/),
+  storeName: z.string().trim().min(1).max(120),
+  packageId: z.string().trim().min(1).max(120).nullable().optional()
+});
+
+adminRoutes.post("/stores", requirePermission("platform.deploy"), zValidator("json", storeProvisionSchema), async (c) => {
+  try {
+    return ok(c, await createStoreFromPackage(c.env, c.req.valid("json")), 201);
+  } catch (error) {
+    if (error instanceof Error && error.message === "Store already exists.") return fail(c, 409, "STORE_EXISTS", error.message);
+    throw error;
+  }
+});
+
+adminRoutes.post("/categories", requirePermission("products.write"), zValidator("json", categoryWriteSchema), async (c) => {
+  const category = await createStoreCategory(c.env, c.req.valid("json"));
+  await writeAuditLog(c.env, {
+    actorId: c.get("actor").userId ?? "admin",
+    action: "category.created",
+    targetType: "category",
+    targetId: category.id,
+    payload: { slug: category.slug, name: category.name }
+  });
+  return ok(c, category, 201);
+});
+
+adminRoutes.patch("/categories/:id", requirePermission("products.write"), zValidator("json", categoryWriteSchema.partial()), async (c) => {
+  const category = await updateStoreCategory(c.env, c.req.param("id"), c.req.valid("json"));
+  if (!category) return fail(c, 404, "CATEGORY_NOT_FOUND", "Category not found.");
+  await writeAuditLog(c.env, {
+    actorId: c.get("actor").userId ?? "admin",
+    action: "category.updated",
+    targetType: "category",
+    targetId: category.id,
+    payload: c.req.valid("json")
+  });
+  return ok(c, category);
+});
+
+adminRoutes.post("/categories/reorder", requirePermission("products.write"), zValidator("json", z.object({ ids: z.array(z.string().min(1)).max(500) })), async (c) => {
+  const success = await reorderStoreCategories(c.env, c.req.valid("json").ids);
+  return success ? ok(c, { reordered: true }) : fail(c, 422, "INVALID_CATEGORY_ORDER", "The category order is incomplete or contains duplicates.");
+});
+
+adminRoutes.delete("/categories/:id", requirePermission("products.write"), async (c) => {
+  const body = await c.req.json<{ reassignToId?: string }>().catch((): { reassignToId?: string } => ({}));
+  const result = await deleteStoreCategory(c.env, c.req.param("id"), body.reassignToId);
+  if (result === "not_found") return fail(c, 404, "CATEGORY_NOT_FOUND", "Category not found.");
+  if (result === "system") return fail(c, 409, "SYSTEM_CATEGORY", "The system category cannot be deleted.");
+  if (result === "has_products") return fail(c, 409, "CATEGORY_HAS_PRODUCTS", "Reassign its products before deleting this category.");
+  if (result === "invalid_target") return fail(c, 422, "INVALID_CATEGORY_TARGET", "Choose a different category for reassignment.");
+  return ok(c, { deleted: true });
+});
+
 adminRoutes.get("/products/:id", requirePermission("products.read"), async (c) => {
   const row = await getProductRow(c.env, c.req.param("id"));
   if (!row) return fail(c, 404, "PRODUCT_NOT_FOUND", "Product not found.");
@@ -229,7 +301,13 @@ adminRoutes.get("/products/:id", requirePermission("products.read"), async (c) =
 });
 
 adminRoutes.post("/products", requirePermission("products.write"), zValidator("json", productWriteSchemaValidated), async (c) => {
-  const row = await createProduct(c.env, c.req.valid("json"));
+  let row;
+  try {
+    row = await createProduct(c.env, c.req.valid("json"));
+  } catch (error) {
+    if (error instanceof StoreCategoryOwnershipError) return fail(c, 422, error.code, error.message);
+    throw error;
+  }
   await writeAuditLog(c.env, {
     actorId: c.get("actor").userId ?? "admin",
     action: "product.created",
@@ -241,7 +319,13 @@ adminRoutes.post("/products", requirePermission("products.write"), zValidator("j
 });
 
 adminRoutes.patch("/products/:id", requirePermission("products.write"), zValidator("json", productPatchSchema), async (c) => {
-  const row = await updateProduct(c.env, c.req.param("id"), c.req.valid("json"));
+  let row;
+  try {
+    row = await updateProduct(c.env, c.req.param("id"), c.req.valid("json"));
+  } catch (error) {
+    if (error instanceof StoreCategoryOwnershipError) return fail(c, 422, error.code, error.message);
+    throw error;
+  }
   if (!row) return fail(c, 404, "PRODUCT_NOT_FOUND", "Product not found.");
   await writeAuditLog(c.env, {
     actorId: c.get("actor").userId ?? "admin",
