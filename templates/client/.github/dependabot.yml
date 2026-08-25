@@ -17,6 +17,7 @@ updates:
       - aether-packages
     schedule:
       interval: weekly
+    target-branch: develop
     groups:
       aether-platform:
         patterns:

@@ -4,15 +4,29 @@ import { render, screen, waitFor } from "../test/render";
 import userEvent from "@testing-library/user-event";
 import { AdminDashboard } from "./AdminDashboard";
 
-const getTokenMock = vi.fn(() => Promise.resolve(null));
+const getTokenMock = vi.fn(() => Promise.resolve("test-token"));
 vi.mock("@clerk/react", () => ({
   useAuth: () => ({ isLoaded: true, isSignedIn: true, getToken: getTokenMock })
 }));
 
 const fetchMock = vi.fn();
 
-const sampleProduct = { id: "prd_1", name: "Auriculares QA", sku: "AUD-0001", stock: 10, lowStockThreshold: 4, visibility: "visible" as const };
-const lowStockProduct = { id: "prd_2", name: "Teclado QA", sku: "KEY-0001", stock: 1, lowStockThreshold: 4, visibility: "visible" as const };
+const sampleProduct = {
+  id: "prd_1",
+  name: "Auriculares QA",
+  sku: "AUD-0001",
+  stock: 10,
+  lowStockThreshold: 4,
+  visibility: "visible" as const
+};
+const lowStockProduct = {
+  id: "prd_2",
+  name: "Teclado QA",
+  sku: "KEY-0001",
+  stock: 1,
+  lowStockThreshold: 4,
+  visibility: "visible" as const
+};
 const sampleOrder = {
   id: "ord_1",
   number: "AC-1001",
@@ -23,7 +37,14 @@ const sampleOrder = {
   total: 12000,
   currency: "USD"
 };
-const sampleCustomer = { id: "usr_1", source: "registered" as const, name: "Jane Doe", email: "jane@example.com", status: "active" as const, orderCount: 2 };
+const sampleCustomer = {
+  id: "usr_1",
+  source: "registered" as const,
+  name: "Jane Doe",
+  email: "jane@example.com",
+  status: "active" as const,
+  orderCount: 2
+};
 const sampleMessage = {
   id: "msg_1",
   name: "John Buyer",
@@ -36,7 +57,11 @@ const sampleMessage = {
 };
 
 function ok(data: unknown) {
-  return { ok: true, status: 200, json: () => Promise.resolve({ success: true, data }) } as Response;
+  return {
+    ok: true,
+    status: 200,
+    json: () => Promise.resolve({ success: true, data })
+  } as Response;
 }
 
 function defaultRouter(overrides: Partial<Record<string, unknown>> = {}) {
@@ -49,7 +74,16 @@ function defaultRouter(overrides: Partial<Record<string, unknown>> = {}) {
     }
     if (url.includes("/admin/summary") || url.includes("/admin/demo/summary")) {
       return Promise.resolve(
-        ok(overrides.summary ?? { mode: "private", revenue: 100000, orders: 5, conversionRate: 3.2, lowStock: 1 })
+        ok(
+          overrides.summary ?? {
+            mode: "private",
+            currency: "USD",
+            revenue: 100000,
+            orders: 5,
+            conversionRate: 3.2,
+            lowStock: 1
+          }
+        )
       );
     }
     if (url.includes("/admin/orders")) {
@@ -68,6 +102,8 @@ function defaultRouter(overrides: Partial<Record<string, unknown>> = {}) {
 describe("AdminDashboard", () => {
   beforeEach(() => {
     fetchMock.mockReset();
+    getTokenMock.mockReset();
+    getTokenMock.mockResolvedValue("test-token");
     vi.stubGlobal("fetch", fetchMock);
     vi.stubGlobal("URL", { createObjectURL: vi.fn(() => "blob:mock"), revokeObjectURL: vi.fn() });
   });
@@ -85,7 +121,16 @@ describe("AdminDashboard", () => {
   });
 
   it("shows the conversion metric as not tracked instead of a fabricated percentage - no pageview/session data exists to compute one", async () => {
-    defaultRouter({ summary: { mode: "private", revenue: 100000, orders: 5, conversionRate: null, lowStock: 1 } });
+    defaultRouter({
+      summary: {
+        mode: "private",
+        currency: "USD",
+        revenue: 100000,
+        orders: 5,
+        conversionRate: null,
+        lowStock: 1
+      }
+    });
     render(<AdminDashboard />);
 
     expect(await screen.findByText("Not tracked")).toBeInTheDocument();
@@ -100,7 +145,17 @@ describe("AdminDashboard", () => {
       }
       if (url.includes("pageSize=3&sort=updated_at")) return Promise.resolve(ok({ data: [], pagination: { total: 0 } }));
       if (url.includes("stock=low")) return Promise.resolve(ok({ data: [] }));
-      if (url.includes("/admin/summary")) return Promise.resolve(ok({ mode: "private", revenue: 0, orders: 0, conversionRate: 0, lowStock: 0 }));
+      if (url.includes("/admin/summary"))
+        return Promise.resolve(
+          ok({
+            mode: "private",
+            currency: "USD",
+            revenue: 0,
+            orders: 0,
+            conversionRate: 0,
+            lowStock: 0
+          })
+        );
       if (url.includes("/admin/orders")) return Promise.resolve(ok({ data: [], pagination: { total: 0 } }));
       if (url.includes("/admin/users")) return Promise.resolve(ok({ data: [], pagination: { total: 0 } }));
       return Promise.resolve(ok(null));
@@ -131,13 +186,14 @@ describe("AdminDashboard", () => {
     await screen.findByText("Auriculares QA");
 
     const blob = new Blob(["a,b"], { type: "text/csv" });
-    fetchMock.mockResolvedValueOnce({ ok: true, blob: () => Promise.resolve(blob) } as unknown as Response);
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      blob: () => Promise.resolve(blob)
+    } as unknown as Response);
 
     await user.click(screen.getByRole("button", { name: /export orders csv/i }));
 
-    await waitFor(() =>
-      expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/api/v1/admin/export/orders"), expect.anything())
-    );
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/api/v1/admin/export/orders"), expect.anything()));
   });
 
   it("disables the export action in demo mode", async () => {
@@ -161,8 +217,51 @@ describe("AdminDashboard", () => {
     defaultRouter();
     render(<AdminDashboard demo />);
 
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/api/v1/admin/demo/summary"), { headers: {} }));
+  });
+
+  it("never renders demo metrics or the demo notice while a private summary is pending", async () => {
+    let resolveSummary!: (value: Response) => void;
+    const pendingSummary = new Promise<Response>((resolve) => {
+      resolveSummary = resolve;
+    });
+    fetchMock.mockImplementation((url: string) => {
+      if (url.includes("/admin/summary")) return pendingSummary;
+      if (url.includes("pageSize=3&sort=updated_at")) return Promise.resolve(ok({ data: [], pagination: { total: 0 } }));
+      if (url.includes("stock=low")) return Promise.resolve(ok({ data: [] }));
+      if (url.includes("/admin/orders")) return Promise.resolve(ok({ data: [], pagination: { total: 0 } }));
+      if (url.includes("/admin/users")) return Promise.resolve(ok({ data: [], pagination: { total: 0 } }));
+      if (url.includes("/admin/contact-messages")) return Promise.resolve(ok([]));
+      return Promise.resolve(ok(null));
+    });
+
+    render(<AdminDashboard />);
+
+    expect(screen.queryByText("$18,425.00")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Public demo mode/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/private admin/i)).not.toBeInTheDocument();
+    resolveSummary(
+      ok({
+        mode: "private",
+        currency: "COP",
+        revenue: 0,
+        orders: 0,
+        conversionRate: null,
+        lowStock: 0
+      })
+    );
+    expect(await screen.findByText("Not tracked")).toBeInTheDocument();
+  });
+
+  it("authenticates the private summary request with Clerk", async () => {
+    defaultRouter();
+    render(<AdminDashboard />);
+
     await waitFor(() =>
-      expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/api/v1/admin/demo/summary"))
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/api/v1/admin/summary"),
+        expect.objectContaining({ headers: { authorization: "Bearer test-token" } })
+      )
     );
   });
 });

@@ -28,7 +28,6 @@ type ApiProducts = {
 
 type ApiList = { success: true; data: Array<{ slug: string; name: string } | string> };
 
-type CatalogStatus = "demo" | "live" | "offline";
 type SortValue = "featured" | "newest" | "price_asc" | "price_desc" | "rating" | "name" | "discount";
 
 const catalogApiTimeoutMs = 12000;
@@ -36,9 +35,7 @@ const debounceMs = 350;
 
 function useQueryState(enabled: boolean) {
   const router = useRouter();
-  const [params, setParamsState] = useState<URLSearchParams>(
-    () => new URLSearchParams(enabled && typeof window !== "undefined" ? window.location.search : "")
-  );
+  const [params, setParamsState] = useState<URLSearchParams>(() => new URLSearchParams(enabled && typeof window !== "undefined" ? window.location.search : ""));
 
   useEffect(() => {
     if (!enabled) return;
@@ -121,14 +118,21 @@ export function ProductGrid({
 
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
-  const [status, setStatus] = useState<CatalogStatus>("demo");
-  const [statusMessage, setStatusMessage] = useState("");
   const [brands, setBrands] = useState<string[]>([]);
   const [categories, setCategories] = useState<Array<{ slug: string; name: string }>>([]);
   const [addingIds, setAddingIds] = useState<string[]>([]);
   const [addedProduct, setAddedProduct] = useState<Product | null>(null);
   const [notifiedIds, setNotifiedIds] = useState<string[]>([]);
-  const [pagination, setPagination] = useState<ApiPagination>({ page: 1, pageSize, total: 0, pageCount: 1 });
+  const [restockProduct, setRestockProduct] = useState<Product | null>(null);
+  const [restockEmail, setRestockEmail] = useState("");
+  const [restockError, setRestockError] = useState("");
+  const [restockSubmitting, setRestockSubmitting] = useState(false);
+  const [pagination, setPagination] = useState<ApiPagination>({
+    page: 1,
+    pageSize,
+    total: 0,
+    pageCount: 1
+  });
 
   useEffect(() => {
     const timeout = window.setTimeout(() => setDebouncedQuery(queryInput.trim()), debounceMs);
@@ -162,7 +166,13 @@ export function ProductGrid({
     if (compact || fixedCategory) return;
     Promise.all([
       fetch(`${apiBaseUrl}/api/v1/catalog/brands`).then((response) => response.json() as Promise<ApiList>),
-      fetch(`${apiBaseUrl}/api/v1/catalog/categories`).then((response) => response.json() as Promise<{ success: boolean; data?: Array<{ slug: string; name: string }> }>)
+      fetch(`${apiBaseUrl}/api/v1/catalog/categories`).then(
+        (response) =>
+          response.json() as Promise<{
+            success: boolean;
+            data?: Array<{ slug: string; name: string }>;
+          }>
+      )
     ])
       .then(([brandsPayload, categoriesPayload]) => {
         if (brandsPayload.success) setBrands(brandsPayload.data.map((entry) => (typeof entry === "string" ? entry : entry.name)));
@@ -192,19 +202,17 @@ export function ProductGrid({
     if (hasDiscount) params.set("hasDiscount", "true");
     if (inStock) params.set("inStock", "true");
 
-    fetch(`${apiBaseUrl}/api/v1/catalog/products?${params.toString()}`, { signal: controller.signal })
+    fetch(`${apiBaseUrl}/api/v1/catalog/products?${params.toString()}`, {
+      signal: controller.signal
+    })
       .then((response) => response.json())
       .then((payload: ApiProducts) => {
         if (!payload.success) return;
         const data = excludeSlug ? payload.data.filter((product) => product.slug !== excludeSlug) : payload.data;
         setProducts(data);
         setPagination(payload.pagination ?? { page, pageSize, total: data.length, pageCount: 1 });
-        setStatus("live");
-        setStatusMessage("");
       })
       .catch(() => {
-        setStatus("offline");
-        setStatusMessage("");
         if (!compact && fallbackProducts) setProducts(fallbackProducts);
       })
       .finally(() => setLoading(false));
@@ -213,7 +221,25 @@ export function ProductGrid({
       window.clearTimeout(timeout);
       controller.abort();
     };
-  }, [compact, page, pageSize, sort, debouncedQuery, flag, fixedCategory, category, brand, minPrice, maxPrice, minRating, hasDiscount, inStock, excludeSlug, apiBaseUrl, fallbackProducts]);
+  }, [
+    compact,
+    page,
+    pageSize,
+    sort,
+    debouncedQuery,
+    flag,
+    fixedCategory,
+    category,
+    brand,
+    minPrice,
+    maxPrice,
+    minRating,
+    hasDiscount,
+    inStock,
+    excludeSlug,
+    apiBaseUrl,
+    fallbackProducts
+  ]);
 
   const favoriteIds = useMemo(() => favorites.map((product) => product.id), [favorites]);
 
@@ -236,15 +262,7 @@ export function ProductGrid({
     try {
       const result = await addItem(product);
       setAddedProduct(product);
-      setStatusMessage(
-        locale === "es"
-          ? result === "synced"
-            ? `${product.name} agregado al carrito`
-            : `${product.name} guardado localmente`
-          : result === "synced"
-            ? `${product.name} added to cart`
-            : `${product.name} saved locally`
-      );
+      void result;
       window.setTimeout(() => setAddedProduct((current) => (current?.id === product.id ? null : current)), 3200);
     } finally {
       setAddingIds((current) => current.filter((id) => id !== product.id));
@@ -255,19 +273,34 @@ export function ProductGrid({
     toggleFavoriteContext(product);
   }
 
-  async function notifyRestock(product: Product) {
-    const email = window.prompt(t.notifyPromptEmail)?.trim();
-    if (!email) return;
+  function openRestockDialog(product: Product) {
+    setRestockProduct(product);
+    setRestockEmail("");
+    setRestockError("");
+  }
+
+  async function notifyRestock() {
+    if (!restockProduct || restockSubmitting) return;
+    const email = restockEmail.trim();
+    if (!/^\S+@\S+\.\S+$/.test(email)) {
+      setRestockError(t.notifyInvalidEmail);
+      return;
+    }
+    setRestockSubmitting(true);
+    setRestockError("");
     try {
-      const response = await fetch(`${apiBaseUrl}/api/v1/catalog/products/${encodeURIComponent(product.id)}/notify-restock`, {
+      const response = await fetch(`${apiBaseUrl}/api/v1/catalog/products/${encodeURIComponent(restockProduct.id)}/notify-restock`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ email })
       });
       if (!response.ok) throw new Error("notify-restock request failed");
-      setNotifiedIds((current) => (current.includes(product.id) ? current : [...current, product.id]));
+      setNotifiedIds((current) => (current.includes(restockProduct.id) ? current : [...current, restockProduct.id]));
+      setRestockProduct(null);
     } catch {
-      window.alert(t.notifyFailed);
+      setRestockError(t.notifyFailed);
+    } finally {
+      setRestockSubmitting(false);
     }
   }
 
@@ -292,9 +325,7 @@ export function ProductGrid({
     setInStock(false);
   }
 
-  const hasActiveFilters = Boolean(
-    debouncedQuery || (!fixedCategory && category) || brand || minPrice || maxPrice || minRating || hasDiscount || inStock
-  );
+  const hasActiveFilters = Boolean(debouncedQuery || (!fixedCategory && category) || brand || minPrice || maxPrice || minRating || hasDiscount || inStock);
 
   const filterPanel = (
     <div className="grid gap-4">
@@ -376,10 +407,8 @@ export function ProductGrid({
   return (
     <section className="aether-shell py-8" aria-labelledby="catalog-heading">
       <div className="mb-5">
-        <p className="text-sm font-semibold uppercase text-accent">
-          {eyebrow ?? (statusMessage || (status === "live" ? t.liveCatalog : status === "offline" ? t.offlineCatalog : t.demoReady))}
-        </p>
-        <h2 id="catalog-heading" className="mt-1 text-2xl font-semibold tracking-normal text-zinc-950 md:text-4xl">
+        {eyebrow ? <p className="text-sm font-semibold uppercase text-accent">{eyebrow}</p> : null}
+        <h2 id="catalog-heading" className={`${eyebrow ? "mt-1" : ""} text-2xl font-semibold tracking-normal text-zinc-950 md:text-4xl`}>
           {heading ?? t.premiumCatalog}
         </h2>
         {description ? <p className="mt-3 max-w-2xl text-base leading-7 text-zinc-600">{description}</p> : null}
@@ -394,13 +423,18 @@ export function ProductGrid({
               value={queryInput}
               onChange={(event) => setQueryInput(event.target.value)}
               onKeyDown={(event) => {
-                if (event.key === "Enter") setDebouncedQuery(queryInput.trim());
+                if (event.key === "Enter" && !event.nativeEvent.isComposing) setDebouncedQuery(queryInput.trim());
               }}
               className="w-full min-w-0 border-0 bg-transparent text-zinc-950 outline-none placeholder:text-zinc-500"
               placeholder={t.searchPlaceholder}
             />
             {queryInput ? (
-              <button type="button" onClick={() => setQueryInput("")} aria-label="Clear search" className="focus-ring rounded p-1 text-zinc-500 hover:text-zinc-950">
+              <button
+                type="button"
+                onClick={() => setQueryInput("")}
+                aria-label={t.clearSearch}
+                className="focus-ring rounded p-1 text-zinc-500 hover:text-zinc-950"
+              >
                 <X size={15} aria-hidden />
               </button>
             ) : null}
@@ -434,9 +468,7 @@ export function ProductGrid({
         ) : null}
 
         <div>
-          {!compact ? (
-            <p className="mb-3 text-sm text-zinc-600">{t.resultsCount.replace("{count}", String(pagination.total))}</p>
-          ) : null}
+          {!compact ? <p className="mb-3 text-sm text-zinc-600">{t.resultsCount.replace("{count}", String(pagination.total))}</p> : null}
 
           {loading && products.length === 0 ? (
             <div className={`grid gap-4 sm:grid-cols-2 ${compact ? "lg:grid-cols-4" : "lg:grid-cols-3 xl:grid-cols-4"}`}>
@@ -465,7 +497,7 @@ export function ProductGrid({
                   isAdded={addedProduct?.id === product.id}
                   onToggleFavorite={toggleFavorite}
                   onAddToCart={(item) => void addToCart(item)}
-                  onNotifyRestock={(item) => void notifyRestock(item)}
+                  onNotifyRestock={openRestockDialog}
                   isNotifySubscribed={notifiedIds.includes(product.id)}
                   wishlistEnabled={config.features.wishlist}
                   inventoryEnabled={config.features.inventory}
@@ -505,6 +537,50 @@ export function ProductGrid({
           </Button>
         </Sheet>
       ) : null}
+
+      <Sheet
+        open={Boolean(restockProduct)}
+        onClose={() => {
+          if (!restockSubmitting) setRestockProduct(null);
+        }}
+        side="bottom"
+        title={t.notifyMe}
+      >
+        <form
+          noValidate
+          className="grid gap-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void notifyRestock();
+          }}
+        >
+          <p className="text-sm text-zinc-600">{t.notifyWhenBackInStock.replace("{name}", restockProduct?.name ?? "")}</p>
+          <label className="grid gap-1.5 text-sm font-medium text-zinc-950">
+            {t.email}
+            <Input
+              type="email"
+              autoComplete="email"
+              value={restockEmail}
+              onChange={(event) => setRestockEmail(event.target.value)}
+              aria-invalid={Boolean(restockError)}
+              aria-describedby={restockError ? "restock-email-error" : undefined}
+            />
+          </label>
+          {restockError ? (
+            <p id="restock-email-error" role="alert" className="text-sm text-red-700">
+              {restockError}
+            </p>
+          ) : null}
+          <div className="flex justify-end gap-3">
+            <Button type="button" variant="outline" disabled={restockSubmitting} onClick={() => setRestockProduct(null)}>
+              {t.cancel}
+            </Button>
+            <Button type="submit" disabled={restockSubmitting}>
+              {restockSubmitting ? t.sending : t.notifyMe}
+            </Button>
+          </div>
+        </form>
+      </Sheet>
 
       {addedProduct ? (
         <div

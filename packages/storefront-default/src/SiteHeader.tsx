@@ -88,7 +88,7 @@ export function SiteHeader({ portfolioUrl }: { portfolioUrl?: string }) {
         }
       })
       .catch(() => {
-        // Default Aether name/theme stays in place if this read fails.
+        // The build-time client configuration remains the safe fallback.
       });
     return () => {
       cancelled = true;
@@ -151,21 +151,15 @@ export function SiteHeader({ portfolioUrl }: { portfolioUrl?: string }) {
           {brand?.logoUrl ? (
             // Plain <img>, not next/image - the URL is admin-configured at
             // runtime, not a build-time known asset next/image can optimize.
-            <img
-              src={brand.logoUrl}
-              alt={brand.name}
-              className="h-9 w-9 rounded-md object-contain"
-            />
+            <img src={brand.logoUrl} alt={brand.name} className="h-9 w-9 rounded-md object-contain" />
           ) : (
             <span className="grid h-9 w-9 place-items-center rounded-md bg-accent text-white">
               <Sparkles size={18} aria-hidden />
             </span>
           )}
           <span className="hidden sm:block">
-            <span className="block text-base leading-tight">{brand?.name || t.brand}</span>
-            <span className="block text-xs font-normal text-ink-muted">
-              {brand?.tagline[locale] || t.tagline}
-            </span>
+            <span className="block text-base leading-tight">{brand?.name || config.brand.name}</span>
+            <span className="block text-xs font-normal text-ink-muted">{brand?.tagline[locale] || config.brand.tagline?.[locale] || t.tagline}</span>
           </span>
         </StorefrontLink>
 
@@ -183,27 +177,35 @@ export function SiteHeader({ portfolioUrl }: { portfolioUrl?: string }) {
         </form>
 
         <nav className="hidden shrink-0 items-center gap-1 md:flex" aria-label="Primary">
-          <StorefrontLink href="/products" className="focus-ring inline-flex min-h-10 items-center rounded-md px-3 text-sm font-medium text-ink-muted hover:bg-surface-hover hover:text-ink">
+          <StorefrontLink
+            href="/products"
+            className="focus-ring inline-flex min-h-10 items-center rounded-md px-3 text-sm font-medium text-ink-muted hover:bg-surface-hover hover:text-ink"
+          >
             {t.shop}
           </StorefrontLink>
-          <StorefrontLink href="/categories" className="focus-ring inline-flex min-h-10 items-center rounded-md px-3 text-sm font-medium text-ink-muted hover:bg-surface-hover hover:text-ink">
+          <StorefrontLink
+            href="/categories"
+            className="focus-ring inline-flex min-h-10 items-center rounded-md px-3 text-sm font-medium text-ink-muted hover:bg-surface-hover hover:text-ink"
+          >
             {t.categories}
           </StorefrontLink>
-          {wishlistEnabled ? <StorefrontLink
-            href="/account/favorites"
-            className="focus-ring relative inline-flex min-h-10 items-center gap-2 rounded-md px-3 text-sm font-medium text-ink-muted hover:bg-surface-hover hover:text-ink"
-            aria-label={t.favorites}
-          >
-            <Heart size={17} aria-hidden />
-            {/* Always rendered (never conditionally omitted) so this slot's
+          {wishlistEnabled ? (
+            <StorefrontLink
+              href="/account/favorites"
+              className="focus-ring relative inline-flex min-h-10 items-center gap-2 rounded-md px-3 text-sm font-medium text-ink-muted hover:bg-surface-hover hover:text-ink"
+              aria-label={t.favorites}
+            >
+              <Heart size={17} aria-hidden />
+              {/* Always rendered (never conditionally omitted) so this slot's
                 width is reserved from the very first paint - favoriteCount
                 starts at 0 until the layout effect resolves it, and if the
                 badge only mounted once count > 0, its appearance would widen
                 the nav and shift everything after it. */}
-            <Badge tone="accent" className={favoriteCount > 0 ? "" : "invisible"}>
-              {favoriteCount}
-            </Badge>
-          </StorefrontLink> : null}
+              <Badge tone="accent" className={favoriteCount > 0 ? "" : "invisible"}>
+                {favoriteCount}
+              </Badge>
+            </StorefrontLink>
+          ) : null}
           <StorefrontLink
             href="/compare"
             className="focus-ring relative inline-flex min-h-10 items-center gap-2 rounded-md px-3 text-sm font-medium text-ink-muted hover:bg-surface-hover hover:text-ink"
@@ -310,7 +312,10 @@ export function SiteHeader({ portfolioUrl }: { portfolioUrl?: string }) {
         <div id="aether-mobile-menu" className="border-t border-border bg-surface md:hidden">
           <div className="aether-shell grid gap-3 py-4">
             <div className="flex items-center justify-between gap-3">
-              <div className="flex w-fit items-center rounded-md border border-border bg-surface-hover p-1" aria-label={locale === "es" ? "Idioma" : "Language"}>
+              <div
+                className="flex w-fit items-center rounded-md border border-border bg-surface-hover p-1"
+                aria-label={locale === "es" ? "Idioma" : "Language"}
+              >
                 <LanguageButtons locale={locale} setLocale={setLocale} />
               </div>
               <ThemeToggle />
@@ -330,17 +335,19 @@ export function SiteHeader({ portfolioUrl }: { portfolioUrl?: string }) {
               >
                 {t.categories}
               </StorefrontLink>
-              {wishlistEnabled ? <StorefrontLink
-                href="/account/favorites"
-                onClick={() => setMenuOpen(false)}
-                className="focus-ring inline-flex min-h-11 items-center justify-between gap-3 rounded-md border border-border px-3 text-sm font-semibold text-ink hover:bg-surface-hover"
-              >
-                <span className="inline-flex items-center gap-2">
-                  <Heart size={17} aria-hidden />
-                  {t.favorites}
-                </span>
-                {favoriteCount > 0 ? <Badge tone="accent">{favoriteCount}</Badge> : null}
-              </StorefrontLink> : null}
+              {wishlistEnabled ? (
+                <StorefrontLink
+                  href="/account/favorites"
+                  onClick={() => setMenuOpen(false)}
+                  className="focus-ring inline-flex min-h-11 items-center justify-between gap-3 rounded-md border border-border px-3 text-sm font-semibold text-ink hover:bg-surface-hover"
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <Heart size={17} aria-hidden />
+                    {t.favorites}
+                  </span>
+                  {favoriteCount > 0 ? <Badge tone="accent">{favoriteCount}</Badge> : null}
+                </StorefrontLink>
+              ) : null}
               <StorefrontLink
                 href="/compare"
                 onClick={() => setMenuOpen(false)}
@@ -400,13 +407,7 @@ export function SiteHeader({ portfolioUrl }: { portfolioUrl?: string }) {
   );
 }
 
-function LanguageButtons({
-  locale,
-  setLocale
-}: {
-  locale: "en" | "es";
-  setLocale: (locale: "en" | "es") => void;
-}) {
+function LanguageButtons({ locale, setLocale }: { locale: "en" | "es"; setLocale: (locale: "en" | "es") => void }) {
   return (
     <>
       {(["en", "es"] as const).map((option) => (
@@ -428,15 +429,7 @@ function LanguageButtons({
 // preferences" style controls) behind a single trigger instead of three
 // separate always-visible bordered buttons - that's what made the header
 // feel crowded next to the actual shopping actions (cart, favorites, account).
-function SettingsMenu({
-  locale,
-  setLocale,
-  portfolioUrl
-}: {
-  locale: "en" | "es";
-  setLocale: (locale: "en" | "es") => void;
-  portfolioUrl?: string;
-}) {
+function SettingsMenu({ locale, setLocale, portfolioUrl }: { locale: "en" | "es"; setLocale: (locale: "en" | "es") => void; portfolioUrl?: string }) {
   const { t } = useLanguage();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -488,9 +481,7 @@ function SettingsMenu({
                   setOpen(false);
                 }}
                 aria-pressed={locale === option}
-                className={`min-h-9 rounded-md text-sm font-semibold ${
-                  locale === option ? "bg-accent text-white" : "text-ink-muted hover:bg-surface-hover"
-                }`}
+                className={`min-h-9 rounded-md text-sm font-semibold ${locale === option ? "bg-accent text-white" : "text-ink-muted hover:bg-surface-hover"}`}
               >
                 {option.toUpperCase()}
               </button>

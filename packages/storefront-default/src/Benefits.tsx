@@ -3,15 +3,17 @@
 import { CreditCard, Globe2, RotateCcw, Sparkles } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useLanguage } from "./LanguageProvider";
+import { useStorefrontConfig } from "./AetherStorefrontProvider";
 
 const icons: LucideIcon[] = [CreditCard, Globe2, RotateCcw, Sparkles];
 
 export function Benefits() {
   const { t } = useLanguage();
+  const { config } = useStorefrontConfig();
   return (
     <section className="border-y border-zinc-200/60 bg-white py-10">
       <div className="aether-shell">
-        <h2 className="text-2xl font-semibold text-zinc-950">{t.benefitsHeading}</h2>
+        <h2 className="text-2xl font-semibold text-zinc-950">{t.benefitsHeading.replace("{brand}", config.brand.name)}</h2>
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {t.benefits.map(([title, body], index) => {
             const Icon = icons[index] ?? Sparkles;

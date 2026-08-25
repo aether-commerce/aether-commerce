@@ -5,7 +5,8 @@ export function Metric({
   value,
   icon: Icon,
   href,
-  hint
+  hint,
+  loading = false
 }: Readonly<{
   label: string;
   value: string;
@@ -13,6 +14,8 @@ export function Metric({
   href?: string;
   /** Only render when there's real, trustworthy context to show - never a fabricated comparison. */
   hint?: string;
+  /** Keeps the metric footprint stable without rendering fabricated fallback data. */
+  loading?: boolean;
 }>) {
   const content = (
     <>
@@ -20,7 +23,11 @@ export function Metric({
         <p className="text-sm text-ink-muted">{label}</p>
         {Icon ? <Icon size={16} className="text-accent" aria-hidden /> : null}
       </div>
-      <p className="mt-2 text-2xl font-semibold tabular-nums text-ink">{value}</p>
+      {loading ? (
+        <div className="skeleton mt-2 h-8 w-24 rounded-md" aria-label={label} />
+      ) : (
+        <p className="mt-2 text-2xl font-semibold tabular-nums text-ink">{value}</p>
+      )}
       {hint ? <p className="mt-1 text-xs text-ink-subtle">{hint}</p> : null}
     </>
   );
@@ -33,5 +40,9 @@ export function Metric({
     );
   }
 
-  return <div className="rounded-lg border border-border bg-surface p-4">{content}</div>;
+  return (
+    <div className="rounded-lg border border-border bg-surface p-4" aria-busy={loading || undefined}>
+      {content}
+    </div>
+  );
 }

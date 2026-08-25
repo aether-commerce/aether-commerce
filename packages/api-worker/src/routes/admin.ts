@@ -3,12 +3,7 @@ import type { Context } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { checkoutProviderIds } from "@aether-commerce/api-core";
-import {
-  canTransitionFulfillment,
-  canTransitionPayment,
-  isValidHexColor,
-  isValidWhatsappNumber
-} from "@aether-commerce/core";
+import { canTransitionFulfillment, canTransitionPayment, isValidHexColor, isValidWhatsappNumber } from "@aether-commerce/core";
 import { orderStateSchema } from "@aether-commerce/schemas";
 import type { AppBindings } from "../types";
 import { collection, fail, ok } from "../http";
@@ -45,7 +40,10 @@ import {
   updateProduct
 } from "../services/products-admin";
 
-const productImageSchema = z.object({ main: z.string().min(1), gallery: z.array(z.string().min(1)).default([]) });
+const productImageSchema = z.object({
+  main: z.string().min(1),
+  gallery: z.array(z.string().min(1)).default([])
+});
 
 const productWriteSchema = z.object({
   name: z.string().min(1).max(200),
@@ -75,17 +73,16 @@ const productWriteSchema = z.object({
 // compareAtPriceCents, when present, is the struck-through reference price -
 // it must be strictly higher than what the shopper actually pays, or the
 // "discount" shown on the storefront would be negative/nonsensical.
-const productWriteSchemaValidated = productWriteSchema.refine(
-  (value) => value.compareAtPriceCents == null || value.compareAtPriceCents > value.priceCents,
-  { message: "compareAtPriceCents must be greater than priceCents", path: ["compareAtPriceCents"] }
-);
-const productPatchSchema = productWriteSchema.partial().refine(
-  (value) =>
-    value.compareAtPriceCents == null ||
-    value.priceCents == null ||
-    value.compareAtPriceCents > value.priceCents,
-  { message: "compareAtPriceCents must be greater than priceCents", path: ["compareAtPriceCents"] }
-);
+const productWriteSchemaValidated = productWriteSchema.refine((value) => value.compareAtPriceCents == null || value.compareAtPriceCents > value.priceCents, {
+  message: "compareAtPriceCents must be greater than priceCents",
+  path: ["compareAtPriceCents"]
+});
+const productPatchSchema = productWriteSchema
+  .partial()
+  .refine((value) => value.compareAtPriceCents == null || value.priceCents == null || value.compareAtPriceCents > value.priceCents, {
+    message: "compareAtPriceCents must be greater than priceCents",
+    path: ["compareAtPriceCents"]
+  });
 
 const checkoutCredentialsUpdateSchema = z.object({
   secretKey: z.string().min(1).optional(),
@@ -178,6 +175,7 @@ export const adminRoutes = new Hono<AppBindings>();
 adminRoutes.get("/demo/summary", (c) =>
   ok(c, {
     mode: "demo",
+    currency: c.env.STORE_CURRENCY ?? "USD",
     notice: {
       en: "Public demo mode. Changes are disabled.",
       es: "Modo de demostracion publica. Los cambios estan deshabilitados."
@@ -191,7 +189,7 @@ adminRoutes.get("/demo/summary", (c) =>
 
 adminRoutes.get("/summary", requirePermission("orders.read"), async (c) => {
   const summary = await computeDashboardSummary(c.env);
-  return ok(c, { mode: "private", ...summary });
+  return ok(c, { mode: "private", currency: c.env.STORE_CURRENCY ?? "USD", ...summary });
 });
 
 const productListQuerySchema = z.object({
@@ -208,25 +206,20 @@ const productListQuerySchema = z.object({
 // Admin list is a separate D1-backed path from the public catalog (real
 // filters/sort/pagination pushed to SQL, includes draft/hidden rows) - see
 // listProductsForAdmin in services/products-admin.ts for why.
-adminRoutes.get(
-  "/products",
-  requirePermission("products.read"),
-  zValidator("query", productListQuerySchema),
-  async (c) => {
-    const query = c.req.valid("query");
-    const result = await listProductsForAdmin(c.env, {
-      search: query.search,
-      visibility: query.visibility,
-      category: query.category,
-      stockFilter: query.stock,
-      page: query.page,
-      pageSize: query.pageSize,
-      sort: query.sort,
-      sortDirection: query.sortDirection
-    });
-    return ok(c, result);
-  }
-);
+adminRoutes.get("/products", requirePermission("products.read"), zValidator("query", productListQuerySchema), async (c) => {
+  const query = c.req.valid("query");
+  const result = await listProductsForAdmin(c.env, {
+    search: query.search,
+    visibility: query.visibility,
+    category: query.category,
+    stockFilter: query.stock,
+    page: query.page,
+    pageSize: query.pageSize,
+    sort: query.sort,
+    sortDirection: query.sortDirection
+  });
+  return ok(c, result);
+});
 
 adminRoutes.get("/products/:id", requirePermission("products.read"), async (c) => {
   const row = await getProductRow(c.env, c.req.param("id"));
@@ -235,40 +228,30 @@ adminRoutes.get("/products/:id", requirePermission("products.read"), async (c) =
   return ok(c, { ...row, details });
 });
 
-adminRoutes.post(
-  "/products",
-  requirePermission("products.write"),
-  zValidator("json", productWriteSchemaValidated),
-  async (c) => {
-    const row = await createProduct(c.env, c.req.valid("json"));
-    await writeAuditLog(c.env, {
-      actorId: c.get("actor").userId ?? "admin",
-      action: "product.created",
-      targetType: "product",
-      targetId: row.id,
-      payload: { name: row.name, sku: row.sku }
-    });
-    return ok(c, row, 201);
-  }
-);
+adminRoutes.post("/products", requirePermission("products.write"), zValidator("json", productWriteSchemaValidated), async (c) => {
+  const row = await createProduct(c.env, c.req.valid("json"));
+  await writeAuditLog(c.env, {
+    actorId: c.get("actor").userId ?? "admin",
+    action: "product.created",
+    targetType: "product",
+    targetId: row.id,
+    payload: { name: row.name, sku: row.sku }
+  });
+  return ok(c, row, 201);
+});
 
-adminRoutes.patch(
-  "/products/:id",
-  requirePermission("products.write"),
-  zValidator("json", productPatchSchema),
-  async (c) => {
-    const row = await updateProduct(c.env, c.req.param("id"), c.req.valid("json"));
-    if (!row) return fail(c, 404, "PRODUCT_NOT_FOUND", "Product not found.");
-    await writeAuditLog(c.env, {
-      actorId: c.get("actor").userId ?? "admin",
-      action: "product.updated",
-      targetType: "product",
-      targetId: row.id,
-      payload: c.req.valid("json")
-    });
-    return ok(c, row);
-  }
-);
+adminRoutes.patch("/products/:id", requirePermission("products.write"), zValidator("json", productPatchSchema), async (c) => {
+  const row = await updateProduct(c.env, c.req.param("id"), c.req.valid("json"));
+  if (!row) return fail(c, 404, "PRODUCT_NOT_FOUND", "Product not found.");
+  await writeAuditLog(c.env, {
+    actorId: c.get("actor").userId ?? "admin",
+    action: "product.updated",
+    targetType: "product",
+    targetId: row.id,
+    payload: c.req.valid("json")
+  });
+  return ok(c, row);
+});
 
 adminRoutes.post("/products/:id/publish", requirePermission("products.write"), async (c) => {
   const changed = await setProductVisibility(c.env, c.req.param("id"), "visible");
@@ -308,10 +291,7 @@ adminRoutes.post(
   ),
   async (c) => {
     const body = c.req.valid("json");
-    const visibility = { publish: "visible", archive: "hidden", draft: "draft" }[body.action] as
-      | "visible"
-      | "hidden"
-      | "draft";
+    const visibility = { publish: "visible", archive: "hidden", draft: "draft" }[body.action] as "visible" | "hidden" | "draft";
     const changed = await bulkSetVisibility(c.env, body.ids, visibility);
     await writeAuditLog(c.env, {
       actorId: c.get("actor").userId ?? "admin",
@@ -339,7 +319,16 @@ adminRoutes.delete("/products/:id", requirePermission("products.write"), async (
 adminRoutes.post(
   "/products/:id/inventory-adjustment",
   requirePermission("inventory.write"),
-  zValidator("json", z.object({ delta: z.number().int().refine((value) => value !== 0), reason: z.string().max(300).optional() })),
+  zValidator(
+    "json",
+    z.object({
+      delta: z
+        .number()
+        .int()
+        .refine((value) => value !== 0),
+      reason: z.string().max(300).optional()
+    })
+  ),
   async (c) => {
     const body = c.req.valid("json");
     const result = await adjustProductInventory(c.env, c.req.param("id"), {
@@ -370,20 +359,15 @@ adminRoutes.post("/uploads/signature", requirePermission("products.write"), asyn
 // were removed here - products.stock is the single source of truth for
 // stock, and POST /products/:id/inventory-adjustment (adjustProductInventory)
 // is the one real, UI-wired way to adjust it.
-adminRoutes.get(
-  "/inventory/movements",
-  requirePermission("inventory.read"),
-  zValidator("query", z.object({ productId: z.string().optional() })),
-  async (c) => {
-    const productId = c.req.valid("query").productId;
-    const rows = productId
-      ? await c.env.DB.prepare("select * from inventory_movements where product_id = ? order by created_at desc limit 100")
-          .bind(productId)
-          .all<Record<string, unknown>>()
-      : await c.env.DB.prepare("select * from inventory_movements order by created_at desc limit 100").all<Record<string, unknown>>();
-    return ok(c, rows.results);
-  }
-);
+adminRoutes.get("/inventory/movements", requirePermission("inventory.read"), zValidator("query", z.object({ productId: z.string().optional() })), async (c) => {
+  const productId = c.req.valid("query").productId;
+  const rows = productId
+    ? await c.env.DB.prepare("select * from inventory_movements where product_id = ? order by created_at desc limit 100")
+        .bind(productId)
+        .all<Record<string, unknown>>()
+    : await c.env.DB.prepare("select * from inventory_movements order by created_at desc limit 100").all<Record<string, unknown>>();
+  return ok(c, rows.results);
+});
 
 const orderListQuerySchema = z.object({
   search: z.string().trim().max(100).optional(),
@@ -394,66 +378,59 @@ const orderListQuerySchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(100).default(25)
 });
 
-adminRoutes.get(
-  "/orders",
-  requirePermission("orders.read"),
-  zValidator("query", orderListQuerySchema),
-  async (c) => {
-    const query = c.req.valid("query");
-    const where: string[] = [];
-    const params: unknown[] = [];
+adminRoutes.get("/orders", requirePermission("orders.read"), zValidator("query", orderListQuerySchema), async (c) => {
+  const query = c.req.valid("query");
+  const where: string[] = [];
+  const params: unknown[] = [];
 
-    if (query.search) {
-      where.push("(number like ? or email like ?)");
-      const needle = `%${query.search}%`;
-      params.push(needle, needle);
-    }
-    if (query.channel) {
-      where.push("channel = ?");
-      params.push(query.channel);
-    }
-    if (query.paymentStatus) {
-      where.push("payment_status = ?");
-      params.push(query.paymentStatus);
-    }
-    if (query.fulfillmentStatus) {
-      where.push("fulfillment_status = ?");
-      params.push(query.fulfillmentStatus);
-    }
-
-    const whereClause = where.length > 0 ? `where ${where.join(" and ")}` : "";
-    const total = await c.env.DB.prepare(`select count(*) as count from orders ${whereClause}`)
-      .bind(...params)
-      .first<{ count: number }>();
-    const offset = (query.page - 1) * query.pageSize;
-    const rows = await c.env.DB.prepare(
-      `select id, number, email, state, channel, payment_status, fulfillment_status, total, currency, created_at
-       from orders ${whereClause} order by created_at desc limit ? offset ?`
-    )
-      .bind(...params, query.pageSize, offset)
-      .all();
-
-    const totalCount = total?.count ?? 0;
-    return ok(c, {
-      data: rows.results,
-      pagination: {
-        page: query.page,
-        pageSize: query.pageSize,
-        total: totalCount,
-        pageCount: Math.max(1, Math.ceil(totalCount / query.pageSize))
-      }
-    });
+  if (query.search) {
+    where.push("(number like ? or email like ?)");
+    const needle = `%${query.search}%`;
+    params.push(needle, needle);
   }
-);
+  if (query.channel) {
+    where.push("channel = ?");
+    params.push(query.channel);
+  }
+  if (query.paymentStatus) {
+    where.push("payment_status = ?");
+    params.push(query.paymentStatus);
+  }
+  if (query.fulfillmentStatus) {
+    where.push("fulfillment_status = ?");
+    params.push(query.fulfillmentStatus);
+  }
+
+  const whereClause = where.length > 0 ? `where ${where.join(" and ")}` : "";
+  const total = await c.env.DB.prepare(`select count(*) as count from orders ${whereClause}`)
+    .bind(...params)
+    .first<{ count: number }>();
+  const offset = (query.page - 1) * query.pageSize;
+  const rows = await c.env.DB.prepare(
+    `select id, number, email, state, channel, payment_status, fulfillment_status, total, currency, created_at
+       from orders ${whereClause} order by created_at desc limit ? offset ?`
+  )
+    .bind(...params, query.pageSize, offset)
+    .all();
+
+  const totalCount = total?.count ?? 0;
+  return ok(c, {
+    data: rows.results,
+    pagination: {
+      page: query.page,
+      pageSize: query.pageSize,
+      total: totalCount,
+      pageCount: Math.max(1, Math.ceil(totalCount / query.pageSize))
+    }
+  });
+});
 
 adminRoutes.get("/orders/:id", requirePermission("orders.read"), async (c) => {
-  const row = await c.env.DB.prepare(
-    `select ${CURRENT_ORDER_SELECT}, internal_notes from orders where id = ?`
-  )
-    .bind(c.req.param("id"))
-    .first<StoredOrderRow & {
+  const row = await c.env.DB.prepare(`select ${CURRENT_ORDER_SELECT}, internal_notes from orders where id = ?`).bind(c.req.param("id")).first<
+    StoredOrderRow & {
       internal_notes: string | null;
-    }>();
+    }
+  >();
   if (!row) return fail(c, 404, "ORDER_NOT_FOUND", "Order not found.");
 
   // The columns (not the payload_json blob) are the source of truth for
@@ -509,7 +486,12 @@ adminRoutes.post(
 adminRoutes.patch(
   "/orders/:id/fulfillment",
   requirePermission("orders.write"),
-  zValidator("json", z.object({ fulfillmentStatus: z.enum(["unfulfilled", "processing", "shipped", "delivered", "cancelled"]) })),
+  zValidator(
+    "json",
+    z.object({
+      fulfillmentStatus: z.enum(["unfulfilled", "processing", "shipped", "delivered", "cancelled"])
+    })
+  ),
   async (c) => {
     const orderId = c.req.param("id");
     const body = c.req.valid("json");
@@ -544,25 +526,36 @@ adminRoutes.patch(
         return fail(c, 409, "FULFILLMENT_CONFLICT", "The order changed while this update was being applied.");
       }
       await clearCatalogCache(c.env);
-      return ok(c, { orderId, previousFulfillmentStatus: from, fulfillmentStatus: body.fulfillmentStatus });
+      return ok(c, {
+        orderId,
+        previousFulfillmentStatus: from,
+        fulfillmentStatus: body.fulfillmentStatus
+      });
     }
 
-    const result = await c.env.DB.prepare(
-      "update orders set fulfillment_status = ?, updated_at = ? where id = ? and fulfillment_status = ?"
-    )
+    const result = await c.env.DB.prepare("update orders set fulfillment_status = ?, updated_at = ? where id = ? and fulfillment_status = ?")
       .bind(body.fulfillmentStatus, new Date().toISOString(), orderId, from)
       .run();
     if ((result.meta.changes ?? 0) !== 1) {
       return fail(c, 409, "FULFILLMENT_CONFLICT", "The order changed while this update was being applied.");
     }
-    return ok(c, { orderId, previousFulfillmentStatus: from, fulfillmentStatus: body.fulfillmentStatus });
+    return ok(c, {
+      orderId,
+      previousFulfillmentStatus: from,
+      fulfillmentStatus: body.fulfillmentStatus
+    });
   }
 );
 
 adminRoutes.patch(
   "/orders/:id/payment",
   requirePermission("orders.write"),
-  zValidator("json", z.object({ paymentStatus: z.enum(["pending", "paid", "failed", "refunded", "partially_refunded"]) })),
+  zValidator(
+    "json",
+    z.object({
+      paymentStatus: z.enum(["pending", "paid", "failed", "refunded", "partially_refunded"])
+    })
+  ),
   async (c) => {
     const orderId = c.req.param("id");
     const body = c.req.valid("json");
@@ -617,59 +610,76 @@ adminRoutes.patch(
   ),
   async (c) => {
     const body = c.req.valid("json");
-    await c.env.DB.prepare(
-      "update orders set tracking_carrier = ?, tracking_number = ?, tracking_url = ?, updated_at = ? where id = ?"
-    )
+    await c.env.DB.prepare("update orders set tracking_carrier = ?, tracking_number = ?, tracking_url = ?, updated_at = ? where id = ?")
       .bind(body.carrier, body.number, body.url, new Date().toISOString(), c.req.param("id"))
       .run();
     return ok(c, { orderId: c.req.param("id"), tracking: body });
   }
 );
 
-adminRoutes.post("/orders/:id/refund", requirePermission("refunds.create"), zValidator("json", z.object({ amountCents: z.number().int().min(1).optional(), reason: z.string().max(300).optional() })), async (c) => {
-  const orderId = c.req.param("id");
-  const body = c.req.valid("json");
-  const order = await c.env.DB.prepare(
-    "select channel, payment_status, payload_json, total, stock_restored_at, email, number from orders where id = ?"
-  )
-    .bind(orderId)
-    .first<{ channel: string; payment_status: string; payload_json: string; total: number; stock_restored_at: string | null; email: string; number: string }>();
-  if (!order) return fail(c, 404, "ORDER_NOT_FOUND", "Order not found.");
-  if (!isRefundableChannel(order.channel)) {
-    return fail(c, 409, "REFUND_NOT_APPLICABLE", "Only Stripe or Wompi orders can be refunded through their payment provider.");
-  }
-  if (order.payment_status !== "paid" && order.payment_status !== "partially_refunded") {
-    return fail(c, 409, "REFUND_NOT_APPLICABLE", "Only a paid order can be refunded.");
-  }
+adminRoutes.post(
+  "/orders/:id/refund",
+  requirePermission("refunds.create"),
+  zValidator(
+    "json",
+    z.object({
+      amountCents: z.number().int().min(1).optional(),
+      reason: z.string().max(300).optional()
+    })
+  ),
+  async (c) => {
+    const orderId = c.req.param("id");
+    const body = c.req.valid("json");
+    const order = await c.env.DB.prepare("select channel, payment_status, payload_json, total, stock_restored_at, email, number from orders where id = ?")
+      .bind(orderId)
+      .first<{
+        channel: string;
+        payment_status: string;
+        payload_json: string;
+        total: number;
+        stock_restored_at: string | null;
+        email: string;
+        number: string;
+      }>();
+    if (!order) return fail(c, 404, "ORDER_NOT_FOUND", "Order not found.");
+    if (!isRefundableChannel(order.channel)) {
+      return fail(c, 409, "REFUND_NOT_APPLICABLE", "Only Stripe or Wompi orders can be refunded through their payment provider.");
+    }
+    if (order.payment_status !== "paid" && order.payment_status !== "partially_refunded") {
+      return fail(c, 409, "REFUND_NOT_APPLICABLE", "Only a paid order can be refunded.");
+    }
 
-  const payload = JSON.parse(order.payload_json) as { payment?: { providerPaymentIntentId?: string } };
-  const paymentIntentId = payload.payment?.providerPaymentIntentId;
-  if (!paymentIntentId) {
-    return fail(c, 422, "REFUND_MISSING_PAYMENT_INTENT", "This order has no payment reference to refund.");
-  }
+    const payload = JSON.parse(order.payload_json) as {
+      payment?: { providerPaymentIntentId?: string };
+    };
+    const paymentIntentId = payload.payment?.providerPaymentIntentId;
+    if (!paymentIntentId) {
+      return fail(c, 422, "REFUND_MISSING_PAYMENT_INTENT", "This order has no payment reference to refund.");
+    }
 
-  try {
-    const refund = await createProviderRefund(c.env, order.channel, paymentIntentId, body.amountCents, order.total);
-    const { paymentStatus } = await applyRefundLocally(c.env, {
-      orderId,
-      channel: order.channel,
-      currentPaymentStatus: order.payment_status,
-      totalCents: order.total,
-      stockRestoredAt: order.stock_restored_at,
-      email: order.email,
-      number: order.number,
-      amountCents: body.amountCents,
-      providerRefundId: refund.id,
-      ...(body.reason !== undefined ? { reason: body.reason } : {}),
-      actorId: c.get("actor").userId ?? "admin",
-      requestId: c.get("requestId"),
-      source: "admin"
-    });
-    return ok(c, { orderId, paymentStatus, providerRefundId: refund.id }, 201);
-  } catch (error) {
-    return fail(c, 500, "REFUND_FAILED", error instanceof Error ? error.message : "Refund failed.");
+    try {
+      const refund = await createProviderRefund(c.env, order.channel, paymentIntentId, body.amountCents, order.total);
+      const { paymentStatus } = await applyRefundLocally(c.env, {
+        orderId,
+        channel: order.channel,
+        currentPaymentStatus: order.payment_status,
+        totalCents: order.total,
+        stockRestoredAt: order.stock_restored_at,
+        email: order.email,
+        number: order.number,
+        amountCents: body.amountCents,
+        providerRefundId: refund.id,
+        ...(body.reason !== undefined ? { reason: body.reason } : {}),
+        actorId: c.get("actor").userId ?? "admin",
+        requestId: c.get("requestId"),
+        source: "admin"
+      });
+      return ok(c, { orderId, paymentStatus, providerRefundId: refund.id }, 201);
+    } catch (error) {
+      return fail(c, 500, "REFUND_FAILED", error instanceof Error ? error.message : "Refund failed.");
+    }
   }
-});
+);
 
 adminRoutes.patch(
   "/orders/:id/status",
@@ -699,7 +709,12 @@ adminRoutes.patch(
       }
     }
 
-    return ok(c, { orderId, previousState: result.previousState, state: result.state, updatedAt: result.updatedAt });
+    return ok(c, {
+      orderId,
+      previousState: result.previousState,
+      state: result.state,
+      updatedAt: result.updatedAt
+    });
   }
 );
 
@@ -710,11 +725,8 @@ const customerListQuerySchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(100).default(25)
 });
 
-adminRoutes.get(
-  "/users",
-  requirePermission("users.read"),
-  zValidator("query", customerListQuerySchema),
-  async (c) => ok(c, await listCustomersForAdmin(c.env, c.req.valid("query")))
+adminRoutes.get("/users", requirePermission("users.read"), zValidator("query", customerListQuerySchema), async (c) =>
+  ok(c, await listCustomersForAdmin(c.env, c.req.valid("query")))
 );
 
 adminRoutes.get("/users/:id", requirePermission("users.read"), async (c) => {
@@ -753,28 +765,23 @@ const assignableRoleSchema = z.object({
   role: z.enum(["customer", "support", "catalog_manager", "order_manager", "admin", "super_admin", "demo_viewer"])
 });
 
-adminRoutes.patch(
-  "/users/:id/role",
-  requirePermission("users.manage_roles"),
-  zValidator("json", assignableRoleSchema),
-  async (c) => {
-    const targetId = c.req.param("id");
-    if (c.get("actor").userId === targetId) {
-      return fail(c, 400, "CANNOT_CHANGE_OWN_ROLE", "You cannot change your own role.");
-    }
-    const { role } = c.req.valid("json");
-    const result = await setCustomerRole(c.env, targetId, role, {
-      actorId: c.get("actor").userId ?? "admin",
-      requestId: c.get("requestId")
-    });
-    if (!result.updated) {
-      if (result.error === "not_found") return fail(c, 404, "USER_NOT_FOUND", "Customer not found.");
-      if (result.error === "guest_account") return fail(c, 422, "GUEST_ACCOUNT", "This person has not created an account yet.");
-      return fail(c, 500, "CLERK_UPDATE_FAILED", "Could not update the role in Clerk.");
-    }
-    return ok(c, { userId: targetId, role });
+adminRoutes.patch("/users/:id/role", requirePermission("users.manage_roles"), zValidator("json", assignableRoleSchema), async (c) => {
+  const targetId = c.req.param("id");
+  if (c.get("actor").userId === targetId) {
+    return fail(c, 400, "CANNOT_CHANGE_OWN_ROLE", "You cannot change your own role.");
   }
-);
+  const { role } = c.req.valid("json");
+  const result = await setCustomerRole(c.env, targetId, role, {
+    actorId: c.get("actor").userId ?? "admin",
+    requestId: c.get("requestId")
+  });
+  if (!result.updated) {
+    if (result.error === "not_found") return fail(c, 404, "USER_NOT_FOUND", "Customer not found.");
+    if (result.error === "guest_account") return fail(c, 422, "GUEST_ACCOUNT", "This person has not created an account yet.");
+    return fail(c, 500, "CLERK_UPDATE_FAILED", "Could not update the role in Clerk.");
+  }
+  return ok(c, { userId: targetId, role });
+});
 
 const couponCreateSchema = z.object({
   code: z.string().trim().min(3).max(32),
@@ -818,9 +825,7 @@ adminRoutes.patch(
       .first<{ type: string; value: number; active: number; minimum_subtotal: number }>();
     if (!existing) return fail(c, 404, "COUPON_NOT_FOUND", "Coupon not found.");
     const body = c.req.valid("json");
-    await c.env.DB.prepare(
-      `update coupons set type = ?, value = ?, active = ?, minimum_subtotal = ?, updated_at = CURRENT_TIMESTAMP where code = ?`
-    )
+    await c.env.DB.prepare(`update coupons set type = ?, value = ?, active = ?, minimum_subtotal = ?, updated_at = CURRENT_TIMESTAMP where code = ?`)
       .bind(
         body.type ?? existing.type,
         body.value ?? existing.value,
@@ -851,16 +856,20 @@ adminRoutes.delete("/coupons/:id", requirePermission("coupons.manage"), async (c
   return ok(c, { code, active: false });
 });
 
-const reviewListQuerySchema = z.object({ status: z.enum(["pending", "approved", "rejected", "hidden"]).optional() });
-adminRoutes.get(
-  "/reviews",
-  requirePermission("reviews.moderate"),
-  zValidator("query", reviewListQuerySchema),
-  async (c) => ok(c, await createReviewModerationService(c.env.DB).list(c.req.valid("query").status))
-);
-adminRoutes.patch("/reviews/:id/moderation", requirePermission("reviews.moderate"), zValidator("json", z.object({ status: z.enum(["pending", "approved", "rejected", "hidden"]) })), async (c) => {
-  return ok(c, await createReviewModerationService(c.env.DB).moderate(c.req.param("id"), c.req.valid("json").status));
+const reviewListQuerySchema = z.object({
+  status: z.enum(["pending", "approved", "rejected", "hidden"]).optional()
 });
+adminRoutes.get("/reviews", requirePermission("reviews.moderate"), zValidator("query", reviewListQuerySchema), async (c) =>
+  ok(c, await createReviewModerationService(c.env.DB).list(c.req.valid("query").status))
+);
+adminRoutes.patch(
+  "/reviews/:id/moderation",
+  requirePermission("reviews.moderate"),
+  zValidator("json", z.object({ status: z.enum(["pending", "approved", "rejected", "hidden"]) })),
+  async (c) => {
+    return ok(c, await createReviewModerationService(c.env.DB).moderate(c.req.param("id"), c.req.valid("json").status));
+  }
+);
 
 adminRoutes.get("/contact-messages", requirePermission("contacts.read"), async (c) => {
   const rows = await c.env.DB.prepare(
@@ -879,8 +888,14 @@ const auditQuerySchema = z.object({
   requestId: z.string().max(80).optional(),
   // Date-only (YYYY-MM-DD) - created_at is filtered via SQLite's date()
   // normalizer against a whole day, not a precise timestamp range.
-  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional()
+  from: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  to: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
 });
 
 // GET /admin/audit is intentionally read-only in every direction: there is
@@ -954,7 +969,9 @@ adminRoutes.get("/audit", requirePermission("audit.read"), zValidator("query", a
 // dedicated permission would mean touching packages/schemas' enum and
 // every role's grant list for a single read-only admin page.
 adminRoutes.get("/system-health", requirePermission("audit.read"), async (c) => ok(c, await computeSystemHealth(c.env)));
-adminRoutes.get("/settings", requirePermission("settings.manage"), async (c) => ok(c, (await c.env.DB.prepare("select * from application_settings").all()).results));
+adminRoutes.get("/settings", requirePermission("settings.manage"), async (c) =>
+  ok(c, (await c.env.DB.prepare("select * from application_settings").all()).results)
+);
 
 async function saveApplicationSetting(c: Context<AppBindings>, key: string, value: unknown) {
   await c.env.DB.prepare(
@@ -988,99 +1005,73 @@ const checkoutSettingsSchema = z
 // key" route - the table also holds shipping/brand/reservations, and a
 // generic write endpoint would let settings.manage overwrite those with
 // unvalidated payloads instead of each going through its own typed schema.
-adminRoutes.patch(
-  "/settings/checkout",
-  requirePermission("settings.manage"),
-  zValidator("json", checkoutSettingsSchema),
-  async (c) => {
-    const value = c.req.valid("json");
-    await saveApplicationSetting(c, "checkout", value);
-    return ok(c, value);
-  }
-);
+adminRoutes.patch("/settings/checkout", requirePermission("settings.manage"), zValidator("json", checkoutSettingsSchema), async (c) => {
+  const value = c.req.valid("json");
+  await saveApplicationSetting(c, "checkout", value);
+  return ok(c, value);
+});
 
 // Provider-neutral checkout settings (which provider is active, and its
 // encrypted secret material) - a different concern from settings/checkout
 // above, which only toggles the storefront between Stripe and WhatsApp
 // checkout. This is the admin-managed Stripe/Wompi credentials layer
 // (see services/checkout-provider.ts and services/checkout-settings.ts).
-adminRoutes.get("/checkout-settings", requirePermission("settings.manage"), async (c) =>
-  ok(c, await summarizeCheckoutSettings(c.env))
-);
-adminRoutes.put(
-  "/checkout-settings",
-  requirePermission("settings.manage"),
-  zValidator("json", checkoutSettingsUpdateSchema),
-  async (c) => {
-    if (!c.env.AETHER_SETTINGS_ENCRYPTION_KEY) {
-      return fail(
-        c,
-        500,
-        "SETTINGS_ENCRYPTION_NOT_CONFIGURED",
-        "AETHER_SETTINGS_ENCRYPTION_KEY is not configured. Set it before storing checkout secrets from the admin panel."
-      );
-    }
-
-    const input = c.req.valid("json");
-    await createCheckoutSettingsService(c.env.DB, c.env.AETHER_SETTINGS_ENCRYPTION_KEY).update(sanitizeCheckoutSettingsUpdate(input));
-    return ok(c, await summarizeCheckoutSettings(c.env));
+adminRoutes.get("/checkout-settings", requirePermission("settings.manage"), async (c) => ok(c, await summarizeCheckoutSettings(c.env)));
+adminRoutes.put("/checkout-settings", requirePermission("settings.manage"), zValidator("json", checkoutSettingsUpdateSchema), async (c) => {
+  if (!c.env.AETHER_SETTINGS_ENCRYPTION_KEY) {
+    return fail(
+      c,
+      500,
+      "SETTINGS_ENCRYPTION_NOT_CONFIGURED",
+      "AETHER_SETTINGS_ENCRYPTION_KEY is not configured. Set it before storing checkout secrets from the admin panel."
+    );
   }
-);
+
+  const input = c.req.valid("json");
+  await createCheckoutSettingsService(c.env.DB, c.env.AETHER_SETTINGS_ENCRYPTION_KEY).update(sanitizeCheckoutSettingsUpdate(input));
+  return ok(c, await summarizeCheckoutSettings(c.env));
+});
 
 // Admin-managed credentials for third-party services this platform calls
 // server-side (Resend for transactional email, Gemini for the admin chat
 // assistant, Cloudinary for product image uploads) - same encrypted-at-rest,
 // env-var-fallback shape as /checkout-settings above, just for a different
 // set of providers (see services/integration-settings.ts).
-adminRoutes.get("/integration-settings", requirePermission("settings.manage"), async (c) =>
-  ok(c, await summarizeIntegrationSecrets(c.env))
-);
-adminRoutes.put(
-  "/integration-settings",
-  requirePermission("settings.manage"),
-  zValidator("json", integrationSecretsUpdateSchema),
-  async (c) => {
-    if (!c.env.AETHER_SETTINGS_ENCRYPTION_KEY) {
-      return fail(
-        c,
-        500,
-        "SETTINGS_ENCRYPTION_NOT_CONFIGURED",
-        "AETHER_SETTINGS_ENCRYPTION_KEY is not configured. Set it before storing integration secrets from the admin panel."
-      );
-    }
-
-    const input = c.req.valid("json");
-    await createIntegrationSettingsService(c.env.DB, c.env.AETHER_SETTINGS_ENCRYPTION_KEY).update(sanitizeIntegrationSecretsUpdate(input));
-    return ok(c, await summarizeIntegrationSecrets(c.env));
+adminRoutes.get("/integration-settings", requirePermission("settings.manage"), async (c) => ok(c, await summarizeIntegrationSecrets(c.env)));
+adminRoutes.put("/integration-settings", requirePermission("settings.manage"), zValidator("json", integrationSecretsUpdateSchema), async (c) => {
+  if (!c.env.AETHER_SETTINGS_ENCRYPTION_KEY) {
+    return fail(
+      c,
+      500,
+      "SETTINGS_ENCRYPTION_NOT_CONFIGURED",
+      "AETHER_SETTINGS_ENCRYPTION_KEY is not configured. Set it before storing integration secrets from the admin panel."
+    );
   }
-);
+
+  const input = c.req.valid("json");
+  await createIntegrationSettingsService(c.env.DB, c.env.AETHER_SETTINGS_ENCRYPTION_KEY).update(sanitizeIntegrationSecretsUpdate(input));
+  return ok(c, await summarizeIntegrationSecrets(c.env));
+});
 
 // Credentials for the "platform" panel's real-redeploy trigger - kept under
 // their own permission (platform.deploy) rather than settings.manage, since
 // triggering a production deploy is materially more consequential than
 // saving a Resend/Cloudinary key (see services/platform-deploy-settings.ts).
-adminRoutes.get("/platform/settings", requirePermission("platform.deploy"), async (c) =>
-  ok(c, await summarizePlatformDeployCredentials(c.env))
-);
-adminRoutes.put(
-  "/platform/settings",
-  requirePermission("platform.deploy"),
-  zValidator("json", platformDeploySettingsUpdateSchema),
-  async (c) => {
-    if (!c.env.AETHER_SETTINGS_ENCRYPTION_KEY) {
-      return fail(
-        c,
-        500,
-        "SETTINGS_ENCRYPTION_NOT_CONFIGURED",
-        "AETHER_SETTINGS_ENCRYPTION_KEY is not configured. Set it before storing platform deploy settings from the admin panel."
-      );
-    }
-
-    const input = c.req.valid("json");
-    await createPlatformDeploySettingsService(c.env.DB, c.env.AETHER_SETTINGS_ENCRYPTION_KEY).update(sanitizePlatformDeploySettingsUpdate(input));
-    return ok(c, await summarizePlatformDeployCredentials(c.env));
+adminRoutes.get("/platform/settings", requirePermission("platform.deploy"), async (c) => ok(c, await summarizePlatformDeployCredentials(c.env)));
+adminRoutes.put("/platform/settings", requirePermission("platform.deploy"), zValidator("json", platformDeploySettingsUpdateSchema), async (c) => {
+  if (!c.env.AETHER_SETTINGS_ENCRYPTION_KEY) {
+    return fail(
+      c,
+      500,
+      "SETTINGS_ENCRYPTION_NOT_CONFIGURED",
+      "AETHER_SETTINGS_ENCRYPTION_KEY is not configured. Set it before storing platform deploy settings from the admin panel."
+    );
   }
-);
+
+  const input = c.req.valid("json");
+  await createPlatformDeploySettingsService(c.env.DB, c.env.AETHER_SETTINGS_ENCRYPTION_KEY).update(sanitizePlatformDeploySettingsUpdate(input));
+  return ok(c, await summarizePlatformDeployCredentials(c.env));
+});
 
 // Deployed = what this Worker actually has bundled right now (its own
 // package.json version, plus the commit SHA the deploy workflow stamped in
@@ -1126,21 +1117,18 @@ const brandSettingsSchema = z.object({
   name: z.string().min(1).max(60),
   tagline: z.object({ en: z.string().max(120), es: z.string().max(120) }),
   logoUrl: z.union([z.string().url(), z.literal("")]),
-  primaryColor: z.string().refine(isValidHexColor, { message: "primaryColor must be a 6-digit hex color (e.g. #8b5cf6)" }),
+  primaryColor: z.string().refine(isValidHexColor, {
+    message: "primaryColor must be a 6-digit hex color (e.g. #8b5cf6)"
+  }),
   portfolioUrl: z.union([z.string().url(), z.literal("")]),
   features: z.object({ reviews: z.boolean() })
 });
 
-adminRoutes.patch(
-  "/settings/brand",
-  requirePermission("settings.manage"),
-  zValidator("json", brandSettingsSchema),
-  async (c) => {
-    const value = c.req.valid("json");
-    await saveApplicationSetting(c, "brand", value);
-    return ok(c, value);
-  }
-);
+adminRoutes.patch("/settings/brand", requirePermission("settings.manage"), zValidator("json", brandSettingsSchema), async (c) => {
+  const value = c.req.valid("json");
+  await saveApplicationSetting(c, "brand", value);
+  return ok(c, value);
+});
 
 // A single flat fee, on or off - not the tiered per-option/per-country model
 // this used to be (freeShippingThreshold/countries/options), which the
@@ -1151,29 +1139,19 @@ const shippingSettingsSchema = z.object({
   amountCents: z.number().int().min(0)
 });
 
-adminRoutes.patch(
-  "/settings/shipping",
-  requirePermission("settings.manage"),
-  zValidator("json", shippingSettingsSchema),
-  async (c) => {
-    const value = c.req.valid("json");
-    await saveApplicationSetting(c, "shipping", value);
-    return ok(c, value);
-  }
-);
+adminRoutes.patch("/settings/shipping", requirePermission("settings.manage"), zValidator("json", shippingSettingsSchema), async (c) => {
+  const value = c.req.valid("json");
+  await saveApplicationSetting(c, "shipping", value);
+  return ok(c, value);
+});
 
 const reservationSettingsSchema = z.object({ ttlMinutes: z.number().int().min(1).max(1440) });
 
-adminRoutes.patch(
-  "/settings/reservations",
-  requirePermission("settings.manage"),
-  zValidator("json", reservationSettingsSchema),
-  async (c) => {
-    const value = c.req.valid("json");
-    await saveApplicationSetting(c, "reservations", value);
-    return ok(c, value);
-  }
-);
+adminRoutes.patch("/settings/reservations", requirePermission("settings.manage"), zValidator("json", reservationSettingsSchema), async (c) => {
+  const value = c.req.valid("json");
+  await saveApplicationSetting(c, "reservations", value);
+  return ok(c, value);
+});
 function csvCell(value: string | number | null | undefined): string {
   const text = value === null || value === undefined ? "" : String(value);
   return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;

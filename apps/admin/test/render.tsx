@@ -5,12 +5,42 @@ import { AdminLanguageProvider, AetherAdminProvider } from "@aether-commerce/adm
 
 export * from "@testing-library/react";
 
-// Migrated admin-default components (e.g. AdminDashboard) read apiBaseUrl
-// via useAdminConfig() instead of a static ./config import, so they need
-// AetherAdminProvider in the tree too. `config` is never read by anything
-// under test today (only apiBaseUrl is), so an empty stub is enough - cast
-// past the full ClientConfiguration shape rather than fabricate one.
-const testAdminConfig = {} as ClientConfiguration;
+const testAdminConfig = {
+  brand: { name: "Test Store", primaryColor: "#111111", tagline: { en: "Test", es: "Prueba" } },
+  store: { currency: "USD", locale: "en-US", country: "US" },
+  features: {
+    reviews: true,
+    wishlist: true,
+    customerAccounts: true,
+    stripeCheckout: true,
+    aiAssistant: true,
+    inventory: true
+  },
+  theme: {
+    primary: "#111111",
+    secondary: "#444444",
+    background: "#ffffff",
+    surface: "#ffffff",
+    text: "#111111",
+    muted: "#666666",
+    border: "#dddddd",
+    radius: "0.5rem",
+    font: "system-ui"
+  },
+  checkout: { mode: "stripe", successPath: "/checkout/success", cancelPath: "/cart" },
+  integrations: {
+    api: {
+      productionBaseUrl: "https://api.test",
+      localBaseUrl: "http://localhost:8787",
+      publicUrlEnv: "NEXT_PUBLIC_API_BASE_URL"
+    },
+    auth: { provider: "clerk", publishableKeyEnv: "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY" },
+    media: { provider: "cloudinary" },
+    payments: { provider: "stripe" }
+  },
+  agent: { enabled: true, publicUrlEnv: "NEXT_PUBLIC_AI_ASSISTANT_URL", defaultLocale: "en" },
+  navigation: {}
+} satisfies ClientConfiguration;
 
 // Every admin page/component now reads its copy through useAdminLanguage(),
 // so tests need the provider in the tree - wrapping it here once means test

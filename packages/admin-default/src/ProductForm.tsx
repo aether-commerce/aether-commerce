@@ -89,7 +89,7 @@ export function ProductForm({
 }>) {
   const router = useRouter();
   const { getToken } = useAuth();
-  const { apiBaseUrl } = useAdminConfig();
+  const { apiBaseUrl, config } = useAdminConfig();
   const { t } = useAdminLanguage();
   const [values, setValues] = useState<ProductFormValues>(initialValues);
   const [status, setStatus] = useState<SaveStatus>("idle");
@@ -169,11 +169,15 @@ export function ProductForm({
     }
 
     try {
-      const response = await authorizedFetch(
-        mode === "create" ? "/api/v1/admin/products" : `/api/v1/admin/products/${productId}`,
-        { method: mode === "create" ? "POST" : "PATCH", body: JSON.stringify(buildPayload()) }
-      );
-      const payload = (await response.json()) as { success: boolean; data?: { id: string }; error?: { message: string } };
+      const response = await authorizedFetch(mode === "create" ? "/api/v1/admin/products" : `/api/v1/admin/products/${productId}`, {
+        method: mode === "create" ? "POST" : "PATCH",
+        body: JSON.stringify(buildPayload())
+      });
+      const payload = (await response.json()) as {
+        success: boolean;
+        data?: { id: string };
+        error?: { message: string };
+      };
       if (!payload.success) {
         setStatus("error");
         setErrorMessage(payload.error?.message ?? t.productForm.couldNotSaveProduct);
@@ -195,10 +199,18 @@ export function ProductForm({
     setUploading(true);
     setErrorMessage(null);
     try {
-      const sigResponse = await authorizedFetch("/api/v1/admin/uploads/signature", { method: "POST" });
+      const sigResponse = await authorizedFetch("/api/v1/admin/uploads/signature", {
+        method: "POST"
+      });
       const sigPayload = (await sigResponse.json()) as {
         success: boolean;
-        data?: { cloudName: string; apiKey: string; timestamp: number; folder: string; signature: string };
+        data?: {
+          cloudName: string;
+          apiKey: string;
+          timestamp: number;
+          folder: string;
+          signature: string;
+        };
         error?: { message: string };
       };
       if (!sigPayload.success || !sigPayload.data) {
@@ -216,15 +228,27 @@ export function ProductForm({
         method: "POST",
         body: form
       });
-      const uploadPayload = (await uploadResponse.json()) as { secure_url?: string; error?: { message?: string } };
+      const uploadPayload = (await uploadResponse.json()) as {
+        secure_url?: string;
+        error?: { message?: string };
+      };
       if (!uploadResponse.ok || !uploadPayload.secure_url) {
         setErrorMessage(uploadPayload.error?.message ?? t.productForm.imageUploadFailed);
         return;
       }
       setValues((current) =>
         current.images.main
-          ? { ...current, images: { ...current.images, gallery: [...current.images.gallery, uploadPayload.secure_url as string] } }
-          : { ...current, images: { main: uploadPayload.secure_url as string, gallery: current.images.gallery } }
+          ? {
+              ...current,
+              images: {
+                ...current.images,
+                gallery: [...current.images.gallery, uploadPayload.secure_url as string]
+              }
+            }
+          : {
+              ...current,
+              images: { main: uploadPayload.secure_url as string, gallery: current.images.gallery }
+            }
       );
     } catch {
       setErrorMessage(t.productForm.networkErrorImageNotUploaded);
@@ -239,7 +263,13 @@ export function ProductForm({
         const [nextMain, ...rest] = current.images.gallery;
         return { ...current, images: { main: nextMain ?? "", gallery: rest } };
       }
-      return { ...current, images: { ...current.images, gallery: current.images.gallery.filter((item) => item !== url) } };
+      return {
+        ...current,
+        images: {
+          ...current.images,
+          gallery: current.images.gallery.filter((item) => item !== url)
+        }
+      };
     });
   }
 
@@ -257,8 +287,13 @@ export function ProductForm({
     if (!productId) return;
     setDeleting(true);
     try {
-      const response = await authorizedFetch(`/api/v1/admin/products/${productId}`, { method: "DELETE" });
-      const payload = (await response.json()) as { success: boolean; data?: { deleted: boolean; softDeleted: boolean } };
+      const response = await authorizedFetch(`/api/v1/admin/products/${productId}`, {
+        method: "DELETE"
+      });
+      const payload = (await response.json()) as {
+        success: boolean;
+        data?: { deleted: boolean; softDeleted: boolean };
+      };
       if (!payload.success) {
         setErrorMessage(t.productForm.couldNotDeleteProduct);
         return;
@@ -489,7 +524,7 @@ export function ProductForm({
             <input
               maxLength={160}
               className={inputClass}
-              placeholder={values.name ? `${values.name} | Aether` : ""}
+              placeholder={values.name ? `${values.name} | ${config.brand.name}` : ""}
               value={values.seoTitle}
               onChange={(event) => set("seoTitle", event.target.value)}
             />
@@ -505,7 +540,8 @@ export function ProductForm({
             />
           </label>
           <p className="text-xs text-ink-subtle">
-            {t.productForm.previewLabel} <span className="font-medium text-ink-muted">{values.seoTitle || (values.name ? `${values.name} | Aether` : "...")}</span>
+            {t.productForm.previewLabel}{" "}
+            <span className="font-medium text-ink-muted">{values.seoTitle || (values.name ? `${values.name} | ${config.brand.name}` : "...")}</span>
             {" - "}
             /products/{values.slug || "..."}
           </p>

@@ -124,7 +124,10 @@ describe("admin routes integration (real middleware chain, mocked D1)", () => {
     const response = await worker.fetch(adminRequest("/orders", { token: "tok" }), env, ctx);
 
     expect(response.status).toBe(200);
-    const body = await response.json<{ success: boolean; data: { pagination: { total: number } } }>();
+    const body = await response.json<{
+      success: boolean;
+      data: { pagination: { total: number } };
+    }>();
     expect(body.success).toBe(true);
     expect(body.data.pagination.total).toBe(0);
     expect(statements.some((s) => s.sql.includes("from orders"))).toBe(true);
@@ -196,8 +199,14 @@ describe("admin routes integration (real middleware chain, mocked D1)", () => {
     const response = await worker.fetch(adminRequest("/reviews", { token: "tok" }), env, ctx);
 
     expect(response.status).toBe(200);
-    const body = await response.json<{ success: boolean; data: Array<{ product_name: string; user_email: string }> }>();
-    expect(body.data[0]).toMatchObject({ product_name: "Funda Slim Grip", user_email: "buyer@example.com" });
+    const body = await response.json<{
+      success: boolean;
+      data: Array<{ product_name: string; user_email: string }>;
+    }>();
+    expect(body.data[0]).toMatchObject({
+      product_name: "Funda Slim Grip",
+      user_email: "buyer@example.com"
+    });
     expect(statements.some((s) => s.sql.includes("left join products") && s.sql.includes("left join users"))).toBe(true);
   });
 
@@ -288,11 +297,27 @@ describe("admin routes integration (real middleware chain, mocked D1)", () => {
     const { env, statements } = fakeEnv([
       { first: null }, // suspension check
       { first: { count: 1 } }, // count(*)
-      { all: [{ id: "aud_1", actor_id: "usr_1", action: "product.updated", target_type: "product", target_id: "prd_1", payload_json: "{}", created_at: "2026-08-15 10:00:00" }] }
+      {
+        all: [
+          {
+            id: "aud_1",
+            actor_id: "usr_1",
+            action: "product.updated",
+            target_type: "product",
+            target_id: "prd_1",
+            payload_json: "{}",
+            created_at: "2026-08-15 10:00:00"
+          }
+        ]
+      }
     ]);
 
     const response = await worker.fetch(adminRequest("/audit", { token: "tok" }), env, ctx);
-    const body = await response.json<{ success: boolean; data: unknown[]; pagination: { total: number } }>();
+    const body = await response.json<{
+      success: boolean;
+      data: unknown[];
+      pagination: { total: number };
+    }>();
 
     expect(response.status).toBe(200);
     expect(body.data).toHaveLength(1);
@@ -307,7 +332,9 @@ describe("admin routes integration (real middleware chain, mocked D1)", () => {
     const { env, statements } = fakeEnv([{ first: null }, { first: { count: 0 } }, { all: [] }]);
 
     await worker.fetch(
-      adminRequest("/audit?actorId=usr_1&action=order.status_changed&requestId=req_abc123", { token: "tok" }),
+      adminRequest("/audit?actorId=usr_1&action=order.status_changed&requestId=req_abc123", {
+        token: "tok"
+      }),
       env,
       ctx
     );
@@ -352,7 +379,11 @@ describe("admin routes integration (real middleware chain, mocked D1)", () => {
     const response = await worker.fetch(adminRequest("/system-health", { token: "tok" }), env, ctx);
     const body = await response.json<{
       success: boolean;
-      data: { status: string; components: Record<string, { level: string }>; stats: Record<string, unknown> };
+      data: {
+        status: string;
+        components: Record<string, { level: string }>;
+        stats: Record<string, unknown>;
+      };
     }>();
 
     expect(response.status).toBe(200);
@@ -374,7 +405,14 @@ describe("admin routes integration (real middleware chain, mocked D1)", () => {
     ]);
 
     const response = await worker.fetch(adminRequest("/system-health", { token: "tok" }), env, ctx);
-    const body = await response.json<{ success: boolean; data: { status: string; components: Record<string, { level: string }>; stats: { negativeInventoryCount: number } } }>();
+    const body = await response.json<{
+      success: boolean;
+      data: {
+        status: string;
+        components: Record<string, { level: string }>;
+        stats: { negativeInventoryCount: number };
+      };
+    }>();
 
     expect(response.status).toBe(200);
     expect(body.data.components.inventory?.level).toBe("critical");
@@ -404,7 +442,12 @@ describe("admin routes integration (real middleware chain, mocked D1)", () => {
         method: "POST",
         token: "tok",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ code: "welcome10", type: "percentage", value: 10, minimumSubtotal: 5000 })
+        body: JSON.stringify({
+          code: "welcome10",
+          type: "percentage",
+          value: 10,
+          minimumSubtotal: 5000
+        })
       }),
       env,
       ctx
@@ -440,7 +483,10 @@ describe("admin routes integration (real middleware chain, mocked D1)", () => {
       { first: null }, // suspension check
       { first: { state: "paid", payload_json: JSON.stringify({ state: "paid" }) } } // changeOrderState's current-row read
     ]);
-    db.batch.mockResolvedValueOnce([{ success: true, meta: { changes: 1 } }, { success: true, meta: { changes: 1 } }]);
+    db.batch.mockResolvedValueOnce([
+      { success: true, meta: { changes: 1 } },
+      { success: true, meta: { changes: 1 } }
+    ]);
 
     const response = await worker.fetch(
       adminRequest("/orders/ord_1/status", {
@@ -454,7 +500,10 @@ describe("admin routes integration (real middleware chain, mocked D1)", () => {
     );
 
     expect(response.status).toBe(200);
-    const body = await response.json<{ success: boolean; data?: { previousState: string; state: string } }>();
+    const body = await response.json<{
+      success: boolean;
+      data?: { previousState: string; state: string };
+    }>();
     expect(body.data).toMatchObject({ previousState: "paid", state: "processing" });
   });
 
@@ -518,14 +567,26 @@ describe("admin routes integration (real middleware chain, mocked D1)", () => {
 
     try {
       const response = await worker.fetch(
-        adminRequest("/orders/ord_1/refund", { method: "POST", token: "tok", headers: { "content-type": "application/json" }, body: "{}" }),
+        adminRequest("/orders/ord_1/refund", {
+          method: "POST",
+          token: "tok",
+          headers: { "content-type": "application/json" },
+          body: "{}"
+        }),
         env,
         ctx
       );
-      const body = await response.json<{ success: boolean; data?: { orderId: string; paymentStatus: string; providerRefundId: string } }>();
+      const body = await response.json<{
+        success: boolean;
+        data?: { orderId: string; paymentStatus: string; providerRefundId: string };
+      }>();
 
       expect(response.status).toBe(201);
-      expect(body.data).toMatchObject({ orderId: "ord_1", paymentStatus: "refunded", providerRefundId: "re_123" });
+      expect(body.data).toMatchObject({
+        orderId: "ord_1",
+        paymentStatus: "refunded",
+        providerRefundId: "re_123"
+      });
     } finally {
       vi.unstubAllGlobals();
     }
@@ -552,21 +613,37 @@ describe("admin routes integration (real middleware chain, mocked D1)", () => {
     );
     const fetchMock = vi.fn((url: RequestInfo | URL) =>
       urlOf(url).includes("/transactions/txn_123/void")
-        ? Promise.resolve(new Response(JSON.stringify({ data: { id: "txn_123", status: "VOIDED" } }), { status: 200 }))
+        ? Promise.resolve(
+            new Response(JSON.stringify({ data: { id: "txn_123", status: "VOIDED" } }), {
+              status: 200
+            })
+          )
         : Promise.resolve(new Response("{}", { status: 200 }))
     );
     vi.stubGlobal("fetch", fetchMock);
 
     try {
       const response = await worker.fetch(
-        adminRequest("/orders/ord_2/refund", { method: "POST", token: "tok", headers: { "content-type": "application/json" }, body: "{}" }),
+        adminRequest("/orders/ord_2/refund", {
+          method: "POST",
+          token: "tok",
+          headers: { "content-type": "application/json" },
+          body: "{}"
+        }),
         env,
         ctx
       );
-      const body = await response.json<{ success: boolean; data?: { orderId: string; paymentStatus: string; providerRefundId: string } }>();
+      const body = await response.json<{
+        success: boolean;
+        data?: { orderId: string; paymentStatus: string; providerRefundId: string };
+      }>();
 
       expect(response.status).toBe(201);
-      expect(body.data).toMatchObject({ orderId: "ord_2", paymentStatus: "refunded", providerRefundId: "txn_123" });
+      expect(body.data).toMatchObject({
+        orderId: "ord_2",
+        paymentStatus: "refunded",
+        providerRefundId: "txn_123"
+      });
     } finally {
       vi.unstubAllGlobals();
     }
@@ -576,11 +653,26 @@ describe("admin routes integration (real middleware chain, mocked D1)", () => {
     await mockVerifiedActor(["admin"]);
     const { env, db } = fakeEnv([
       { first: null }, // suspension check
-      { first: { channel: "whatsapp", payment_status: "paid", payload_json: "{}", total: 5000, stock_restored_at: null, email: "shopper@example.com", number: "AETH-3" } }
+      {
+        first: {
+          channel: "whatsapp",
+          payment_status: "paid",
+          payload_json: "{}",
+          total: 5000,
+          stock_restored_at: null,
+          email: "shopper@example.com",
+          number: "AETH-3"
+        }
+      }
     ]);
 
     const response = await worker.fetch(
-      adminRequest("/orders/ord_3/refund", { method: "POST", token: "tok", headers: { "content-type": "application/json" }, body: "{}" }),
+      adminRequest("/orders/ord_3/refund", {
+        method: "POST",
+        token: "tok",
+        headers: { "content-type": "application/json" },
+        body: "{}"
+      }),
       env,
       ctx
     );
@@ -600,10 +692,13 @@ describe("admin routes integration (real middleware chain, mocked D1)", () => {
     ]);
 
     const response = await worker.fetch(adminRequest("/summary", { token: "tok" }), env, ctx);
-    const body = await response.json<{ success: boolean; data: { revenue: number; orders: number; lowStock: number } }>();
+    const body = await response.json<{
+      success: boolean;
+      data: { currency: string; revenue: number; orders: number; lowStock: number };
+    }>();
 
     expect(response.status).toBe(200);
-    expect(body.data).toMatchObject({ revenue: 543200, orders: 12, lowStock: 2 });
+    expect(body.data).toMatchObject({ currency: "USD", revenue: 543200, orders: 12, lowStock: 2 });
   });
 
   it("GET /admin/integration-settings returns a masked summary, never a plaintext secret", async () => {
@@ -613,12 +708,11 @@ describe("admin routes integration (real middleware chain, mocked D1)", () => {
       { first: null } // no stored integrations row - falls back to env vars
     ]);
 
-    const response = await worker.fetch(
-      adminRequest("/integration-settings", { token: "tok" }),
-      { ...env, RESEND_API_KEY: "re_env_secret_value" },
-      ctx
-    );
-    const body = await response.json<{ success: boolean; data: { resend: { configured: boolean; apiKeyPreview: string | null } } }>();
+    const response = await worker.fetch(adminRequest("/integration-settings", { token: "tok" }), { ...env, RESEND_API_KEY: "re_env_secret_value" }, ctx);
+    const body = await response.json<{
+      success: boolean;
+      data: { resend: { configured: boolean; apiKeyPreview: string | null } };
+    }>();
 
     expect(response.status).toBe(200);
     expect(body.data.resend).toEqual({ configured: true, apiKeyPreview: "re_env••••alue" });
@@ -652,7 +746,11 @@ describe("admin routes integration (real middleware chain, mocked D1)", () => {
     // this mock never actually persists between calls, so the ciphertext
     // summarize() reads back afterward has to be computed the same way the
     // real repository.write() would encrypt it.
-    const storedAfterWrite = { value_json: JSON.stringify({ gemini: { apiKey: await encryptSecret("test-passphrase", "AIza_new_key") } }) };
+    const storedAfterWrite = {
+      value_json: JSON.stringify({
+        gemini: { apiKey: await encryptSecret("test-passphrase", "AIza_new_key") }
+      })
+    };
     const { env, statements } = fakeEnv([
       { first: null }, // suspension check
       { first: null }, // update(): read current (nothing stored yet)
@@ -670,7 +768,10 @@ describe("admin routes integration (real middleware chain, mocked D1)", () => {
       { ...env, AETHER_SETTINGS_ENCRYPTION_KEY: "test-passphrase" },
       ctx
     );
-    const body = await response.json<{ success: boolean; data: { gemini: { configured: boolean } } }>();
+    const body = await response.json<{
+      success: boolean;
+      data: { gemini: { configured: boolean } };
+    }>();
 
     expect(response.status).toBe(200);
     expect(body.data.gemini.configured).toBe(true);

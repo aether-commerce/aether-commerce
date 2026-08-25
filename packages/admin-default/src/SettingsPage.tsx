@@ -37,29 +37,34 @@ type ReservationSettings = {
 
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 
-const defaultBrand: BrandSettings = {
-  name: "Aether",
-  tagline: { en: "Technology, elevated.", es: "Tecnologia a otro nivel." },
-  logoUrl: "",
-  primaryColor: "#8b5cf6",
-  portfolioUrl: "",
-  features: { reviews: true }
+const defaultCheckout: CheckoutSettings = {
+  paymentMode: "stripe",
+  whatsappNumber: "",
+  whatsappMessageTemplate: ""
 };
-
-const defaultCheckout: CheckoutSettings = { paymentMode: "stripe", whatsappNumber: "", whatsappMessageTemplate: "" };
 const defaultShipping: ShippingSettings = { enabled: false, amountCents: 0 };
 const defaultReservations: ReservationSettings = { ttlMinutes: 15 };
 
-function money(cents: number, locale: string) {
-  return new Intl.NumberFormat(locale === "es" ? "es-ES" : "en-US", { style: "currency", currency: "USD" }).format(cents / 100);
+function money(cents: number, locale: string, currency: string, storeLocale: string) {
+  return new Intl.NumberFormat(locale === "es" ? storeLocale : "en-US", {
+    style: "currency",
+    currency
+  }).format(cents / 100);
 }
 
 export function SettingsPage() {
   const { getToken } = useAuth();
-  const { apiBaseUrl } = useAdminConfig();
+  const { apiBaseUrl, config } = useAdminConfig();
   const { t, locale } = useAdminLanguage();
   const [loadStatus, setLoadStatus] = useState<"loading" | "ready" | "error">("loading");
-  const [brandForm, setBrandForm] = useState<BrandSettings>(defaultBrand);
+  const [brandForm, setBrandForm] = useState<BrandSettings>(() => ({
+    name: config.brand.name,
+    tagline: { en: config.brand.tagline?.en ?? "", es: config.brand.tagline?.es ?? "" },
+    logoUrl: config.brand.logoUrl ?? "",
+    primaryColor: config.brand.primaryColor,
+    portfolioUrl: config.navigation.portfolioUrl ?? "",
+    features: { reviews: config.features.reviews }
+  }));
   const [brandSaveStatus, setBrandSaveStatus] = useState<SaveStatus>("idle");
   const [checkoutForm, setCheckoutForm] = useState<CheckoutSettings>(defaultCheckout);
   const [checkoutSaveStatus, setCheckoutSaveStatus] = useState<SaveStatus>("idle");
@@ -91,7 +96,13 @@ export function SettingsPage() {
       });
       const sigPayload = (await sigResponse.json()) as {
         success: boolean;
-        data?: { cloudName: string; apiKey: string; timestamp: number; folder: string; signature: string };
+        data?: {
+          cloudName: string;
+          apiKey: string;
+          timestamp: number;
+          folder: string;
+          signature: string;
+        };
         error?: { message: string };
       };
       if (!sigPayload.success || !sigPayload.data) {
@@ -109,7 +120,10 @@ export function SettingsPage() {
         method: "POST",
         body: form
       });
-      const uploadPayload = (await uploadResponse.json()) as { secure_url?: string; error?: { message?: string } };
+      const uploadPayload = (await uploadResponse.json()) as {
+        secure_url?: string;
+        error?: { message?: string };
+      };
       if (!uploadResponse.ok || !uploadPayload.secure_url) {
         setLogoUploadError(uploadPayload.error?.message ?? t.settingsPage.imageUploadFailed);
         return;
@@ -125,7 +139,9 @@ export function SettingsPage() {
   useEffect(() => {
     void (async () => {
       try {
-        const response = await fetch(`${apiBaseUrl}/api/v1/admin/settings`, { headers: await authHeader() });
+        const response = await fetch(`${apiBaseUrl}/api/v1/admin/settings`, {
+          headers: await authHeader()
+        });
         const payload = (await response.json()) as {
           success: boolean;
           data?: Array<{ key: string; value_json: string }>;
@@ -254,7 +270,12 @@ export function SettingsPage() {
                 <input
                   type="checkbox"
                   checked={brandForm.features.reviews}
-                  onChange={(event) => setBrandForm((current) => ({ ...current, features: { ...current.features, reviews: event.target.checked } }))}
+                  onChange={(event) =>
+                    setBrandForm((current) => ({
+                      ...current,
+                      features: { ...current.features, reviews: event.target.checked }
+                    }))
+                  }
                   className="h-4 w-4 rounded border-border-strong"
                 />
                 <span className="font-medium text-ink-muted">{t.settingsPage.showProductReviews}</span>
@@ -285,7 +306,12 @@ export function SettingsPage() {
                 <span className="font-medium text-ink-muted">{t.settingsPage.paymentMethod}</span>
                 <select
                   value={checkoutForm.paymentMode}
-                  onChange={(event) => setCheckoutForm((current) => ({ ...current, paymentMode: event.target.value as "stripe" | "whatsapp" }))}
+                  onChange={(event) =>
+                    setCheckoutForm((current) => ({
+                      ...current,
+                      paymentMode: event.target.value as "stripe" | "whatsapp"
+                    }))
+                  }
                   className="focus-ring min-h-10 rounded-md border border-border bg-surface px-3 text-ink"
                 >
                   <option value="stripe">Stripe</option>
@@ -351,7 +377,9 @@ export function SettingsPage() {
                       }
                       className="focus-ring min-h-10 w-32 rounded-md border border-border bg-surface px-3 text-ink tabular-nums"
                     />
-                    <span className="text-sm text-ink-muted tabular-nums">= {money(shippingForm.amountCents, locale)}</span>
+                    <span className="text-sm text-ink-muted tabular-nums">
+                      = {money(shippingForm.amountCents, locale, config.store.currency, config.store.locale)}
+                    </span>
                   </div>
                 </label>
               ) : null}
@@ -386,7 +414,11 @@ export function SettingsPage() {
                   step={1}
                   aria-label={t.settingsPage.reservationTtlAriaLabel}
                   value={reservationsForm.ttlMinutes}
-                  onChange={(event) => setReservationsForm({ ttlMinutes: Math.max(1, Math.round(Number(event.target.value))) })}
+                  onChange={(event) =>
+                    setReservationsForm({
+                      ttlMinutes: Math.max(1, Math.round(Number(event.target.value)))
+                    })
+                  }
                   className="focus-ring min-h-10 w-24 rounded-md border border-border bg-surface px-3 text-ink tabular-nums"
                 />
               </label>

@@ -43,7 +43,11 @@ function openUserMenuUnlessAlreadyOnTrigger(event: React.SyntheticEvent<HTMLElem
 
 function useModuleCounts(apiBaseUrl: string, inventoryEnabled: boolean, reviewsEnabled: boolean) {
   const { getToken } = useAuth();
-  const [counts, setCounts] = useState<{ pendingOrders: number | null; lowStock: number | null; pendingReviews: number | null }>({
+  const [counts, setCounts] = useState<{
+    pendingOrders: number | null;
+    lowStock: number | null;
+    pendingReviews: number | null;
+  }>({
     pendingOrders: null,
     lowStock: null,
     pendingReviews: null
@@ -55,7 +59,9 @@ function useModuleCounts(apiBaseUrl: string, inventoryEnabled: boolean, reviewsE
       const token = await getToken().catch(() => null);
       const headers = token ? { authorization: `Bearer ${token}` } : {};
       const [ordersRes, stockRes, reviewsRes] = await Promise.all([
-        fetch(`${apiBaseUrl}/api/v1/admin/orders?fulfillmentStatus=unfulfilled&pageSize=1`, { headers }).catch(() => null),
+        fetch(`${apiBaseUrl}/api/v1/admin/orders?fulfillmentStatus=unfulfilled&pageSize=1`, {
+          headers
+        }).catch(() => null),
         inventoryEnabled ? fetch(`${apiBaseUrl}/api/v1/admin/products?stock=low&pageSize=1`, { headers }).catch(() => null) : null,
         // No pageSize/pagination on this endpoint (see routes/admin.ts's
         // GET /reviews) - the count is just the array length. A 403 here
@@ -66,8 +72,18 @@ function useModuleCounts(apiBaseUrl: string, inventoryEnabled: boolean, reviewsE
       ]);
       if (cancelled) return;
       const [ordersPayload, stockPayload, reviewsPayload] = await Promise.all([
-        ordersRes?.ok ? (ordersRes.json() as Promise<{ success: boolean; data?: { pagination: { total: number } } }>) : null,
-        stockRes?.ok ? (stockRes.json() as Promise<{ success: boolean; data?: { pagination: { total: number } } }>) : null,
+        ordersRes?.ok
+          ? (ordersRes.json() as Promise<{
+              success: boolean;
+              data?: { pagination: { total: number } };
+            }>)
+          : null,
+        stockRes?.ok
+          ? (stockRes.json() as Promise<{
+              success: boolean;
+              data?: { pagination: { total: number } };
+            }>)
+          : null,
         reviewsRes?.ok ? (reviewsRes.json() as Promise<{ success: boolean; data?: unknown[] }>) : null
       ]);
       if (cancelled) return;
@@ -122,7 +138,7 @@ export function AdminSidebar({ collapsed, onToggleCollapsed }: { collapsed: bool
         )}
         {!collapsed ? (
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold leading-tight text-ink">{t.sidebar.brand}</p>
+            <p className="truncate text-sm font-semibold leading-tight text-ink">{brand?.name ?? config.brand.name}</p>
             <p className="truncate text-xs leading-tight text-ink-subtle">{t.sidebar.adminConsole}</p>
           </div>
         ) : null}
@@ -137,9 +153,7 @@ export function AdminSidebar({ collapsed, onToggleCollapsed }: { collapsed: bool
       <nav aria-label={t.nav.navLabel} className="flex-1 overflow-y-auto px-2.5 py-3">
         {navGroups.map((group, groupIndex) => (
           <div key={group.label ?? `group-${groupIndex}`} className={groupIndex > 0 ? "mt-4" : undefined}>
-            {group.label && !collapsed ? (
-              <p className="px-2.5 pb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-subtle">{group.label}</p>
-            ) : null}
+            {group.label && !collapsed ? <p className="px-2.5 pb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-subtle">{group.label}</p> : null}
             <ul className="grid gap-0.5">
               {group.items.map((item) => {
                 const active = isActive(pathname, item.href);
@@ -158,9 +172,7 @@ export function AdminSidebar({ collapsed, onToggleCollapsed }: { collapsed: bool
                       <item.icon size={17} aria-hidden className="shrink-0" />
                       {!collapsed ? <span className="truncate">{item.label}</span> : null}
                       {!collapsed && count ? (
-                        <span className="ml-auto rounded-full bg-accent px-1.5 py-0.5 text-[11px] font-semibold text-white tabular-nums">
-                          {count}
-                        </span>
+                        <span className="ml-auto rounded-full bg-accent px-1.5 py-0.5 text-[11px] font-semibold text-white tabular-nums">{count}</span>
                       ) : null}
                     </a>
                     {collapsed ? (
