@@ -112,6 +112,7 @@ describe("prepareCreateProductTool", () => {
 describe("executeCreateProduct", () => {
   it("creates the product as a draft and writes an audit log entry", async () => {
     const { env, db } = fakeEnv([
+      { first: { id: "cat_fundas", slug: "fundas" } }, // category belongs to the current store
       { first: null }, // uniqueSlug: no existing product with that slug
       { first: null }, // uniqueSku: no existing product with that sku
       {}, // insert
@@ -133,7 +134,7 @@ describe("executeCreateProduct", () => {
     });
 
     expect(outcome).toEqual({ success: true, result: { productId: "prd_1", name: "Funda A", sku: "SKU-A" } });
-    expect(db.prepare).toHaveBeenCalledTimes(6);
+    expect(db.prepare).toHaveBeenCalledTimes(7);
   });
 });
 
@@ -188,6 +189,7 @@ describe("executeUpdateProduct", () => {
   it("applies the patch and writes an audit log entry", async () => {
     const { env, db } = fakeEnv([
       { first: PRODUCT_ROW }, // updateProduct's existing-row read
+      { first: { id: "cat_fundas", slug: "fundas" } }, // category belongs to the current store
       {}, // update ... where id = ?
       {}, // clearCatalogCache
       { first: { ...PRODUCT_ROW, stock: 20 } }, // getProductRow read-back
@@ -198,7 +200,7 @@ describe("executeUpdateProduct", () => {
     const outcome = await executeUpdateProduct(ctx, { productId: "prd_1", patch: { stock: 20 } });
 
     expect(outcome).toEqual({ success: true, result: { productId: "prd_1", name: "Funda A" } });
-    expect(db.prepare).toHaveBeenCalledTimes(5);
+    expect(db.prepare).toHaveBeenCalledTimes(6);
   });
 });
 

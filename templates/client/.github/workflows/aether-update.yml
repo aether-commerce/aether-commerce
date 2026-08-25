@@ -56,3 +56,11 @@ jobs:
           git push origin "$branch"
           pr_url="$(gh pr create --base develop --head "$branch" --title "chore: update Aether platform" --body "Automated Aether package and D1 migration update. Validation passed before this pull request was opened.")"
           gh pr merge "$pr_url" --squash --delete-branch
+          promotion_pr="$(gh pr list --base main --head develop --state open --json url --jq '.[0].url')"
+          if [ -z "$promotion_pr" ]; then
+            gh pr create --base main --head develop \
+              --title "release: promote Aether platform update" \
+              --body "Automated promotion of the validated Aether package and migration update from develop to main."
+          else
+            echo "Production promotion PR already exists: $promotion_pr"
+          fi

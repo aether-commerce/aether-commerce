@@ -28,7 +28,10 @@ test("client migration export excludes Aether demo records", () => {
       "0020_observability.sql",
       "0021_security_hardening.sql",
       "0022_restock_notifications.sql",
-      "0023_low_stock_alerts.sql"
+      "0023_low_stock_alerts.sql",
+      "0024_store_categories.sql",
+      "0025_category_ownership.sql",
+      "0026_store_category_scope.sql"
     ]);
     const content = files.map((file) => readFileSync(join(destination, file), "utf8")).join("\n");
     assert.doesNotMatch(content, /AETHER10|portafolio-aether|Demo Customer|demo_admin_notice/i);
