@@ -1,25 +1,27 @@
--- The first category migration used a global UNIQUE(slug) constraint. Rebuild
--- the table so two independent stores can legitimately use the same slug.
-PRAGMA foreign_keys = OFF;
-CREATE TABLE store_categories_scoped (
-  id TEXT PRIMARY KEY,
-  store_id TEXT NOT NULL DEFAULT 'store_default',
-  slug TEXT NOT NULL,
-  name TEXT NOT NULL,
-  sort_order INTEGER NOT NULL DEFAULT 0,
-  is_hidden INTEGER NOT NULL DEFAULT 0 CHECK (is_hidden IN (0, 1)),
-  is_system INTEGER NOT NULL DEFAULT 0 CHECK (is_system IN (0, 1)),
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE(store_id, slug)
-);
-INSERT INTO store_categories_scoped (id, store_id, slug, name, sort_order, is_hidden, is_system, created_at, updated_at)
-SELECT id, store_id, slug, name, sort_order, is_hidden, is_system, created_at, updated_at FROM store_categories;
-DROP TABLE store_categories;
+-- Keep this distribution migration aligned with database/core.
+ALTER TABLE store_categories RENAME TO store_categories_legacy;
+ALTER TABLE products RENAME TO products_legacy;
+ALTER TABLE restock_notifications RENAME TO restock_notifications_legacy;
+CREATE TABLE store_categories_scoped (id TEXT PRIMARY KEY, store_id TEXT NOT NULL DEFAULT 'store_default', slug TEXT NOT NULL, name TEXT NOT NULL, sort_order INTEGER NOT NULL DEFAULT 0, is_hidden INTEGER NOT NULL DEFAULT 0 CHECK (is_hidden IN (0, 1)), is_system INTEGER NOT NULL DEFAULT 0 CHECK (is_system IN (0, 1)), created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE(store_id, slug));
+INSERT INTO store_categories_scoped (id, store_id, slug, name, sort_order, is_hidden, is_system, created_at, updated_at) SELECT id, store_id, slug, name, sort_order, is_hidden, is_system, created_at, updated_at FROM store_categories_legacy;
+CREATE TABLE products_scoped (id TEXT PRIMARY KEY, sku TEXT NOT NULL UNIQUE, slug TEXT NOT NULL UNIQUE, name TEXT NOT NULL, brand TEXT, category TEXT NOT NULL, subcategory TEXT, price_cents INTEGER NOT NULL, compare_at_price_cents INTEGER, final_price_cents INTEGER NOT NULL, stock INTEGER NOT NULL DEFAULT 0, low_stock_alerted_at TEXT, low_stock_threshold INTEGER NOT NULL DEFAULT 4, visibility TEXT NOT NULL DEFAULT 'draft' CHECK (visibility IN ('draft', 'visible', 'hidden')), featured INTEGER NOT NULL DEFAULT 0, is_new INTEGER NOT NULL DEFAULT 0, is_deal INTEGER NOT NULL DEFAULT 0, rating_average REAL NOT NULL DEFAULT 0, rating_count INTEGER NOT NULL DEFAULT 0, details_json TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, store_category_id TEXT REFERENCES store_categories_scoped(id), store_id TEXT NOT NULL DEFAULT 'store_default');
+INSERT INTO products_scoped SELECT id, sku, slug, name, brand, category, subcategory, price_cents, compare_at_price_cents, final_price_cents, stock, low_stock_alerted_at, low_stock_threshold, visibility, featured, is_new, is_deal, rating_average, rating_count, details_json, created_at, updated_at, store_category_id, store_id FROM products_legacy;
+CREATE TABLE restock_notifications_scoped (id TEXT PRIMARY KEY, product_id TEXT NOT NULL REFERENCES products_scoped(id), email TEXT NOT NULL, notified_at TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE(product_id, email));
+INSERT INTO restock_notifications_scoped SELECT id, product_id, email, notified_at, created_at FROM restock_notifications_legacy;
+DROP TABLE restock_notifications_legacy;
+DROP TABLE products_legacy;
+DROP TABLE store_categories_legacy;
 ALTER TABLE store_categories_scoped RENAME TO store_categories;
+ALTER TABLE products_scoped RENAME TO products;
+ALTER TABLE restock_notifications_scoped RENAME TO restock_notifications;
 CREATE INDEX IF NOT EXISTS idx_store_categories_store_order ON store_categories(store_id, is_hidden, sort_order, name);
 CREATE INDEX IF NOT EXISTS idx_store_categories_visible_order ON store_categories(store_id, is_hidden, sort_order, name);
 CREATE INDEX IF NOT EXISTS idx_store_categories_store_slug ON store_categories(store_id, slug);
+CREATE INDEX IF NOT EXISTS idx_products_category ON products(category);
+CREATE INDEX IF NOT EXISTS idx_products_visibility ON products(visibility);
+CREATE INDEX IF NOT EXISTS idx_products_updated_at ON products(updated_at);
+CREATE INDEX IF NOT EXISTS idx_products_store_category_id ON products(store_category_id);
+CREATE INDEX IF NOT EXISTS idx_products_store_category ON products(store_id, store_category_id);
+CREATE INDEX IF NOT EXISTS idx_restock_notifications_pending ON restock_notifications(product_id, notified_at);
 CREATE TRIGGER IF NOT EXISTS products_store_category_owner_insert BEFORE INSERT ON products WHEN NEW.store_category_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM store_categories c WHERE c.id = NEW.store_category_id AND c.store_id = NEW.store_id) BEGIN SELECT RAISE(ABORT, 'product category belongs to another store'); END;
 CREATE TRIGGER IF NOT EXISTS products_store_category_owner_update BEFORE UPDATE OF store_id, store_category_id ON products WHEN NEW.store_category_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM store_categories c WHERE c.id = NEW.store_category_id AND c.store_id = NEW.store_id) BEGIN SELECT RAISE(ABORT, 'product category belongs to another store'); END;
-PRAGMA foreign_keys = ON;
