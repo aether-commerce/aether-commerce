@@ -111,12 +111,16 @@ The workflow doesn't touch `apps/ai/` - there's no AI Worker to deploy yet
 ## Aether updates
 
 Add the repository secret `AETHER_PACKAGES_TOKEN` with read access to the
-Aether package registry. Dependabot groups Aether releases into a weekly pull
-request against `develop`. You can also run **Update Aether platform** manually;
-it updates every workspace dependency, synchronizes D1 migrations, validates
-the store and opens a pull request against `develop`. Promote the validated
-`develop` branch to `main` through the normal production pull request. The
-deployment synchronizes migrations once more before applying them.
+Aether package registry. After an Aether release is published, the distributor
+sends an `aether-release` event to the client and starts **Update Aether
+platform** automatically. The workflow always checks out `develop`, updates
+every workspace dependency, synchronizes D1 migrations, validates the store and
+opens a pull request against `develop`; it never overwrites client-owned
+configuration or branding. The same workflow can still be started manually,
+and Dependabot remains a weekly fallback if the dispatch token is unavailable.
+Promote the validated `develop` branch to `main` through the normal production
+pull request. The deployment synchronizes migrations once more before applying
+them.
 
 Versioned package changes (storefront/admin components, shared API behavior,
 schemas and migrations) reach existing clients through that update pull

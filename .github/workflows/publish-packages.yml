@@ -1,6 +1,8 @@
 name: Publish Aether packages
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       dry_run:
@@ -28,7 +30,19 @@ jobs:
           registry-url: https://npm.pkg.github.com
           scope: "@aether-commerce"
       - run: pnpm install --frozen-lockfile
+      - name: Detect package release
+        id: release
+        shell: bash
+        run: |
+          changed="$(git diff --name-only HEAD^ HEAD)"
+          pending_changeset="$(find .changeset -maxdepth 1 -type f -name '*.md' ! -name README.md -print -quit)"
+          if [ -n "$pending_changeset" ] || printf '%s\n' "$changed" | grep -Eq '^packages/[^/]+/package\.json$'; then
+            echo "needed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "needed=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: Build workspace
+        if: ${{ steps.release.outputs.needed == 'true' }}
         env:
           NEXT_PUBLIC_AETHER_API_URL: https://api.example.com
           NEXT_PUBLIC_AETHER_AI_URL: https://ai.example.com
@@ -36,14 +50,42 @@ jobs:
           NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_Y2xlcmsuZXhhbXBsZS5jb20k
         run: pnpm build
       - run: pnpm test:client-template
+        if: ${{ steps.release.outputs.needed == 'true' }}
+      - name: Version packages from Changesets
+        if: ${{ steps.release.outputs.needed == 'true' && !inputs.dry_run }}
+        run: |
+          if find .changeset -maxdepth 1 -type f -name '*.md' ! -name README.md -print -quit | grep -q .; then
+            pnpm version:packages
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add .changeset packages apps
+            git commit -m "chore: version Aether packages [skip ci]"
+            git push origin HEAD:main
+          fi
       - name: Verify package archives
-        if: ${{ inputs.dry_run }}
+        if: ${{ inputs.dry_run && steps.release.outputs.needed == 'true' }}
         run: pnpm --filter "./packages/*" exec pnpm pack --pack-destination "${{ runner.temp }}/aether-packages"
       - name: Publish packages
-        if: ${{ !inputs.dry_run }}
+        if: ${{ !inputs.dry_run && steps.release.outputs.needed == 'true' }}
         run: pnpm publish:packages
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Push release tags
-        if: ${{ !inputs.dry_run }}
+        if: ${{ !inputs.dry_run && steps.release.outputs.needed == 'true' }}
         run: git push origin --tags
+      - name: Notify Liminal client
+        if: ${{ !inputs.dry_run && steps.release.outputs.needed == 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.AETHER_CLIENT_DISPATCH_TOKEN }}
+          CLIENT_REPOSITORY: ${{ vars.AETHER_CLIENT_REPOSITORY || 'aether-commerce/liminal-store' }}
+          RELEASE_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "AETHER_CLIENT_DISPATCH_TOKEN is not configured; Dependabot remains the fallback."
+            exit 0
+          fi
+          gh api --method POST "repos/${CLIENT_REPOSITORY}/dispatches" \
+            -f event_type=aether-release \
+            -f "client_payload[release_sha]=${RELEASE_SHA}" \
+            -f "client_payload[source_repository]=${GITHUB_REPOSITORY}"

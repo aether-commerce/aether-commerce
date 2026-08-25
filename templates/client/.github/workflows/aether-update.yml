@@ -2,6 +2,8 @@ name: Update Aether platform
 
 on:
   workflow_dispatch:
+  repository_dispatch:
+    types: [aether-release]
 
 permissions:
   contents: write
