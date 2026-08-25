@@ -34,6 +34,6 @@ jobs:
         uses: changesets/action@v2
         with:
           version-script: pnpm version:packages
-          title: chore: prepare Aether package release
-          commit: chore: prepare Aether package release
+          title: "chore: prepare Aether package release"
+          commit: "chore: prepare Aether package release"
           github-token: ${{ secrets.GITHUB_TOKEN }}
