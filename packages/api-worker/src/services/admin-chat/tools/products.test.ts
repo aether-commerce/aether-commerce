@@ -76,9 +76,10 @@ describe("getProductDetailsTool", () => {
 
     await getProductDetailsTool.run({ productId: "sku-a" }, ctx);
 
-    const productLookup = statements.find((statement) => statement.sql.includes("from products where"));
-    expect(productLookup?.sql).toMatch(/upper\(sku\)\s*=\s*upper\(\?\)/i);
-    expect(productLookup?.args).toEqual(["sku-a", "sku-a"]);
+    const productLookup = statements.find((statement) => /from\s+products\b/i.test(statement.sql) && /upper\(p?\.sku\)/i.test(statement.sql));
+    expect(productLookup).toBeDefined();
+    expect(productLookup?.sql).toMatch(/upper\(p?\.sku\)\s*=\s*upper\(\?\)/i);
+    expect(productLookup?.args).toEqual(["store_default", "sku-a", "sku-a"]);
   });
 
   it("returns full product_detail including stock threshold and brand", async () => {
