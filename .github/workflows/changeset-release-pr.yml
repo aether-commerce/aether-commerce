@@ -31,9 +31,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Create or update release PR
-        uses: changesets/action@v2
+        uses: changesets/action@v1
         with:
           version-script: pnpm version:packages
-          title: "chore: prepare Aether package release"
-          commit: "chore: prepare Aether package release"
+          pr-title: "chore: prepare Aether package release"
+          commit-message: "chore: prepare Aether package release"
           github-token: ${{ secrets.GITHUB_TOKEN }}
