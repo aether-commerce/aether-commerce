@@ -396,6 +396,13 @@ test("security headers prevent framing and unsafe content sniffing on both stati
     assert.match(headers, /frame-ancestors 'none'/);
   }
 });
+test("admin security policy permits signed Cloudinary image uploads", () => {
+  const headers = read("apps/admin/public/_headers");
+
+  assert.match(headers, /connect-src[^;]*https:\/\/api\.cloudinary\.com/);
+  assert.match(headers, /img-src[^;]*https:\/\/res\.cloudinary\.com/);
+});
+
 
 test("checkout orders require an immutable server-side snapshot", () => {
   const migration = read("database/core/migrations/0021_security_hardening.sql");
