@@ -101,6 +101,17 @@ test("generated clients validate Aether updates in develop before production", (
   assert.match(dependabot, /target-branch: develop/);
 });
 
+test("main release workflow publishes and notifies client repositories", () => {
+  const workflow = read(".github/workflows/publish-packages.yml");
+
+  assert.match(workflow, /branches: \[main\]/);
+  assert.match(workflow, /pnpm version:packages/);
+  assert.match(workflow, /pnpm publish:packages/);
+  assert.match(workflow, /repository_dispatch|\/dispatches/);
+  assert.match(workflow, /aether-release/);
+  assert.match(workflow, /AETHER_CLIENT_DISPATCH_TOKEN/);
+});
+
 test("money values are represented as integer cents", () => {
   const productSchema = read("packages/schemas/src/product.ts");
   const orderAdr = read("docs/adr/0002-integer-cents.md");
