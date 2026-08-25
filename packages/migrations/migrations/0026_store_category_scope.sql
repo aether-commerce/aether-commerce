@@ -1,4 +1,5 @@
 -- Keep this distribution migration aligned with database/core.
+PRAGMA defer_foreign_keys = ON;
 ALTER TABLE store_categories RENAME TO store_categories_legacy;
 ALTER TABLE products RENAME TO products_legacy;
 ALTER TABLE restock_notifications RENAME TO restock_notifications_legacy;

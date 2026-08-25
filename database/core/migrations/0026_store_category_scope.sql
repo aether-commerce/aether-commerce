@@ -1,5 +1,9 @@
 -- Replace global category slug uniqueness with store-scoped uniqueness.
 -- Rebuild dependent tables in dependency order because D1 enforces FKs.
+-- D1 evaluates foreign keys strictly while the old tables are being renamed
+-- and rebuilt. Defer them until the migration finishes so the intermediate
+-- names cannot fail the migration; the final schema restores every relation.
+PRAGMA defer_foreign_keys = ON;
 ALTER TABLE store_categories RENAME TO store_categories_legacy;
 ALTER TABLE products RENAME TO products_legacy;
 ALTER TABLE restock_notifications RENAME TO restock_notifications_legacy;
