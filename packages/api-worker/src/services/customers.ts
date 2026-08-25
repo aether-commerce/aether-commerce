@@ -81,7 +81,6 @@ type RosterRow = {
 };
 
 export async function listCustomersForAdmin(env: Env, query: AdminCustomerListQuery) {
-  const { currency } = await getStoreConfig(env);
   const where: string[] = [];
   const params: unknown[] = [];
 
@@ -127,6 +126,7 @@ export async function listCustomersForAdmin(env: Env, query: AdminCustomerListQu
     }
   }
 
+  const currency = rows.results.length > 0 ? (await getStoreConfig(env)).currency : "USD";
   const data: AdminCustomerSummary[] = rows.results.map((row) => {
     const aggregate = aggregates.get(row.email.toLowerCase());
     return {

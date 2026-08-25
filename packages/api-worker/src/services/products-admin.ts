@@ -83,7 +83,6 @@ function rowToSummary(row: ProductRow, currency: "USD" | "COP"): AdminProductSum
 // unlike the public catalog.ts read path, which still caches the full
 // visible set in memory/D1 for storefront browsing.
 export async function listProductsForAdmin(env: Env, query: AdminProductListQuery) {
-  const { currency } = await getStoreConfig(env);
   const where: string[] = [];
   const params: unknown[] = [];
 
@@ -125,6 +124,7 @@ export async function listProductsForAdmin(env: Env, query: AdminProductListQuer
     .bind(...scopedParams, query.pageSize, offset)
     .all<ProductRow>();
 
+  const { currency } = await getStoreConfig(env);
   const totalCount = total?.count ?? 0;
   return {
     data: (rows.results || []).map((row) => rowToSummary(row, currency)),

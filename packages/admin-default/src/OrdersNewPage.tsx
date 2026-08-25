@@ -19,8 +19,8 @@ type ProductOption = {
 
 type LineItem = { productId: string; name: string; unitPriceCents: number; quantity: number; currency: "USD" | "COP" };
 
-function money(cents: number, currency: string, locale: string) {
-  return new Intl.NumberFormat(locale === "es" ? "es-CO" : "en-US", { style: "currency", currency }).format(cents / 100);
+function money(cents: number, currency: string | undefined, locale: string) {
+  return new Intl.NumberFormat(locale === "es" ? "es-CO" : "en-US", { style: "currency", currency: currency ?? "USD" }).format(cents / 100);
 }
 
 export function OrdersNewPage() {
