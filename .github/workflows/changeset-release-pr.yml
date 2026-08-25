@@ -33,7 +33,7 @@ jobs:
       - name: Create or update release PR
         uses: changesets/action@v1
         with:
-          version-script: pnpm version:packages
-          pr-title: "chore: prepare Aether package release"
-          commit-message: "chore: prepare Aether package release"
+          version: pnpm version:packages
+          title: "chore: prepare Aether package release"
+          commit: "chore: prepare Aether package release"
           github-token: ${{ secrets.GITHUB_TOKEN }}
