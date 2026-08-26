@@ -118,6 +118,10 @@ publicRoutes.get("/new-arrivals", async (c) => {
 });
 
 publicRoutes.get("/products/:id/reviews", async (c) => {
+  const brand = await readBrandSettings(c.env);
+  if (!brand.features.reviews) {
+    return collection(c, [], { page: 1, pageSize: 0, total: 0, pageCount: 0 });
+  }
   const reviews = await createPublicReviewService(c.env.DB).listApproved(c.req.param("id"));
   const data = reviews.map((review) => ({
     id: review.id,

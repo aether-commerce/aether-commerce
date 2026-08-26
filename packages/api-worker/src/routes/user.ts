@@ -286,7 +286,20 @@ userRoutes.post("/products/:id/reviews", zValidator("json", reviewSchema), async
   // actually stopped reviews from accumulating.
   const brand = await readBrandSettings(c.env);
   if (!brand.features.reviews) return fail(c, 403, "REVIEWS_DISABLED", "Reviews are currently disabled for this store.");
-  return ok(c, await createCustomerReviewService(c.env.DB).create(userId, c.req.param("id"), c.req.valid("json")), 201);
+  const reviewService = createCustomerReviewService(c.env.DB);
+  if (!(await reviewService.canReviewProduct(userId, c.req.param("id")))) {
+    return fail(c, 403, "PURCHASE_REQUIRED", "You can review this product after purchasing it.");
+  }
+  return ok(c, await reviewService.create(userId, c.req.param("id"), c.req.valid("json")), 201);
+});
+
+userRoutes.get("/products/:id/review-eligibility", async (c) => {
+  const userId = requireUserId(c);
+  if (!userId) return fail(c, 401, "AUTH_REQUIRED", "Sign in to check whether you can review this product.");
+  const brand = await readBrandSettings(c.env);
+  if (!brand.features.reviews) return fail(c, 403, "REVIEWS_DISABLED", "Reviews are currently disabled for this store.");
+  const eligible = await createCustomerReviewService(c.env.DB).canReviewProduct(userId, c.req.param("id"));
+  return ok(c, { eligible });
 });
 
 userRoutes.patch("/reviews/:id", zValidator("json", reviewSchema.partial()), async (c) => {

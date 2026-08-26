@@ -11,6 +11,7 @@ import { getLocalizedProduct } from "./product-localization";
 import { ProductBadge } from "./ProductBadge";
 import { getImageBadge, getLowStockLabel, isLowStock } from "./product-badge-logic";
 import { StorefrontLink } from "./StorefrontLink";
+import { useStorefrontConfig } from "./AetherStorefrontProvider";
 
 export function ProductCard({
   product,
@@ -38,6 +39,7 @@ export function ProductCard({
   onOpenProduct?: (event: MouseEvent<HTMLAnchorElement>, product: Product) => void;
 }) {
   const { locale, t } = useLanguage();
+  const { reviewsEnabled } = useStorefrontConfig();
   const localized = getLocalizedProduct(product, locale);
   const detailHref = `/products/${encodeURIComponent(product.slug)}`;
   const outOfStock = product.availableStock <= 0;
@@ -101,15 +103,17 @@ export function ProductCard({
         >
           {product.name}
         </StorefrontLink>
-        <div className={`flex items-center gap-1 text-xs ${outOfStock ? "text-ink-subtle" : "text-zinc-600"}`}>
-          <Star
-            size={13}
-            className={outOfStock ? "fill-ink-subtle text-ink-subtle" : "fill-amber-400 text-amber-400"}
-            aria-hidden
-          />
-          <span>{product.rating.average.toFixed(1)}</span>
-          <span className={outOfStock ? "text-ink-subtle" : "text-zinc-500"}>({product.reviewCount})</span>
-        </div>
+        {reviewsEnabled ? (
+          <div className={`flex items-center gap-1 text-xs ${outOfStock ? "text-ink-subtle" : "text-zinc-600"}`}>
+            <Star
+              size={13}
+              className={outOfStock ? "fill-ink-subtle text-ink-subtle" : "fill-amber-400 text-amber-400"}
+              aria-hidden
+            />
+            <span>{product.rating.average.toFixed(1)}</span>
+            <span className={outOfStock ? "text-ink-subtle" : "text-zinc-500"}>({product.reviewCount})</span>
+          </div>
+        ) : null}
         <div className="mt-auto flex flex-col gap-2 pt-1">
           {/* min-h reserves room for the wrapped (2-line) case - price plus
               strikethrough plus savings can wrap to a second line on narrow

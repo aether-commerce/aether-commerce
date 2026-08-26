@@ -104,8 +104,9 @@ function useModuleCounts(apiBaseUrl: string, inventoryEnabled: boolean, reviewsE
 export function AdminSidebar({ collapsed, onToggleCollapsed }: { collapsed: boolean; onToggleCollapsed: () => void }) {
   const pathname = useCurrentPath();
   const { config, apiBaseUrl, storefrontUrl } = useAdminConfig();
-  const counts = useModuleCounts(apiBaseUrl, config.features.inventory, config.features.reviews);
   const brand = useBrand();
+  const reviewsEnabled = config.features.reviews && brand?.features?.reviews !== false;
+  const counts = useModuleCounts(apiBaseUrl, config.features.inventory, reviewsEnabled);
   const { user } = useUser();
   const { isSignedIn } = useAuth();
   const { t } = useAdminLanguage();
@@ -114,7 +115,7 @@ export function AdminSidebar({ collapsed, onToggleCollapsed }: { collapsed: bool
       ...group,
       items: group.items.filter((item) => {
         if (item.href === "/inventory/") return config.features.inventory;
-        if (item.href === "/reviews/") return config.features.reviews;
+        if (item.href === "/reviews/") return reviewsEnabled;
         if (item.href === "/customers/") return config.features.customerAccounts;
         return true;
       })

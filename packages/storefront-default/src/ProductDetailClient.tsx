@@ -4,7 +4,6 @@ import Image from "next/image";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent } from "react";
 import { Heart, MessageCircle, Minus, Plus, Scale, ShoppingBag, Star } from "lucide-react";
-import type { BrandSettings } from "@aether-commerce/core";
 import type { Product } from "@aether-commerce/schemas";
 import { formatMoney } from "@aether-commerce/core";
 import { Badge, Button } from "@aether-commerce/ui";
@@ -29,7 +28,7 @@ export function ProductDetailClient({
   fallbackProduct?: Product | null;
 }) {
   const { locale, t } = useLanguage();
-  const { config, apiBaseUrl } = useStorefrontConfig();
+  const { config, apiBaseUrl, reviewsEnabled } = useStorefrontConfig();
   const cartClient = useMemo(() => createCartClient(apiBaseUrl), [apiBaseUrl]);
   const { isFavorite: checkIsFavorite, toggleFavorite: toggleFavoriteHook } = useFavorites();
   const { isComparing, toggle: toggleCompareHook } = useCompare();
@@ -43,25 +42,9 @@ export function ProductDetailClient({
   const [quantity, setQuantity] = useState(1);
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
   const checkoutOptions = useCheckoutOptions();
-  const [brand, setBrand] = useState<BrandSettings | null>(null);
   const localized = product ? getLocalizedProduct(product, locale) : null;
   const isFavorite = product ? checkIsFavorite(product.id) : false;
   const isCompared = product ? isComparing(product.id) : false;
-
-  useEffect(() => {
-    let cancelled = false;
-    void fetch(`${apiBaseUrl}/api/v1/brand`)
-      .then((response) => response.json())
-      .then((payload: { success: boolean; data?: BrandSettings }) => {
-        if (!cancelled && payload.success && payload.data) setBrand(payload.data);
-      })
-      .catch(() => {
-        // Reviews stay visible (the default) if this read fails.
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [apiBaseUrl]);
 
   function buyNowViaWhatsapp() {
     if (!product || !checkoutOptions || checkoutOptions.paymentMode !== "whatsapp") return;
@@ -233,7 +216,7 @@ export function ProductDetailClient({
             <div className="rounded-lg border border-zinc-200 bg-white p-5">
               {product.brand && product.brand !== "Aether" ? <p className="text-sm font-medium text-zinc-500">{product.brand}</p> : null}
               <h1 className="mt-1 text-3xl font-semibold text-zinc-950 sm:text-4xl">{product.name}</h1>
-              {brand?.features.reviews === false ? null : (
+              {reviewsEnabled ? (
                 <div className="mt-2 flex items-center gap-2 text-sm text-zinc-600">
                   <span className="flex items-center gap-1">
                     <Star size={15} className="fill-amber-400 text-amber-400" aria-hidden />
@@ -241,7 +224,7 @@ export function ProductDetailClient({
                   </span>
                   <span>{t.basedOnReviews.replace("{count}", String(product.reviewCount))}</span>
                 </div>
-              )}
+              ) : null}
 
               <div className="mt-4 flex items-baseline gap-3">
                 <p className="text-3xl font-semibold text-zinc-950">{formatMoney(product.finalPrice, product.currency, locale === "es" ? "es-CO" : "en-US")}</p>
@@ -415,7 +398,7 @@ export function ProductDetailClient({
               </div>
             ) : null}
 
-            {!config.features.reviews || brand?.features.reviews === false ? null : <ReviewsSection productId={product.id} slug={product.slug} />}
+            {reviewsEnabled ? <ReviewsSection productId={product.id} /> : null}
           </section>
         )}
       </div>
