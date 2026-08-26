@@ -13,10 +13,13 @@ const pnpmBinary = execFileSync(process.platform === "win32" ? "where" : "which"
   .split(/\r?\n/)[0];
 
 const root = process.cwd();
+const adminRouteManifest = JSON.parse(readFileSync(resolve(root, "packages/admin-default/admin-routes.manifest.json"), "utf8"));
+const adminRouteFiles = adminRouteManifest.routes.map(({ file }) => `apps/admin/app/${file}`);
 const required = [
   "config/brand.ts", "config/store.ts", "config/features.ts", "config/theme.ts", "config/checkout.ts", "config/integrations.ts", "config/agent.ts", "config/navigation.ts", "src/configuration.ts",
   "apps/storefront/adapter.ts", "apps/storefront/app/layout.tsx", "apps/storefront/app/page.tsx", "apps/storefront/package.json", "apps/storefront/next.config.mjs", "apps/storefront/wrangler.jsonc",
   "apps/admin/adapter.ts", "apps/admin/app/layout.tsx", "apps/admin/app/page.tsx", "apps/admin/package.json", "apps/admin/next.config.mjs",
+  ...adminRouteFiles,
   "apps/api/adapter.ts", "apps/api/package.json", "apps/api/wrangler.jsonc", "apps/api/src/index.ts", "apps/ai/adapter.ts", "src/adapters.ts",
   ".github/dependabot.yml", ".github/workflows/deploy.yml", ".github/workflows/aether-update.yml",
   "scripts/bootstrap-cloudflare.mjs", "tests/cloudflare-bootstrap.test.mjs",
@@ -48,6 +51,7 @@ try {
   for (const entry of [
     "apps/storefront/adapter.ts", "apps/storefront/app/layout.tsx", "apps/storefront/app/page.tsx",
     "apps/admin/adapter.ts", "apps/admin/app/layout.tsx", "apps/admin/app/page.tsx",
+    ...adminRouteFiles,
     "apps/api/adapter.ts", "apps/api/package.json", "apps/api/wrangler.jsonc", "apps/api/src/index.ts", "apps/ai/adapter.ts",
     ".github/dependabot.yml", ".github/workflows/deploy.yml", ".github/workflows/aether-update.yml",
     "scripts/bootstrap-cloudflare.mjs", "tests/cloudflare-bootstrap.test.mjs",

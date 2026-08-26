@@ -37,6 +37,7 @@ jobs:
         run: |
           pnpm install --frozen-lockfile --ignore-scripts
           pnpm update --recursive --latest "@aether-commerce/*"
+          pnpm aether:routes
           pnpm aether:migrations
           pnpm validate
       - name: Open update pull request

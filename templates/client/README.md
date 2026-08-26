@@ -17,7 +17,10 @@ copy Aether demo data, provider secrets or deployment resources.
    `@aether-commerce/storefront-default` - wired to `config/`. Both directories also ship
    every business page as one-line re-exports, each in its own file under the
    matching route folder: `apps/admin/app/` has orders, products, customers,
-   inventory, coupons, reviews, settings, activity, and system health;
+   categories, inventory, coupons, reviews, settings, activity, and system health;
+   during an Aether package update, `aether-admin-routes sync apps/admin/app`
+   materializes any newly released default admin route without overwriting
+   client-owned route files;
    `apps/storefront/app/` has cart, checkout, account (favorites/orders),
    login/register, categories, products (catalog + detail), compare, and
    contact. Keep them as-is to use the default skin, or edit any individual
