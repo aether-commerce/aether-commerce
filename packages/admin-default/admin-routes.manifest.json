@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "package": "@aether-commerce/admin-default",
+  "routes": [
+    { "file": "activity/page.tsx", "export": "ActivityPage" },
+    { "file": "categories/page.tsx", "export": "CategoriesPage" },
+    { "file": "coupons/page.tsx", "export": "CouponsPage" },
+    { "file": "customers/page.tsx", "export": "CustomersListPage" },
+    { "file": "customers/detail/page.tsx", "export": "CustomersDetailPage" },
+    { "file": "inventory/page.tsx", "export": "InventoryListPage" },
+    { "file": "orders/page.tsx", "export": "OrdersListPage" },
+    { "file": "orders/detail/page.tsx", "export": "OrdersDetailPage" },
+    { "file": "orders/new/page.tsx", "export": "OrdersNewPage" },
+    { "file": "products/page.tsx", "export": "ProductsListPage" },
+    { "file": "products/edit/page.tsx", "export": "ProductsEditPage" },
+    { "file": "products/new/page.tsx", "export": "ProductsNewPage" },
+    { "file": "reviews/page.tsx", "export": "ReviewsPage" },
+    { "file": "settings/page.tsx", "export": "SettingsPage" },
+    { "file": "settings/integrations/page.tsx", "export": "SettingsIntegrationsPage" },
+    { "file": "settings/platform/page.tsx", "export": "SettingsPlatformPage" },
+    { "file": "system-health/page.tsx", "export": "SystemHealthPage" }
+  ]
+}
