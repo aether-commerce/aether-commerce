@@ -276,20 +276,35 @@ export function SettingsPage() {
                   />
                 </div>
               </div>
-              <label className="flex items-center gap-2 text-sm text-ink">
-                <input
-                  type="checkbox"
-                  checked={brandForm.features.reviews}
-                  onChange={(event) =>
+              <div className="grid gap-1.5 rounded-md border border-border bg-surface-hover/40 p-3">
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={brandForm.features.reviews}
+                  onClick={() =>
                     setBrandForm((current) => ({
                       ...current,
-                      features: { ...current.features, reviews: event.target.checked }
+                      features: { ...current.features, reviews: !current.features.reviews }
                     }))
                   }
-                  className="h-4 w-4 rounded border-border-strong"
-                />
-                <span className="font-medium text-ink-muted">{t.settingsPage.showProductReviews}</span>
-              </label>
+                  className="focus-ring flex items-center justify-between gap-4 rounded-md text-left text-sm text-ink"
+                >
+                  <span className="font-medium text-ink-muted">{t.settingsPage.showProductReviews}</span>
+                  <span
+                    aria-hidden="true"
+                    className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
+                      brandForm.features.reviews ? "bg-accent" : "bg-border-strong"
+                    }`}
+                  >
+                    <span
+                      className={`h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
+                        brandForm.features.reviews ? "translate-x-5" : "translate-x-0.5"
+                      }`}
+                    />
+                  </span>
+                </button>
+                <p className="pl-6 text-xs leading-5 text-ink-subtle">{t.settingsPage.productReviewsHint}</p>
+              </div>
               <div className="flex items-center gap-3">
                 <button
                   type="button"

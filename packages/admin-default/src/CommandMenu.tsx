@@ -5,6 +5,7 @@ import { useAuth } from "@clerk/react";
 import { Boxes, ClipboardList, CornerDownLeft, Plus, Search, UsersRound } from "lucide-react";
 import { getNavGroups } from "./nav-items";
 import { useAdminConfig } from "./AetherAdminProvider";
+import { useBrand } from "./useBrand";
 import { useAdminLanguage } from "./AdminLanguageProvider";
 import type { AdminDictionary } from "@aether-commerce/i18n";
 
@@ -40,10 +41,15 @@ function useDebouncedValue(value: string, delayMs: number) {
 
 export function CommandMenu({ open, onClose }: Readonly<{ open: boolean; onClose: () => void }>) {
   const { getToken } = useAuth();
-  const { apiBaseUrl } = useAdminConfig();
+  const { apiBaseUrl, config } = useAdminConfig();
+  const brand = useBrand();
   const { t } = useAdminLanguage();
   const quickActions = useMemo(() => getQuickActions(t), [t]);
-  const navOptions = useMemo(() => getNavOptions(t), [t]);
+  const reviewsEnabled = config.features.reviews && brand?.features?.reviews !== false;
+  const navOptions = useMemo(
+    () => getNavOptions(t).filter((option) => option.href !== "/reviews/" || reviewsEnabled),
+    [t, reviewsEnabled]
+  );
   const [query, setQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Option[]>([]);
   const [searching, setSearching] = useState(false);

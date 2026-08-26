@@ -30,7 +30,12 @@ export function MobileNav({ open, onClose }: Readonly<{ open: boolean; onClose: 
   const brand = useBrand();
   const { config, storefrontUrl } = useAdminConfig();
   const { t } = useAdminLanguage();
-  const navGroups = getNavGroups(t);
+  const navGroups = getNavGroups(t)
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => item.href !== "/reviews/" || (config.features.reviews && brand?.features?.reviews !== false))
+    }))
+    .filter((group) => group.items.length > 0);
   const role = (user?.publicMetadata as { roles?: string[] } | undefined)?.roles?.[0];
 
   useEffect(() => {

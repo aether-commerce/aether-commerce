@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useMemo } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import type { ClientConfiguration } from "@aether-commerce/config-schema";
 
@@ -15,18 +15,39 @@ export type StorefrontRuntimeConfig = {
   basePath?: string;
 };
 
-const StorefrontConfigContext = createContext<StorefrontRuntimeConfig | null>(null);
+type ResolvedStorefrontRuntimeConfig = StorefrontRuntimeConfig & {
+  reviewsEnabled: boolean;
+};
+
+const StorefrontConfigContext = createContext<ResolvedStorefrontRuntimeConfig | null>(null);
 
 /** Wraps a storefront app (the reference Aether deployment, or a generated client) so every default-skin component reads its brand/theme/API config from here instead of a build-time import - a shared package can't have one client's config baked in. */
 export function AetherStorefrontProvider({ config, apiBaseUrl, aiAssistantUrl, basePath, children }: StorefrontRuntimeConfig & { children: ReactNode }) {
-  const value = useMemo<StorefrontRuntimeConfig>(
-    () => ({ config, apiBaseUrl, ...(aiAssistantUrl !== undefined ? { aiAssistantUrl } : {}), ...(basePath !== undefined ? { basePath } : {}) }),
-    [config, apiBaseUrl, aiAssistantUrl, basePath]
+  const [reviewsEnabled, setReviewsEnabled] = useState(config.features.reviews);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetch(`${apiBaseUrl}/api/v1/brand`)
+      .then((response) => response.json())
+      .then((payload: { success: boolean; data?: { features?: { reviews?: boolean } } }) => {
+        if (!cancelled && payload.success) setReviewsEnabled(config.features.reviews && payload.data?.features?.reviews !== false);
+      })
+      .catch(() => {
+        // Keep the build-time default if the optional runtime settings read fails.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [apiBaseUrl, config.features.reviews]);
+
+  const value = useMemo<ResolvedStorefrontRuntimeConfig>(
+    () => ({ config, apiBaseUrl, reviewsEnabled, ...(aiAssistantUrl !== undefined ? { aiAssistantUrl } : {}), ...(basePath !== undefined ? { basePath } : {}) }),
+    [config, apiBaseUrl, reviewsEnabled, aiAssistantUrl, basePath]
   );
   return <StorefrontConfigContext.Provider value={value}>{children}</StorefrontConfigContext.Provider>;
 }
 
-export function useStorefrontConfig(): StorefrontRuntimeConfig {
+export function useStorefrontConfig(): ResolvedStorefrontRuntimeConfig {
   const context = useContext(StorefrontConfigContext);
   if (!context) {
     throw new Error("useStorefrontConfig must be used within AetherStorefrontProvider");
