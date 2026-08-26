@@ -74,16 +74,17 @@ describe("ProductForm", () => {
     } as Response);
 
     const user = userEvent.setup();
-    render(<ProductForm mode="create" initialValues={filledValues()} />);
+    render(<ProductForm mode="create" initialValues={filledValues({ featured: true, featuredPosition: 2 })} />);
     await user.click(screen.getByRole("button", { name: /create product/i }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toContain("/api/v1/admin/products");
     expect(init.method).toBe("POST");
-    const body = JSON.parse(init.body as string) as { name: string; priceCents: number };
+    const body = JSON.parse(init.body as string) as { name: string; priceCents: number; featuredPosition: number | null };
     expect(body.name).toBe("Auriculares QA");
     expect(body.priceCents).toBe(5000);
+    expect(body.featuredPosition).toBe(2);
 
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/products/edit/?id=prd_new_1"));
   });

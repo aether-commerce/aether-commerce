@@ -208,6 +208,7 @@ export type ProductWriteInput = {
   lowStockThreshold?: number | undefined;
   visibility?: ProductRow["visibility"] | undefined;
   featured?: boolean | undefined;
+  featuredPosition?: number | null | undefined;
   isNew?: boolean | undefined;
   isDeal?: boolean | undefined;
 };
@@ -244,8 +245,8 @@ export async function createProduct(env: Env, input: ProductWriteInput): Promise
 
   await env.DB.prepare(
     `insert into products
-       (id, store_id, store_category_id, sku, slug, name, brand, category, subcategory, price_cents, compare_at_price_cents, final_price_cents, stock, low_stock_threshold, visibility, featured, is_new, is_deal, rating_average, rating_count, details_json, created_at, updated_at)
-     values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?)`
+       (id, store_id, store_category_id, sku, slug, name, brand, category, subcategory, price_cents, compare_at_price_cents, final_price_cents, stock, low_stock_threshold, visibility, featured, featured_position, is_new, is_deal, rating_average, rating_count, details_json, created_at, updated_at)
+     values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?)`
   )
     .bind(
       id,
@@ -264,6 +265,7 @@ export async function createProduct(env: Env, input: ProductWriteInput): Promise
       input.lowStockThreshold ?? 4,
       input.visibility ?? "draft",
       input.featured ? 1 : 0,
+      input.featured && input.featuredPosition != null ? input.featuredPosition : null,
       input.isNew ? 1 : 0,
       input.isDeal ? 1 : 0,
       JSON.stringify(detailsFromInput(input)),
@@ -313,7 +315,7 @@ export async function updateProduct(env: Env, id: string, patch: ProductPatchInp
     `update products set
        store_category_id = ?, sku = ?, slug = ?, name = ?, brand = ?, category = ?, subcategory = ?,
        price_cents = ?, compare_at_price_cents = ?, final_price_cents = ?,
-       stock = ?, low_stock_threshold = ?, visibility = ?, featured = ?, is_new = ?, is_deal = ?,
+       stock = ?, low_stock_threshold = ?, visibility = ?, featured = ?, featured_position = ?, is_new = ?, is_deal = ?,
        details_json = ?, updated_at = ?
      where id = ?`
   )
@@ -332,6 +334,13 @@ export async function updateProduct(env: Env, id: string, patch: ProductPatchInp
       patch.lowStockThreshold ?? existing.low_stock_threshold,
       patch.visibility ?? existing.visibility,
       patch.featured !== undefined ? (patch.featured ? 1 : 0) : existing.featured,
+      patch.featured !== undefined
+        ? patch.featured
+          ? patch.featuredPosition !== undefined
+            ? patch.featuredPosition
+            : existing.featured_position
+          : null
+        : existing.featured_position,
       patch.isNew !== undefined ? (patch.isNew ? 1 : 0) : existing.is_new,
       patch.isDeal !== undefined ? (patch.isDeal ? 1 : 0) : existing.is_deal,
       JSON.stringify(mergedDetails),

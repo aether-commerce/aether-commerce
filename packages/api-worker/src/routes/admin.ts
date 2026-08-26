@@ -77,6 +77,7 @@ const productWriteSchema = z.object({
   lowStockThreshold: z.number().int().min(0).optional(),
   visibility: z.enum(["draft", "visible", "hidden"]).optional(),
   featured: z.boolean().optional(),
+  featuredPosition: z.number().int().min(1).max(4).nullable().optional(),
   isNew: z.boolean().optional(),
   isDeal: z.boolean().optional()
 });

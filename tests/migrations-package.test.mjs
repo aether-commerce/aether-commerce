@@ -9,7 +9,7 @@ test("published migration sync adds missing files and protects immutable history
   const root = mkdtempSync(join(tmpdir(), "aether-published-migrations-"));
   try {
     const first = syncMigrations(root);
-    assert.equal(first.added.at(-1), "0026_store_category_scope.sql");
+    assert.equal(first.added.at(-1), "0027_featured_product_order.sql");
     assert.match(readFileSync(join(root, "0022_restock_notifications.sql"), "utf8"), /restock_notifications/i);
     assert.deepEqual(syncMigrations(root).added, []);
 

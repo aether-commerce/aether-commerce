@@ -41,6 +41,7 @@ type ProductDetailResponse = {
   low_stock_threshold: number;
   visibility: "draft" | "visible" | "hidden";
   featured: number;
+  featured_position: number | null;
   is_new: number;
   is_deal: number;
   details: {
@@ -75,6 +76,7 @@ function toFormValues(row: ProductDetailResponse): ProductFormValues {
     lowStockThreshold: row.low_stock_threshold,
     visibility: row.visibility,
     featured: Boolean(row.featured),
+    featuredPosition: row.featured_position,
     isNew: Boolean(row.is_new),
     isDeal: Boolean(row.is_deal)
   };
