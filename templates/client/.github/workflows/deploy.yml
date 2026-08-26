@@ -47,6 +47,8 @@ jobs:
         run: pnpm install --frozen-lockfile --ignore-scripts
       - name: Synchronize Aether database migrations
         run: pnpm aether:migrations
+      - name: Verify synchronized Aether database migrations
+        run: pnpm aether:migrations:check
       - name: Bootstrap Cloudflare resources
         id: cloudflare
         env:

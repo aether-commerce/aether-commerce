@@ -161,6 +161,24 @@ try {
   if (!routeSyncOutput.includes("Admin routes synchronized:")) {
     throw new Error("Installed admin route sync command did not execute");
   }
+  const migrationSyncOutput = execFileSync(pnpmBinary, ["aether:migrations"], {
+    cwd: generated,
+    encoding: "utf8",
+    shell: process.platform === "win32",
+    env: { ...process.env, GITHUB_PACKAGES_TOKEN: "template-validation-token" }
+  });
+  if (!migrationSyncOutput.includes("Aether migrations")) {
+    throw new Error("Installed migration sync command did not execute");
+  }
+  const migrationCheckOutput = execFileSync(pnpmBinary, ["aether:migrations:check"], {
+    cwd: generated,
+    encoding: "utf8",
+    shell: process.platform === "win32",
+    env: { ...process.env, GITHUB_PACKAGES_TOKEN: "template-validation-token" }
+  });
+  if (!migrationCheckOutput.includes("Aether migrations verified:")) {
+    throw new Error("Installed migration check command did not execute");
+  }
   execFileSync(pnpmBinary, ["validate"], {
     cwd: generated,
     stdio: "inherit",
