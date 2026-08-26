@@ -2,6 +2,7 @@ import { cpSync, existsSync, readdirSync, readFileSync, rmSync, writeFileSync } 
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { materializeClientMigrations } from "./export-core-migrations.mjs";
+import { syncAdminRoutes } from "../packages/admin-default/bin/aether-admin-routes.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 function replaceText(directory, name) {
@@ -61,6 +62,7 @@ export function createClient(name, options = {}) {
   cpSync(source, destination, { recursive: true });
   rmSync(resolve(destination, "tsconfig.validation.json"));
   materializeClientMigrations(resolve(destination, "database/migrations"));
+  syncAdminRoutes(resolve(destination, "apps/admin/app"), { quiet: true });
   synchronizePackageVersions(destination);
   replaceText(destination, name);
   return destination;
