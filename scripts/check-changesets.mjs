@@ -30,15 +30,25 @@ const changesPublicPackage = changed.some((file) => publicDirectories.some((dire
 const isReleaseNote = (file) => /^\.changeset\/[^/]+\.md$/.test(file) && file !== ".changeset/README.md";
 const addsChangeset = changes.some(({ status, path }) => status === "A" && isReleaseNote(path));
 const consumesChangeset = changes.some(({ status, path }) => status === "D" && isReleaseNote(path));
+const versionedPublicPackage = publicDirectories.some((directory) => {
+  if (!changed.includes(`${directory}/package.json`)) return false;
+  try {
+    const previous = JSON.parse(execFileSync(gitExecutable, ["show", `origin/${base}:${directory}/package.json`], { encoding: "utf8" }));
+    const current = JSON.parse(readFileSync(resolve(directory, "package.json"), "utf8"));
+    return previous.version !== current.version;
+  } catch {
+    return false;
+  }
+});
 
-if (changesPublicPackage && !addsChangeset && !consumesChangeset) {
+if (changesPublicPackage && !addsChangeset && !consumesChangeset && !versionedPublicPackage) {
   throw new Error(
     "This pull request changes a distributable package but neither adds a release note nor consumes one in a version release."
   );
 }
 console.log(
   changesPublicPackage
-    ? consumesChangeset
+    ? consumesChangeset || versionedPublicPackage
       ? "Version release consumes existing release metadata."
       : "Release metadata is present."
     : "No distributable package changed."

@@ -65,6 +65,7 @@ test("CI accepts version releases that consume existing changesets", () => {
   assert.match(workflow, /Version release detected/);
   assert.match(checker, /status === "D"/);
   assert.match(checker, /consumesChangeset/);
+  assert.match(checker, /versionedPublicPackage/);
 });
 
 test("package publishing builds with deterministic public application configuration", () => {
