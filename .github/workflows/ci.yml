@@ -52,8 +52,12 @@ jobs:
           pnpm check:changesets
           if [ -n "$GITHUB_BASE_REF" ] && git diff --name-status "origin/${GITHUB_BASE_REF}...HEAD" | grep -Eq '^D[[:space:]]+\.changeset/[^/]+\.md$'; then
             echo "Version release detected; the consumed changesets were validated before versioning."
-          else
+          elif git diff --name-status HEAD^1 HEAD | grep -Eq '^D[[:space:]]+\.changeset/[^/]+\.md$'; then
+            echo "Version release commit detected; the consumed changesets were validated before versioning."
+          elif find .changeset -maxdepth 1 -type f -name '*.md' ! -name README.md -print -quit | grep -q .; then
             pnpm changeset status
+          else
+            echo "No pending changesets; release metadata is already validated or no distributable package changed."
           fi
       - name: Validate LangGraph assistant
         run: |
