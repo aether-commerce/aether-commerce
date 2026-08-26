@@ -96,7 +96,9 @@ test("generated clients validate Aether updates in develop before production", (
   const workflow = read("templates/client/.github/workflows/aether-update.yml");
   const dependabot = read("templates/client/.github/dependabot.yml");
 
-  assert.match(workflow, /ref: develop/);
+  assert.match(workflow, /ref: refs\/heads\/develop/);
+  assert.match(workflow, /pnpm aether:migrations/);
+  assert.match(workflow, /pnpm aether:migrations:check/);
   assert.match(workflow, /gh pr create --base develop/);
   assert.match(dependabot, /target-branch: develop/);
 });

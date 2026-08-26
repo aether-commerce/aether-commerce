@@ -39,6 +39,7 @@ jobs:
           pnpm update --recursive --latest "@aether-commerce/*"
           pnpm aether:routes
           pnpm aether:migrations
+          pnpm aether:migrations:check
           pnpm validate
       - name: Open update pull request
         env:
