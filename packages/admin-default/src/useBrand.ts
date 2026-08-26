@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useState } from "react";
 import { useAdminConfig } from "./AetherAdminProvider";
 
-type Brand = { name: string; logoUrl: string };
+export type AdminBrand = { name: string; logoUrl: string; features?: { reviews?: boolean } };
 
 const brandCacheKey = "aether.admin.brand.v1";
 
@@ -12,14 +12,14 @@ const brandCacheKey = "aether.admin.brand.v1";
 // the generic Sparkles mark. Cached to localStorage and applied via
 // useLayoutEffect (before paint) so a repeat visit shows the real logo
 // immediately instead of a Sparkles-then-logo flash on every reload.
-export function useBrand(): Brand | null {
+export function useBrand(): AdminBrand | null {
   const { apiBaseUrl } = useAdminConfig();
-  const [brand, setBrand] = useState<Brand | null>(null);
+  const [brand, setBrand] = useState<AdminBrand | null>(null);
 
   useLayoutEffect(() => {
     try {
       const cached = window.localStorage.getItem(brandCacheKey);
-      if (cached) setBrand(JSON.parse(cached) as Brand);
+      if (cached) setBrand(JSON.parse(cached) as AdminBrand);
     } catch {
       // Ignore malformed/inaccessible cache - the fetch below still runs.
     }
@@ -29,7 +29,7 @@ export function useBrand(): Brand | null {
     let cancelled = false;
     void fetch(`${apiBaseUrl}/api/v1/brand`)
       .then((response) => response.json())
-      .then((payload: { success: boolean; data?: Brand }) => {
+      .then((payload: { success: boolean; data?: AdminBrand }) => {
         if (cancelled || !payload.success || !payload.data) return;
         setBrand(payload.data);
         try {

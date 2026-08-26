@@ -5,8 +5,8 @@ import { createApiApp } from "../index";
 const worker = createApiApp();
 
 // Same real-middleware-chain pattern as admin.integration.test.ts - only
-// the review submission route's new features.reviews gate is covered here
-// (see routes/user.ts), since no other route in this file changed.
+// the review submission route's feature gate and purchase verification are
+// covered here (see routes/user.ts), since no other route in this file changed.
 vi.mock("jose", () => ({
   createRemoteJWKSet: vi.fn(() => vi.fn()),
   jwtVerify: vi.fn()
@@ -81,6 +81,7 @@ describe("POST /products/:id/reviews", () => {
     const { env, statements } = fakeEnv([
       { first: null }, // suspension check
       { first: null }, // application_settings brand read -> falls back to defaultBrandSettings (reviews: true)
+      { first: { purchased: 1 } }, // paid order_items purchase check
       {} // reviews insert
     ]);
 
@@ -97,6 +98,31 @@ describe("POST /products/:id/reviews", () => {
 
     expect(response.status).toBe(201);
     expect(statements.some((s) => s.sql.includes("insert into reviews"))).toBe(true);
+  });
+
+  it("rejects a customer who has not purchased the product", async () => {
+    await mockVerifiedActor(["customer"]);
+    const { env, db } = fakeEnv([
+      { first: null }, // suspension check
+      { first: null }, // application_settings brand read -> reviews enabled by default
+      { first: null } // no matching paid order_items row
+    ]);
+
+    const response = await worker.fetch(
+      apiRequest("/products/prd_1/reviews", {
+        method: "POST",
+        token: "tok",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ rating: 5, title: "Great product", body: "Worked exactly as described." })
+      }),
+      env,
+      ctx
+    );
+
+    expect(response.status).toBe(403);
+    const body = await response.json<{ success: boolean; error?: { code: string } }>();
+    expect(body.error?.code).toBe("PURCHASE_REQUIRED");
+    expect(db.prepare).not.toHaveBeenCalledWith(expect.stringContaining("insert into reviews"));
   });
 
   it("rejects a new review with REVIEWS_DISABLED when the admin toggle is off, without ever inserting one", async () => {

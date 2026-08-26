@@ -6,7 +6,6 @@ import { Button } from "@aether-commerce/ui";
 import { useStorefrontConfig } from "./AetherStorefrontProvider";
 import { useAetherAuth } from "./AetherAuthProvider";
 import { useLanguage } from "./LanguageProvider";
-import { StorefrontLink } from "./StorefrontLink";
 
 type ApprovedReview = {
   id: string;
@@ -55,7 +54,7 @@ function RatingInput({ value, onChange }: { value: number; onChange: (next: numb
 // (apps/admin/app/reviews/page.tsx) - separate from the top-of-page rating
 // summary in ProductDetailClient.tsx, which reads the catalog's own
 // imported rating_average/rating_count, not this table.
-export function ReviewsSection({ productId, slug }: { productId: string; slug: string }) {
+export function ReviewsSection({ productId }: { productId: string }) {
   const { locale, t } = useLanguage();
   const { apiBaseUrl } = useStorefrontConfig();
   const { customer, getToken } = useAetherAuth();
@@ -67,6 +66,7 @@ export function ReviewsSection({ productId, slug }: { productId: string; slug: s
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
+  const [eligibility, setEligibility] = useState<"loading" | "eligible" | "ineligible" | "disabled" | "error" | "signed_out">("loading");
 
   useEffect(() => {
     let cancelled = false;
@@ -85,6 +85,38 @@ export function ReviewsSection({ productId, slug }: { productId: string; slug: s
       cancelled = true;
     };
   }, [productId, apiBaseUrl]);
+
+  useEffect(() => {
+    if (!customer) {
+      setEligibility("signed_out");
+      return;
+    }
+    let cancelled = false;
+    setEligibility("loading");
+    void getToken()
+      .then((token) =>
+        fetch(`${apiBaseUrl}/api/v1/products/${encodeURIComponent(productId)}/review-eligibility`, {
+          headers: token ? { authorization: `Bearer ${token}` } : {}
+        })
+      )
+      .then(async (response) => {
+        const payload = (await response.json()) as { success: boolean; data?: { eligible: boolean }; error?: { code?: string } };
+        if (cancelled) return;
+        if (payload.error?.code === "REVIEWS_DISABLED") {
+          setEligibility("disabled");
+        } else if (!response.ok || !payload.success || !payload.data) {
+          setEligibility("error");
+        } else {
+          setEligibility(payload.data.eligible ? "eligible" : "ineligible");
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setEligibility("error");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [apiBaseUrl, customer, getToken, productId]);
 
   async function submitReview(event: React.FormEvent) {
     event.preventDefault();
@@ -106,7 +138,16 @@ export function ReviewsSection({ productId, slug }: { productId: string; slug: s
       });
       const payload = (await response.json()) as { success: boolean };
       if (!payload.success) {
-        setMessage(t.reviewSubmitFailed);
+        const failedPayload = payload as { success: false; error?: { code?: string } };
+        if (failedPayload.error?.code === "PURCHASE_REQUIRED") {
+          setEligibility("ineligible");
+          setMessage(t.reviewPurchaseRequired);
+        } else if (failedPayload.error?.code === "REVIEWS_DISABLED") {
+          setEligibility("disabled");
+          setMessage(t.reviewSystemDisabled);
+        } else {
+          setMessage(t.reviewSubmitFailed);
+        }
         return;
       }
       setSubmitted(true);
@@ -143,17 +184,12 @@ export function ReviewsSection({ productId, slug }: { productId: string; slug: s
         </ul>
       )}
 
-      <div className="mt-6 border-t border-zinc-200 pt-5">
-        <h3 className="text-sm font-semibold text-zinc-950">{t.writeAReview}</h3>
-        {!customer ? (
-          <p className="mt-2 text-sm text-zinc-600">
-            <StorefrontLink href={`/login?next=/products/${encodeURIComponent(slug)}`} className="font-semibold text-accent underline decoration-accent underline-offset-4">
-              {t.signInToReview}
-            </StorefrontLink>
-          </p>
-        ) : submitted ? (
-          <p className="mt-2 text-sm text-zinc-600">{t.reviewSubmitted}</p>
-        ) : (
+      {eligibility === "eligible" || submitted ? (
+        <div className="mt-6 border-t border-zinc-200 pt-5">
+          <h3 className="text-sm font-semibold text-zinc-950">{t.writeAReview}</h3>
+          {submitted ? (
+            <p className="mt-2 text-sm text-zinc-600">{t.reviewSubmitted}</p>
+          ) : (
           <form onSubmit={(event) => void submitReview(event)} className="mt-3 grid gap-3">
             <label className="grid gap-1 text-sm">
               <span className="font-medium text-zinc-700">{t.yourRating}</span>
@@ -187,8 +223,9 @@ export function ReviewsSection({ productId, slug }: { productId: string; slug: s
               </Button>
             </div>
           </form>
-        )}
-      </div>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }

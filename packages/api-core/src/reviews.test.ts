@@ -13,6 +13,7 @@ describe("customer reviews", () => {
   it("assigns generated identifiers and keeps new reviews pending before persistence", async () => {
     const created: CustomerReview[] = [];
     const repository: CustomerReviewRepository = {
+      hasPurchasedProduct: () => Promise.resolve(true),
       create: (review) => {
         created.push(review);
         return Promise.resolve();
@@ -33,6 +34,20 @@ describe("customer reviews", () => {
       title: "Great",
       body: "A sufficiently detailed review."
     }]);
+  });
+
+  it("delegates purchase eligibility to the repository", async () => {
+    const repository: CustomerReviewRepository = {
+      hasPurchasedProduct: (userId, productId) => Promise.resolve(userId === "customer" && productId === "product"),
+      create: () => Promise.resolve(),
+      update: () => Promise.resolve(),
+      softDelete: () => Promise.resolve()
+    };
+
+    const service = new CustomerReviewService(repository, () => "review-id");
+
+    await expect(service.canReviewProduct("customer", "product")).resolves.toBe(true);
+    await expect(service.canReviewProduct("customer", "other-product")).resolves.toBe(false);
   });
 });
 

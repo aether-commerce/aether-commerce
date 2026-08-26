@@ -6,6 +6,22 @@ import {
 /** D1 adapter for customer-owned review operations. */
 export function createCustomerReviewService(db: D1Database): CustomerReviewService {
   const repository: CustomerReviewRepository = {
+    async hasPurchasedProduct(userId, productId) {
+      const row = await db
+        .prepare(
+          `select 1 as purchased
+             from orders o
+             join order_items oi on oi.order_id = o.id
+            where o.user_id = ?
+              and oi.product_id = ?
+              and o.payment_status in ('paid', 'partially_refunded')
+              and o.state not in ('cancelled', 'refunded')
+            limit 1`
+        )
+        .bind(userId, productId)
+        .first<{ purchased: number }>();
+      return Boolean(row?.purchased);
+    },
     async create(review) {
       await db
         .prepare(

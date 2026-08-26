@@ -18,6 +18,7 @@ export type CustomerReview = CustomerReviewInput & {
 
 /** Persistence port for reviews owned by an authenticated customer. */
 export interface CustomerReviewRepository {
+  hasPurchasedProduct(userId: string, productId: string): Promise<boolean>;
   create(review: CustomerReview): Promise<void>;
   update(userId: string, reviewId: string, patch: CustomerReviewPatch): Promise<void>;
   softDelete(userId: string, reviewId: string): Promise<void>;
@@ -33,6 +34,10 @@ export class CustomerReviewService {
     const review: CustomerReview = { id: this.createId(), userId, productId, status: "pending", ...input };
     await this.repository.create(review);
     return { id: review.id, status: review.status };
+  }
+
+  canReviewProduct(userId: string, productId: string): Promise<boolean> {
+    return this.repository.hasPurchasedProduct(userId, productId);
   }
 
   update(userId: string, reviewId: string, patch: CustomerReviewPatch): Promise<void> {
