@@ -152,6 +152,15 @@ try {
     shell: process.platform === "win32",
     env: { ...process.env, GITHUB_PACKAGES_TOKEN: "template-validation-token" }
   });
+  const routeSyncOutput = execFileSync(pnpmBinary, ["aether:routes"], {
+    cwd: generated,
+    encoding: "utf8",
+    shell: process.platform === "win32",
+    env: { ...process.env, GITHUB_PACKAGES_TOKEN: "template-validation-token" }
+  });
+  if (!routeSyncOutput.includes("Admin routes synchronized:")) {
+    throw new Error("Installed admin route sync command did not execute");
+  }
   execFileSync(pnpmBinary, ["validate"], {
     cwd: generated,
     stdio: "inherit",
