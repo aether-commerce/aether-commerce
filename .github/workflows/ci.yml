@@ -52,6 +52,8 @@ jobs:
           pnpm check:changesets
           if [ -n "$GITHUB_BASE_REF" ] && git diff --name-status "origin/${GITHUB_BASE_REF}...HEAD" | grep -Eq '^D[[:space:]]+\.changeset/[^/]+\.md$'; then
             echo "Version release detected; the consumed changesets were validated before versioning."
+          elif git diff --name-status HEAD^1 HEAD | grep -Eq '^D[[:space:]]+\.changeset/[^/]+\.md$'; then
+            echo "Version release commit detected; the consumed changesets were validated before versioning."
           else
             pnpm changeset status
           fi
