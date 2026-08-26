@@ -40,6 +40,7 @@
 - Search is debounced and URL-backed where shareable; IME composition must not submit early.
 - Loading, empty, no-results and error are distinct states. A failed private read never renders demo fixtures.
 - Mutations are pessimistic, prevent duplicate submission and preserve entered values on recoverable failure.
+- Store operators curate the storefront hero from the product form: only products marked as featured are eligible, and an optional position from 1 to 4 controls the exact hero slot. Unpositioned featured products fill remaining slots by rating.
 - Native `alert`, `confirm` and `prompt` are prohibited; use the canonical dialog/sheet and inline validation.
 - Permission-denied data is hidden or replaced by an explicit 403/recovery message; secrets never appear in clipboard feedback or logs.
 - Desktop sidebars become mobile drawers. Floating layers restore focus and must not be obscured by sticky navigation.

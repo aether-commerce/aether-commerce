@@ -15,7 +15,7 @@ export function Hero() {
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`${apiBaseUrl}/api/v1/catalog/products?featured=true&pageSize=4&sort=rating`, {
+    fetch(`${apiBaseUrl}/api/v1/catalog/products?featured=true&pageSize=4&sort=featured`, {
       signal: controller.signal
     })
       .then((response) => response.json())

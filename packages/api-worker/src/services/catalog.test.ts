@@ -139,9 +139,9 @@ describe("catalog.flagsFor", () => {
     expect(flagsFor(makeProductRow({ stock: 10, low_stock_threshold: 4 }))).not.toContain("limited");
   });
 
-  it("always returns at least one flag", () => {
+  it("does not invent a featured flag when a product has no merchandising flag", () => {
     const flags = flagsFor(makeProductRow({ featured: 0, is_new: 0, is_deal: 0, stock: 50 }));
-    expect(flags.length).toBeGreaterThan(0);
+    expect(flags).toEqual([]);
   });
 });
 

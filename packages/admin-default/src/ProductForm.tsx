@@ -32,6 +32,7 @@ export type ProductFormValues = {
   lowStockThreshold: number;
   visibility: "draft" | "visible" | "hidden";
   featured: boolean;
+  featuredPosition: number | null;
   isNew: boolean;
   isDeal: boolean;
 };
@@ -56,6 +57,7 @@ export const emptyProductForm: ProductFormValues = {
   lowStockThreshold: 4,
   visibility: "draft",
   featured: false,
+  featuredPosition: null,
   isNew: false,
   isDeal: false
 };
@@ -145,6 +147,7 @@ export function ProductForm({
       lowStockThreshold: values.lowStockThreshold,
       visibility: values.visibility,
       featured: values.featured,
+      featuredPosition: values.featured ? values.featuredPosition : null,
       isNew: values.isNew,
       isDeal: values.isDeal
     };
@@ -428,11 +431,27 @@ export function ProductForm({
             <span className={labelTextClass}>{t.productForm.highlightsLabel}</span>
             <input className={inputClass} value={values.highlights} onChange={(event) => set("highlights", event.target.value)} />
           </label>
-          <div className="flex flex-wrap items-center gap-4 sm:col-span-2">
+          <div className="flex flex-wrap items-end gap-4 sm:col-span-2">
             <label className="flex items-center gap-2 text-sm text-ink">
               <input type="checkbox" checked={values.featured} onChange={(event) => set("featured", event.target.checked)} />
               {t.productForm.featured}
             </label>
+            <label className="grid min-w-44 gap-1 text-sm">
+              <span className={labelTextClass}>{t.productForm.featuredPositionLabel}</span>
+              <select
+                className={inputClass}
+                value={values.featuredPosition == null ? "" : String(values.featuredPosition)}
+                disabled={!values.featured}
+                onChange={(event) => set("featuredPosition", event.target.value ? Number(event.target.value) : null)}
+              >
+                <option value="">{t.productForm.featuredPositionAutomatic}</option>
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+              </select>
+            </label>
+            <p className="max-w-md text-xs leading-5 text-ink-muted sm:self-end sm:pb-2">{t.productForm.featuredPositionHint}</p>
             <label className="flex items-center gap-2 text-sm text-ink">
               <input type="checkbox" checked={values.isNew} onChange={(event) => set("isNew", event.target.checked)} />
               {t.productForm.newArrival}

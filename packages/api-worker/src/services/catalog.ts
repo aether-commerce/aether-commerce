@@ -37,6 +37,7 @@ export type ProductRow = {
   low_stock_threshold: number;
   visibility: "draft" | "visible" | "hidden";
   featured: number;
+  featured_position?: number | null | undefined;
   is_new: number;
   is_deal: number;
   rating_average: number;
@@ -73,7 +74,7 @@ function flagsFor(row: ProductRow): Product["flags"] {
   if (row.is_new) flags.push("new");
   if (row.is_deal) flags.push("deal");
   if (row.stock > 0 && row.stock <= row.low_stock_threshold) flags.push("limited");
-  return flags.length > 0 ? flags : ["featured"];
+  return flags;
 }
 
 function normalizeRow(env: Env, row: ProductRow, currency: "USD" | "COP" = "USD"): Product {
@@ -167,6 +168,7 @@ function normalizeRow(env: Env, row: ProductRow, currency: "USD" | "COP" = "USD"
     },
     visibility: row.visibility,
     featured: flags.includes("featured"),
+    featuredOrder: row.featured_position ?? null,
     newArrival: flags.includes("new"),
     deal: flags.includes("deal"),
     visible: row.visibility === "visible",

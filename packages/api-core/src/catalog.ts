@@ -49,6 +49,12 @@ export function queryCatalog(products: readonly Product[], query: ProductQuery):
     if (query.sort === "name") return a.name.localeCompare(b.name);
     if (query.sort === "discount") return b.discountPercentage - a.discountPercentage;
     if (query.sort === "newest") return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    if (query.sort === "featured") {
+      const aPosition = a.featuredOrder ?? Number.POSITIVE_INFINITY;
+      const bPosition = b.featuredOrder ?? Number.POSITIVE_INFINITY;
+      if (aPosition !== bPosition) return aPosition - bPosition;
+      return b.rating.average - a.rating.average;
+    }
     return Number(b.flags.includes("featured")) - Number(a.flags.includes("featured"));
   });
 

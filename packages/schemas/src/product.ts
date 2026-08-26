@@ -94,6 +94,7 @@ export const productSchema = z.object({
   }),
   visibility: z.enum(["visible", "hidden", "draft"]),
   featured: z.boolean(),
+  featuredOrder: z.number().int().min(1).max(4).nullable().optional(),
   newArrival: z.boolean(),
   deal: z.boolean(),
   visible: z.boolean(),
