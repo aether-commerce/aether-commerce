@@ -54,21 +54,30 @@ jobs:
       - run: pnpm test:client-template
         if: ${{ steps.release.outputs.needed == 'true' }}
       - name: Version packages from Changesets
+        id: version
         if: ${{ steps.release.outputs.needed == 'true' && !inputs.dry_run }}
         run: |
           if find .changeset -maxdepth 1 -type f -name '*.md' ! -name README.md -print -quit | grep -q .; then
             pnpm version:packages
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            release_branch="automation/aether-release-${GITHUB_RUN_ID}"
+            git switch -c "$release_branch"
             git add .changeset packages apps
             git commit -m "chore: version Aether packages [skip ci]"
-            git push origin HEAD:main
+            git push origin "$release_branch"
+            gh pr create --base main --head "$release_branch" \
+              --title "chore: prepare Aether package release" \
+              --body "Automated Changesets version update. Merge this PR to publish the validated package release."
+            echo "versioned_pr=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "versioned_pr=false" >> "$GITHUB_OUTPUT"
           fi
       - name: Verify package archives
         if: ${{ inputs.dry_run && steps.release.outputs.needed == 'true' }}
         run: pnpm --filter "./packages/*" exec pnpm pack --pack-destination "${{ runner.temp }}/aether-packages"
       - name: Publish packages
-        if: ${{ !inputs.dry_run && steps.release.outputs.needed == 'true' }}
+        if: ${{ !inputs.dry_run && steps.release.outputs.needed == 'true' && steps.version.outputs.versioned_pr != 'true' }}
         run: pnpm publish:packages
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
