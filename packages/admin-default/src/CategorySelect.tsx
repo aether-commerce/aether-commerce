@@ -36,6 +36,7 @@ export function CategorySelect({
 }>) {
   const rootRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
@@ -48,10 +49,10 @@ export function CategorySelect({
   useEffect(() => {
     if (!open) return;
     const closeOnOutsideClick = (event: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(event.target as Node)) setOpen(false);
+      if (rootRef.current && !rootRef.current.contains(event.target as Node)) closeSelect();
     };
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key === "Escape") closeSelect({ restoreFocus: true });
     };
     document.addEventListener("mousedown", closeOnOutsideClick);
     document.addEventListener("keydown", closeOnEscape);
@@ -71,17 +72,26 @@ export function CategorySelect({
     }
   }
 
-  function selectOption(option: CategorySelectOption) {
-    onValueChange(option.slug);
+  function closeSelect({ restoreFocus = false }: Readonly<{ restoreFocus?: boolean }> = {}) {
+    searchRef.current?.blur();
     setOpen(false);
     setQuery("");
+    if (restoreFocus) {
+      triggerRef.current?.focus();
+    }
+  }
+
+  function selectOption(option: CategorySelectOption) {
+    onValueChange(option.slug);
+    closeSelect({ restoreFocus: true });
   }
 
   return (
     <div ref={rootRef} className="relative">
       <button
+        ref={triggerRef}
         type="button"
-        className="focus-ring flex min-h-11 w-full items-center justify-between gap-3 rounded-md border border-border bg-surface px-3 text-left text-sm text-ink disabled:cursor-not-allowed disabled:opacity-50"
+        className="focus-ring flex min-h-11 w-full items-center justify-between gap-3 rounded-md border border-border bg-surface px-3 text-left text-base text-ink disabled:cursor-not-allowed disabled:opacity-50 lg:text-sm"
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls="product-category-options"
@@ -108,7 +118,7 @@ export function CategorySelect({
                 }}
                 placeholder={labels.search}
                 aria-label={labels.search}
-                className="min-h-9 min-w-0 flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-ink-subtle"
+                className="min-h-9 min-w-0 flex-1 bg-transparent text-base text-ink outline-none placeholder:text-ink-subtle lg:text-sm"
               />
             </div>
           </div>
@@ -125,7 +135,7 @@ export function CategorySelect({
                 aria-selected={option.slug === value}
                 onMouseEnter={() => setActiveIndex(index)}
                 onClick={() => selectOption(option)}
-                className={`focus-ring flex min-h-11 w-full items-center justify-between gap-3 rounded px-3 text-left text-sm ${index === activeIndex ? "bg-surface-hover" : ""}`}
+                className={`focus-ring flex min-h-11 w-full items-center justify-between gap-3 rounded px-3 text-left text-base lg:text-sm ${index === activeIndex ? "bg-surface-hover" : ""}`}
               >
                 <span className="min-w-0 truncate"><span className="font-medium text-ink">{option.name}</span><span className="ml-2 text-xs text-ink-subtle">{option.slug}</span></span>
                 {option.slug === value ? <Check size={16} className="shrink-0 text-accent" aria-hidden /> : null}

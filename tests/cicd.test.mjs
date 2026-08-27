@@ -81,6 +81,22 @@ test("package publishing builds with deterministic public application configurat
   assert.match(workflow, /git push origin --tags/);
 });
 
+test("protected main package releases use an idempotent release PR", () => {
+  const workflow = read(".github/workflows/publish-packages.yml");
+
+  assert.match(workflow, /pull-requests: write/);
+  assert.match(workflow, /GH_TOKEN: \$\{\{ secrets\.GITHUB_TOKEN \}\}/);
+  assert.match(workflow, /automation\/aether-release-main/);
+  assert.match(workflow, /git push --force-with-lease origin "\$release_branch"/);
+  assert.match(workflow, /gh pr list --base main --head "\$release_branch" --state open/);
+  assert.match(workflow, /gh workflow run "Aether CI" --ref "\$release_branch"/);
+  assert.doesNotMatch(workflow, /git push origin HEAD:main/);
+  assert.ok(
+    (workflow.match(/steps\.version\.outputs\.versioned_pr != 'true'/g) ?? []).length >= 3,
+    "publishing, tagging, and notification must wait for the version PR to be merged",
+  );
+});
+
 test("AI deployments receive only secrets used by the assistant Worker", () => {
   for (const file of ["deploy-production.yml", "deploy-development.yml"]) {
     const workflow = read(`.github/workflows/${file}`);
