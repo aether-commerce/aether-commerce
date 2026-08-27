@@ -66,7 +66,7 @@ type SaveStatus = "idle" | "saving" | "saved" | "error";
 type CategoryOption = { id: string; slug: string; name: string; isHidden: boolean };
 
 const inputClass =
-  "focus-ring min-h-11 w-full rounded-md border border-border bg-surface px-3 text-sm text-ink disabled:cursor-not-allowed disabled:opacity-50";
+  "focus-ring min-h-11 w-full rounded-md border border-border bg-surface px-3 text-base text-ink disabled:cursor-not-allowed disabled:opacity-50 lg:text-sm";
 const labelClass = "grid gap-1 text-sm";
 const labelTextClass = "font-medium text-ink-muted";
 
