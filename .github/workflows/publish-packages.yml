@@ -12,6 +12,7 @@ on:
         type: boolean
 
 permissions:
+  actions: write
   contents: write
   packages: write
   pull-requests: write
@@ -79,6 +80,7 @@ jobs:
                 --title "chore: prepare Aether package release" \
                 --body "Automated Changesets version update. Merge this PR to publish the validated package release."
             fi
+            gh workflow run "Aether CI" --ref "$release_branch"
             echo "versioned_pr=true" >> "$GITHUB_OUTPUT"
           else
             echo "versioned_pr=false" >> "$GITHUB_OUTPUT"

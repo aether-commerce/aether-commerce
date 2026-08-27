@@ -89,6 +89,7 @@ test("protected main package releases use an idempotent release PR", () => {
   assert.match(workflow, /automation\/aether-release-main/);
   assert.match(workflow, /git push --force-with-lease origin "\$release_branch"/);
   assert.match(workflow, /gh pr list --base main --head "\$release_branch" --state open/);
+  assert.match(workflow, /gh workflow run "Aether CI" --ref "\$release_branch"/);
   assert.doesNotMatch(workflow, /git push origin HEAD:main/);
   assert.ok(
     (workflow.match(/steps\.version\.outputs\.versioned_pr != 'true'/g) ?? []).length >= 3,
