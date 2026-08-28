@@ -14,7 +14,7 @@ const config = JSON.parse(readFileSync(inputPath, "utf8"));
 
 config.name =
   process.env.AETHER_AI_WORKER_NAME ||
-  (deployEnvironment === "production" ? "aether-ai" : "aether-ai-dev");
+  (deployEnvironment === "production" ? "aether-ai-production" : "aether-ai");
 config.vars = {
   ...config.vars,
   AETHER_API_BASE_URL:
@@ -31,7 +31,7 @@ config.services = [
     binding: "AETHER_API",
     service:
       process.env.AETHER_API_WORKER_NAME ||
-      (deployEnvironment === "production" ? "aether-api" : "aether-api-dev"),
+      (deployEnvironment === "production" ? "aether-api-production" : "aether-api"),
   },
 ];
 config.d1_databases = [
@@ -39,7 +39,7 @@ config.d1_databases = [
     binding: "DB",
     database_name:
       process.env.AETHER_D1_DATABASE_NAME ||
-      (deployEnvironment === "production" ? "aether-production" : "aether-development"),
+      (deployEnvironment === "production" ? "aether-production-live" : "aether-production"),
     database_id: databaseId,
     migrations_dir: "../../database/core/migrations",
   },

@@ -68,6 +68,14 @@ test("CI accepts version releases that consume existing changesets", () => {
   assert.match(checker, /versionedPublicPackage/);
 });
 
+test("Changesets release preparation generates package changelogs", () => {
+  const workflow = read(".github/workflows/changeset-release-pr.yml");
+  const config = JSON.parse(read(".changeset/config.json"));
+
+  assert.equal(config.changelog, "@changesets/cli/changelog");
+  assert.match(workflow, /createGithubReleases: false/);
+});
+
 test("package publishing builds with deterministic public application configuration", () => {
   const workflow = read(".github/workflows/publish-packages.yml");
 
@@ -143,6 +151,7 @@ test("runtime deployment preflight rejects Clerk development keys in production"
     env: {
       ...process.env,
       ...requiredRuntime,
+      AETHER_DEPLOY_ENV: "production",
       ALLOW_CLERK_DEVELOPMENT_KEYS: "false",
       NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: "pk_test_example",
       CLERK_SECRET_KEY: "sk_test_example"
@@ -166,6 +175,7 @@ test("runtime deployment preflight permits Clerk development keys only with an e
     env: {
       ...process.env,
       ...requiredRuntime,
+      AETHER_DEPLOY_ENV: "production",
       ALLOW_CLERK_DEVELOPMENT_KEYS: "true",
       NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: "pk_test_example",
       CLERK_SECRET_KEY: "sk_test_example"

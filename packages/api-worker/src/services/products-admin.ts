@@ -1,5 +1,6 @@
 import type { Env } from "../types";
 import { clearCatalogCache, type ProductDetails, type ProductRow } from "./catalog";
+import { deleteCloudinaryProductImages } from "./cloudinary";
 import { getStoreConfig } from "./store-config";
 
 const currentStoreId = (env: Env) => env.STORE_ID?.trim() || "store_default";
@@ -433,8 +434,11 @@ export async function bulkAdjustPriceByCategory(env: Env, input: BulkPriceAdjust
 // break for any admin view that cross-references it. Archiving (visibility
 // = 'hidden') keeps the row around without exposing it to shoppers.
 export async function deleteProduct(env: Env, id: string): Promise<{ deleted: boolean; softDeleted: boolean }> {
+  const product = await getProductRow(env, id);
+  if (!product) return { deleted: false, softDeleted: false };
+  const productId = product.id;
   const referenced = await env.DB.prepare("select count(*) as count from order_items oi join products p on p.id = oi.product_id where oi.product_id = ? and p.store_id = ?")
-    .bind(id, currentStoreId(env))
+    .bind(productId, currentStoreId(env))
     .first<{ count: number }>();
 
   if ((referenced?.count ?? 0) > 0) {
@@ -445,7 +449,10 @@ export async function deleteProduct(env: Env, id: string): Promise<{ deleted: bo
     return { deleted: false, softDeleted: true };
   }
 
-  const result = await env.DB.prepare("delete from products where store_id = ? and id = ?").bind(currentStoreId(env), id).run();
+  const details = JSON.parse(product.details_json) as ProductDetails;
+  await deleteCloudinaryProductImages(env, [details.images.main, ...details.images.gallery]);
+
+  const result = await env.DB.prepare("delete from products where store_id = ? and id = ?").bind(currentStoreId(env), productId).run();
   await clearCatalogCache(env);
   return { deleted: (result.meta.changes ?? 0) > 0, softDeleted: false };
 }

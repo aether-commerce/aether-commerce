@@ -6,6 +6,7 @@ import { productQuerySchema } from "@aether-commerce/schemas";
 import type { AppBindings } from "../types";
 import { collection, fail, ok } from "../http";
 import { getBrands, getCatalogProducts, getCategories, getCategoryCounts, getProductBySlug } from "../services/catalog";
+import { getStorefrontCategorySection } from "../services/storefront-category-merchandising";
 import { subscribeToRestockNotification } from "../services/restock-notifications";
 
 export const catalogRoutes = new Hono<AppBindings>();
@@ -50,6 +51,13 @@ catalogRoutes.get("/categories", async (c) => {
 catalogRoutes.get("/categories/counts", async (c) => {
   cachePublicCatalog(c);
   return ok(c, await getCategoryCounts(c.env));
+});
+
+// Merchandising is store-scoped content, not a static build artifact. Avoid
+// edge persistence here so an admin save is visible on the next storefront read.
+catalogRoutes.get("/category-section", async (c) => {
+  c.header("Cache-Control", "no-cache, max-age=0, must-revalidate");
+  return ok(c, await getStorefrontCategorySection(c.env));
 });
 
 catalogRoutes.get("/brands", async (c) => {

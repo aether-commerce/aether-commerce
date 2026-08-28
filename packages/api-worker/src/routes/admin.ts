@@ -4,7 +4,7 @@ import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { checkoutProviderIds } from "@aether-commerce/api-core";
 import { canTransitionFulfillment, canTransitionPayment, isValidHexColor, isValidWhatsappNumber } from "@aether-commerce/core";
-import { orderStateSchema } from "@aether-commerce/schemas";
+import { categoryMerchandisingAddSchema, categoryMerchandisingReorderSchema, categoryMerchandisingWriteSchema, categorySectionUpdateSchema, orderStateSchema } from "@aether-commerce/schemas";
 import type { AppBindings } from "../types";
 import { collection, fail, ok } from "../http";
 import { requirePermission } from "../middleware/admin";
@@ -49,6 +49,15 @@ import {
   reorderStoreCategories,
   updateStoreCategory
 } from "../services/store-categories";
+import {
+  addStorefrontCategory,
+  getAdminStorefrontCategoryMerchandising,
+  removeStorefrontCategory,
+  reorderStorefrontCategories,
+  resetStorefrontCategory,
+  updateStorefrontCategory,
+  updateStorefrontCategorySection
+} from "../services/storefront-category-merchandising";
 
 const productImageSchema = z.object({
   main: z.string().min(1),
@@ -239,6 +248,50 @@ adminRoutes.get("/products", requirePermission("products.read"), zValidator("que
 });
 
 adminRoutes.get("/categories", requirePermission("products.read"), async (c) => ok(c, await listStoreCategories(c.env, true)));
+
+adminRoutes.get("/storefront/category-section", requirePermission("products.read"), async (c) => ok(c, await getAdminStorefrontCategoryMerchandising(c.env)));
+
+adminRoutes.put("/storefront/category-section", requirePermission("products.write"), zValidator("json", categorySectionUpdateSchema), async (c) => {
+  const section = await updateStorefrontCategorySection(c.env, c.req.valid("json"));
+  await writeAuditLog(c.env, { actorId: c.get("actor").userId ?? "admin", action: "storefront.category_section.updated", targetType: "storefront_category_section", targetId: null, payload: section });
+  return ok(c, section);
+});
+
+adminRoutes.post("/storefront/category-section/categories", requirePermission("products.write"), zValidator("json", categoryMerchandisingAddSchema), async (c) => {
+  const body = c.req.valid("json");
+  const config = await addStorefrontCategory(c.env, body.categoryId, body);
+  if (!config) return fail(c, 404, "CATEGORY_NOT_FOUND", "Category not found.");
+  await writeAuditLog(c.env, { actorId: c.get("actor").userId ?? "admin", action: "storefront.category.added", targetType: "category", targetId: body.categoryId, payload: config });
+  return ok(c, config, 201);
+});
+
+adminRoutes.patch("/storefront/category-section/categories/:categoryId", requirePermission("products.write"), zValidator("json", categoryMerchandisingWriteSchema), async (c) => {
+  const config = await updateStorefrontCategory(c.env, c.req.param("categoryId"), c.req.valid("json"));
+  if (!config) return fail(c, 404, "STOREFRONT_CATEGORY_NOT_FOUND", "The category is not configured for the storefront.");
+  await writeAuditLog(c.env, { actorId: c.get("actor").userId ?? "admin", action: "storefront.category.updated", targetType: "category", targetId: c.req.param("categoryId"), payload: config });
+  return ok(c, config);
+});
+
+adminRoutes.post("/storefront/category-section/categories/:categoryId/reset", requirePermission("products.write"), async (c) => {
+  const config = await resetStorefrontCategory(c.env, c.req.param("categoryId"));
+  if (!config) return fail(c, 404, "STOREFRONT_CATEGORY_NOT_FOUND", "The category is not configured for the storefront.");
+  await writeAuditLog(c.env, { actorId: c.get("actor").userId ?? "admin", action: "storefront.category.reset", targetType: "category", targetId: c.req.param("categoryId"), payload: config });
+  return ok(c, config);
+});
+
+adminRoutes.post("/storefront/category-section/categories/reorder", requirePermission("products.write"), zValidator("json", categoryMerchandisingReorderSchema), async (c) => {
+  const reordered = await reorderStorefrontCategories(c.env, c.req.valid("json").categoryIds);
+  if (!reordered) return fail(c, 422, "INVALID_STOREFRONT_CATEGORY_ORDER", "The category order is incomplete or contains duplicates.");
+  await writeAuditLog(c.env, { actorId: c.get("actor").userId ?? "admin", action: "storefront.category.reordered", targetType: "storefront_category_section", targetId: null, payload: c.req.valid("json") });
+  return ok(c, { reordered: true });
+});
+
+adminRoutes.delete("/storefront/category-section/categories/:categoryId", requirePermission("products.write"), async (c) => {
+  const deleted = await removeStorefrontCategory(c.env, c.req.param("categoryId"));
+  if (!deleted) return fail(c, 404, "STOREFRONT_CATEGORY_NOT_FOUND", "The category is not configured for the storefront.");
+  await writeAuditLog(c.env, { actorId: c.get("actor").userId ?? "admin", action: "storefront.category.removed", targetType: "category", targetId: c.req.param("categoryId"), payload: {} });
+  return ok(c, { deleted: true });
+});
 
 const storeProvisionSchema = z.object({
   storeId: z.string().trim().regex(/^[a-z0-9][a-z0-9_-]{1,63}$/),

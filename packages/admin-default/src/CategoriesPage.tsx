@@ -104,7 +104,7 @@ export function CategoriesPage() {
 
   return <RequireAdminAuth>
     <main id="main-content" className="admin-shell py-8">
-      <PageHeader title={copy.title} description={copy.description} />
+      <PageHeader title={copy.title} description={copy.description} secondaryActions={<a href="/categories/storefront/" className="focus-ring inline-flex min-h-10 items-center rounded-md border border-border-strong px-3 text-sm font-semibold text-ink hover:bg-surface-hover">{locale === "es" ? "Categorías destacadas" : "Featured categories"}</a>} />
       <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <section className="rounded-lg border border-border bg-surface">
           {status === "loading" ? <p className="p-6 text-sm text-ink-muted">Loading...</p> : status === "error" ? <ErrorState title="Could not load categories" action={<button type="button" onClick={() => void load()} className="focus-ring rounded-md border border-border-strong px-3 py-2 text-sm font-semibold">Retry</button>} /> : categories.length === 0 ? <EmptyState icon={FolderTree} title={copy.empty} description={copy.emptyDescription} /> : <div className="divide-y divide-border">

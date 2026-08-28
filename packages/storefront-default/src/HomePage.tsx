@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import { ArrowRight } from "lucide-react";
 import { Benefits } from "./Benefits";
-import { CategoryGrid } from "./CategoryGrid";
+import { CategorySection } from "./CategoryGrid";
 import { ContactForm } from "./ContactForm";
 import { Hero } from "./Hero";
 import { ProductGrid } from "./ProductGrid";
@@ -24,16 +24,7 @@ export function HomePage({ legalPolicyVersion, contactForm }: Readonly<{ legalPo
     <main>
       <Hero />
 
-      <section className="py-10">
-        <div className="aether-shell">
-          <p className="text-sm font-semibold uppercase text-accent">{t.categories}</p>
-          <h2 className="mt-1 text-2xl font-semibold text-zinc-950 md:text-3xl">{t.featuredCategoriesHeading}</h2>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-600">{t.featuredCategoriesDescription}</p>
-          <div className="mt-6">
-            <CategoryGrid limit={10} />
-          </div>
-        </div>
-      </section>
+      <CategorySection />
 
       <ProductGrid
         compact

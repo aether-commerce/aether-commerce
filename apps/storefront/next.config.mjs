@@ -12,7 +12,7 @@ const nextConfig = {
   images: {
     unoptimized: true,
     remotePatterns: [
-      { protocol: "https", hostname: "aether-storefront.pickofwow.workers.dev" },
+      { protocol: "https", hostname: "store.diferez.com" },
       { protocol: "https", hostname: "images.unsplash.com" },
       { protocol: "http", hostname: "localhost" }
     ]
