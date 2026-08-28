@@ -29,6 +29,7 @@ export { ReviewsPage } from "./ReviewsPage";
 export { OrdersListPage } from "./OrdersListPage";
 export { ProductsListPage } from "./ProductsListPage";
 export { CategoriesPage } from "./CategoriesPage";
+export { StorefrontCategoriesPage } from "./StorefrontCategoriesPage";
 export { CustomersListPage } from "./CustomersListPage";
 export { InventoryListPage } from "./InventoryListPage";
 export { ProductForm, emptyProductForm, type ProductFormValues } from "./ProductForm";

@@ -49,6 +49,13 @@ un changeset pendiente para hacer pasar CI. Los cambios de infraestructura,
 migraciones y contratos deben incluir sus pruebas y ser compatibles con el
 despliegue gradual.
 
+Antes de abrir cada PR, crear un archivo nuevo `.changeset/<nombre>.md` para
+cada cambio que modifique un paquete público de `packages/*` y listar todos los
+paquetes públicos afectados con el nivel `patch`, `minor` o `major` adecuado.
+Ejecutar `pnpm check:changesets` como parte del preflight y conservar el
+changeset en el PR; solo se consume después mediante el PR automatizado de
+versiones. Si el cambio no toca ningún paquete público, no hace falta crear uno.
+
 ## Promoción `rama -> develop`
 
 1. Rebasar o fusionar la última `develop` en la rama de trabajo, resolver los

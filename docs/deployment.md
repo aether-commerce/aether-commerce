@@ -4,10 +4,14 @@ La tienda se despliega desde este repositorio, de forma independiente al portafo
 
 ## Topología
 
-- `aether-storefront`: Worker con Static Assets generados en `apps/storefront/out`.
-- `aether-api`: Worker Hono con binding D1 `DB`.
-- `aether-ai`: Worker del asistente con service binding a `aether-api` y el mismo D1.
-- `aether-admin`: proyecto de Cloudflare Pages generado desde `apps/admin/out`.
+El ambiente `develop` reutiliza los recursos que existían originalmente como
+producción. Producción usa recursos nuevos y aislados:
+
+- `develop`: `aether-storefront`, `aether-api`, `aether-ai`, Pages `aether-admin` y D1 `aether-production`.
+- `production`: `aether-storefront-production`, `aether-api-production`, `aether-ai-production`, Pages `aether-admin-production` y D1 `aether-production-live`.
+
+El asistente de cada ambiente tiene un service binding hacia el API del mismo
+ambiente y comparte su D1 correspondiente.
 
 ## Configuración pública
 
@@ -16,12 +20,16 @@ Variables del environment `production` en GitHub:
 - `CLOUDFLARE_DEPLOY_ENABLED=true`
 - `AETHER_D1_DATABASE_ID`
 - `AETHER_D1_DATABASE_NAME`
-- `AETHER_API_WORKER_NAME=aether-api`
-- `AETHER_ADMIN_PAGES_PROJECT=aether-admin`
-- `APP_ORIGIN_STORE=https://aether-storefront.pickofwow.workers.dev`
-- `APP_ORIGIN_ADMIN=https://aether-admin.pages.dev`
-- `NEXT_PUBLIC_AETHER_API_URL=https://aether-api.pickofwow.workers.dev`
-- `NEXT_PUBLIC_AETHER_AI_URL=https://aether-ai.pickofwow.workers.dev`
+- `AETHER_API_WORKER_NAME=aether-api-production`
+- `AETHER_AI_WORKER_NAME=aether-ai-production`
+- `AETHER_FRONT_WORKER_NAME=aether-storefront-production`
+- `AETHER_ADMIN_PAGES_PROJECT=aether-admin-production`
+- `AETHER_D1_DATABASE_NAME=aether-production-live`
+- `APP_ORIGIN_STORE=https://store.diferez.com`
+- `APP_ORIGIN_ADMIN=https://admin.diferez.com`
+- `NEXT_PUBLIC_AETHER_API_URL=https://aether-api-production.pickofwow.workers.dev`
+- `NEXT_PUBLIC_AETHER_STOREFRONT_URL=https://store.diferez.com`
+- `NEXT_PUBLIC_AETHER_AI_URL=https://aether-ai-production.pickofwow.workers.dev`
 - `NEXT_PUBLIC_PORTFOLIO_URL`: URL del portafolio independiente.
 - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
 
@@ -44,7 +52,7 @@ Según las funciones habilitadas:
 - `CLERK_WEBHOOK_SECRET`
 - `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`
 - `WOMPI_SECRET_KEY`, `WOMPI_EVENTS_SECRET`
-- `AETHER_SETTINGS_ENCRYPTION_KEY` (solo si el panel admin va a gestionar los secretos de checkout y de integraciones -Resend, Gemini, Cloudinary-; ver `docs/security.md`). Se despliega tanto en `aether-api` como en `aether-ai` - este último la necesita para descifrar la misma fila de `application_settings` y así usar el Gemini configurado en el panel también en el asistente de la tienda.
+- `AETHER_SETTINGS_ENCRYPTION_KEY` (solo si el panel admin va a gestionar los secretos de checkout y de integraciones -Resend, Gemini, Cloudinary-; ver `docs/security.md`). Se despliega tanto en el API como en el asistente de producción; este último la necesita para descifrar la misma fila de `application_settings` y así usar el Gemini configurado en el panel también en el asistente de la tienda.
 - `RESEND_API_KEY`, `CONTACT_RECIPIENT_EMAIL`
 - `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` (solo si se habilita la carga de imágenes de producto vía Cloudinary)
 
@@ -83,10 +91,10 @@ El despliegue verifica las URLs públicas del storefront, API, asistente, admin 
 
 El workflow `.github/workflows/deploy-development.yml` se ejecuta después de que `Aether CI` termina correctamente en `develop` y publica recursos separados:
 
-- `aether-storefront-dev`
-- `aether-api-dev`
-- `aether-ai-dev`
-- branch deploy `develop` de Cloudflare Pages para admin
-- D1 `aether-development`
+- `aether-storefront`
+- `aether-api`
+- `aether-ai`
+- branch deploy `develop` del proyecto Cloudflare Pages `aether-admin`
+- D1 existente `aether-production` (reclasificado como develop)
 
 Consulta `docs/development.md` para configurar variables, secrets y el flujo PR -> `develop` -> `main`.

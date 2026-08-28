@@ -113,7 +113,7 @@ stub anything in tests.
 1. Get the `requestId` - from the error response body (`meta.requestId`),
    the `x-request-id` response header, a Sentry event's `requestId` tag,
    or a structured log line's `requestId` field.
-2. **Workers Logs**: Cloudflare dashboard → Workers & Pages → `aether-api`
+2. **Workers Logs**: Cloudflare dashboard → Workers & Pages → `aether-api-production`
    → Logs, filter for the id (every log line from that request carries
    it) - or `wrangler tail --format pretty | grep <requestId>` live.
 3. **Sentry**: search `requestId:<id>` - every reported exception for

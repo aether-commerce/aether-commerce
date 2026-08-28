@@ -31,7 +31,7 @@ export { getLocalizedProduct } from "./product-localization";
 export { LOW_STOCK_THRESHOLD, EXPOSE_EXACT_STOCK_COUNT, getImageBadge, isLowStock, getLowStockLabel, type ImageBadge } from "./product-badge-logic";
 export { ProductBadge } from "./ProductBadge";
 export { ProductCard, ProductCardSkeleton } from "./ProductCard";
-export { CategoryGrid } from "./CategoryGrid";
+export { CategoryGrid, CategorySection, DefaultCategorySectionRenderer, type CategorySectionRenderer, type StorefrontCategorySectionData } from "./CategoryGrid";
 export { ProductGrid } from "./ProductGrid";
 export { FloatingCart } from "./FloatingCart";
 

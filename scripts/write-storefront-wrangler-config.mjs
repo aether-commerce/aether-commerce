@@ -12,8 +12,17 @@ const config = JSON.parse(readFileSync(inputPath, "utf8"));
 config.name =
   process.env.AETHER_FRONT_WORKER_NAME ||
   (deployEnvironment === "production"
-    ? "aether-storefront"
-    : "aether-storefront-dev");
+    ? "aether-storefront-production"
+    : "aether-storefront");
+
+if (deployEnvironment === "production") {
+  config.routes = [
+    {
+      pattern: process.env.AETHER_STOREFRONT_CUSTOM_DOMAIN || "store.diferez.com",
+      custom_domain: true,
+    },
+  ];
+}
 
 const outputPath = resolve("apps/storefront", outputFile);
 writeFileSync(outputPath, `${JSON.stringify(config, null, 2)}\n`);
