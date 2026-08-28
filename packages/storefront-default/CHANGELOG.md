@@ -1,6 +1,6 @@
-# @aether-commerce/api-worker
+# @aether-commerce/storefront-default
 
-## 0.3.7
+## 0.2.2
 
 ### Patch Changes
 
@@ -9,7 +9,6 @@
   product counts, and related deployment integration.
 - Updated dependencies [a48a0c8]
   - @aether-commerce/schemas@0.2.1
-  - @aether-commerce/api-core@0.2.1
+  - @aether-commerce/api-client@0.2.1
   - @aether-commerce/core@0.2.1
-
-All notable changes to this package are documented here.
+  - @aether-commerce/ui@0.2.1
