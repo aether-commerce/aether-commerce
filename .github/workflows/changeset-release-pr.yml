@@ -36,4 +36,5 @@ jobs:
           version: pnpm version:packages
           title: "chore: prepare Aether package release"
           commit: "chore: prepare Aether package release"
+          createGithubReleases: false
           github-token: ${{ secrets.GITHUB_TOKEN }}

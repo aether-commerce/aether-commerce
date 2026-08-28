@@ -68,6 +68,14 @@ test("CI accepts version releases that consume existing changesets", () => {
   assert.match(checker, /versionedPublicPackage/);
 });
 
+test("Changesets release preparation does not require package changelogs", () => {
+  const workflow = read(".github/workflows/changeset-release-pr.yml");
+  const config = JSON.parse(read(".changeset/config.json"));
+
+  assert.equal(config.changelog, false);
+  assert.match(workflow, /createGithubReleases: false/);
+});
+
 test("package publishing builds with deterministic public application configuration", () => {
   const workflow = read(".github/workflows/publish-packages.yml");
 
