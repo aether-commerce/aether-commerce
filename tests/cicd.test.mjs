@@ -143,6 +143,7 @@ test("runtime deployment preflight rejects Clerk development keys in production"
     env: {
       ...process.env,
       ...requiredRuntime,
+      AETHER_DEPLOY_ENV: "production",
       ALLOW_CLERK_DEVELOPMENT_KEYS: "false",
       NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: "pk_test_example",
       CLERK_SECRET_KEY: "sk_test_example"
@@ -166,6 +167,7 @@ test("runtime deployment preflight permits Clerk development keys only with an e
     env: {
       ...process.env,
       ...requiredRuntime,
+      AETHER_DEPLOY_ENV: "production",
       ALLOW_CLERK_DEVELOPMENT_KEYS: "true",
       NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: "pk_test_example",
       CLERK_SECRET_KEY: "sk_test_example"
