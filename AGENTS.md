@@ -54,7 +54,10 @@ cada cambio que modifique un paquete público de `packages/*` y listar todos los
 paquetes públicos afectados con el nivel `patch`, `minor` o `major` adecuado.
 Ejecutar `pnpm check:changesets` como parte del preflight y conservar el
 changeset en el PR; solo se consume después mediante el PR automatizado de
-versiones. Si el cambio no toca ningún paquete público, no hace falta crear uno.
+versiones. La configuración debe conservar el generador oficial
+`@changesets/cli/changelog` para que el PR automatizado también genere o
+actualice el `CHANGELOG.md` de cada paquete versionado. Si el cambio no toca
+ningún paquete público, no hace falta crear uno.
 
 ## Promoción `rama -> develop`
 
