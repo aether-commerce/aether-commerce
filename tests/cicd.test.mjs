@@ -74,6 +74,8 @@ test("Changesets release preparation generates package changelogs", () => {
 
   assert.equal(config.changelog, "@changesets/cli/changelog");
   assert.match(workflow, /createGithubReleases: false/);
+  assert.match(workflow, /AETHER_RELEASE_TOKEN/);
+  assert.doesNotMatch(workflow, /github-token: \$\{\{ secrets\.GITHUB_TOKEN \}\}/);
 });
 
 test("package publishing builds with deterministic public application configuration", () => {
@@ -93,15 +95,16 @@ test("protected main package releases use an idempotent release PR", () => {
   const workflow = read(".github/workflows/publish-packages.yml");
 
   assert.match(workflow, /pull-requests: write/);
-  assert.match(workflow, /GH_TOKEN: \$\{\{ secrets\.GITHUB_TOKEN \}\}/);
+  assert.match(workflow, /AETHER_RELEASE_TOKEN/);
   assert.match(workflow, /automation\/aether-release-main/);
   assert.match(workflow, /git push --force-with-lease origin "\$release_branch"/);
   assert.match(workflow, /gh pr list --base main --head "\$release_branch" --state open/);
-  assert.match(workflow, /gh workflow run "Aether CI" --ref "\$release_branch"/);
+  assert.doesNotMatch(workflow, /\[skip ci\]/);
+  assert.doesNotMatch(workflow, /gh workflow run "Aether CI" --ref "\$release_branch"/);
   assert.doesNotMatch(workflow, /git push origin HEAD:main/);
   assert.ok(
     (workflow.match(/steps\.version\.outputs\.versioned_pr != 'true'/g) ?? []).length >= 3,
-    "publishing, tagging, and notification must wait for the version PR to be merged",
+    "publishing, tagging, and notification must wait for the version PR to be merged"
   );
 });
 
