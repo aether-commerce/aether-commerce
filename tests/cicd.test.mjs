@@ -49,6 +49,18 @@ test("deployments wait for a successful CI run and deploy its exact SHA", () => 
   }
 });
 
+test("CI enforces the single develop to main release path", () => {
+  const workflow = read(".github/workflows/ci.yml");
+  const policy = read("scripts/check-release-policy.mjs");
+
+  assert.match(workflow, /Enforce release policy/);
+  assert.match(workflow, /check-release-policy\.mjs/);
+  assert.match(policy, /base === "main"/);
+  assert.match(policy, /head !== "develop"/);
+  assert.match(policy, /automation\/aether-release-main/);
+  assert.match(policy, /skip ci|ci skip/);
+});
+
 test("CI builds and tests the Cloudflare LangGraph assistant", () => {
   const workflow = read(".github/workflows/ci.yml");
   assert.match(workflow, /@aether-commerce\/ai-assistant typecheck/);
@@ -91,21 +103,16 @@ test("package publishing builds with deterministic public application configurat
   assert.match(workflow, /git push origin --tags/);
 });
 
-test("protected main package releases use an idempotent release PR", () => {
+test("main package publishing consumes only releases prepared on develop", () => {
   const workflow = read(".github/workflows/publish-packages.yml");
 
-  assert.match(workflow, /pull-requests: write/);
-  assert.match(workflow, /AETHER_RELEASE_TOKEN/);
-  assert.match(workflow, /automation\/aether-release-main/);
-  assert.match(workflow, /git push --force-with-lease origin "\$release_branch"/);
-  assert.match(workflow, /gh pr list --base main --head "\$release_branch" --state open/);
+  assert.match(workflow, /Pending Changesets found on main/);
+  assert.doesNotMatch(workflow, /automation\/aether-release-main/);
+  assert.doesNotMatch(workflow, /steps\.version/);
+  assert.doesNotMatch(workflow, /gh pr create/);
   assert.doesNotMatch(workflow, /\[skip ci\]/);
-  assert.doesNotMatch(workflow, /gh workflow run "Aether CI" --ref "\$release_branch"/);
   assert.doesNotMatch(workflow, /git push origin HEAD:main/);
-  assert.ok(
-    (workflow.match(/steps\.version\.outputs\.versioned_pr != 'true'/g) ?? []).length >= 3,
-    "publishing, tagging, and notification must wait for the version PR to be merged"
-  );
+  assert.match(workflow, /steps\.release\.outputs\.needed == 'true'/);
 });
 
 test("AI deployments receive only secrets used by the assistant Worker", () => {
