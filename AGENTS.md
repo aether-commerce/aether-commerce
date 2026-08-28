@@ -94,9 +94,13 @@ ningún paquete público, no hace falta crear uno.
   desde `main`, nunca desde una rama temporal.
 - El actor que crea o actualiza el PR de versión debe ser una GitHub App (o un
   token de bot equivalente) con permisos de contenidos y pull requests. El
-  `GITHUB_TOKEN` del workflow no debe ser el único mecanismo: sus pushes y PRs
-  pueden no disparar los workflows posteriores, dejando la publicación o el
-  despliegue sin el CI asociado.
+  repositorio debe guardar ese credential como `AETHER_RELEASE_TOKEN`. Los
+  workflows de release deben usarlo para crear/actualizar el branch y el PR;
+  `GITHUB_TOKEN` no debe ser el único mecanismo porque sus pushes y PRs pueden
+  no disparar los workflows posteriores, dejando la publicación o el despliegue
+  sin el CI asociado. Los commits de release tampoco deben incluir
+  `[skip ci]`: el PR de versión necesita ejecutar `Aether CI / validate` mediante
+  el evento `pull_request`.
 - Configurar la automatización para reutilizar una sola rama estable de
   release, no para forzar ni recrear ramas activas. Si existe un PR de release
   abierto, actualizarlo de forma segura y esperar su CI real.
