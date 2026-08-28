@@ -12,10 +12,8 @@ on:
         type: boolean
 
 permissions:
-  actions: write
   contents: write
   packages: write
-  pull-requests: write
 
 concurrency:
   group: aether-package-release-${{ github.ref }}
@@ -29,7 +27,6 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 2
-          token: ${{ secrets.AETHER_RELEASE_TOKEN || github.token }}
       - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
         with: { version: 8.15.9 }
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
@@ -39,22 +36,16 @@ jobs:
           registry-url: https://npm.pkg.github.com
           scope: "@aether-commerce"
       - run: pnpm install --frozen-lockfile
-      - name: Require release bot token for version PR
-        if: ${{ !inputs.dry_run }}
-        env:
-          AETHER_RELEASE_TOKEN: ${{ secrets.AETHER_RELEASE_TOKEN }}
-        run: |
-          if [ -z "$AETHER_RELEASE_TOKEN" ]; then
-            echo "::error::AETHER_RELEASE_TOKEN must be configured as a GitHub App or bot token before creating release PRs."
-            exit 1
-          fi
       - name: Detect package release
         id: release
         shell: bash
         run: |
           changed="$(git diff --name-only HEAD^ HEAD)"
           pending_changeset="$(find .changeset -maxdepth 1 -type f -name '*.md' ! -name README.md -print -quit)"
-          if [ -n "$pending_changeset" ] || printf '%s\n' "$changed" | grep -Eq '^packages/[^/]+/package\.json$'; then
+          if [ -n "$pending_changeset" ]; then
+            echo "::error::Pending Changesets found on main. Prepare and merge the Changesets release PR from develop before promoting to main."
+            exit 1
+          elif printf '%s\n' "$changed" | grep -Eq '^packages/[^/]+/package\.json$'; then
             echo "needed=true" >> "$GITHUB_OUTPUT"
           else
             echo "needed=false" >> "$GITHUB_OUTPUT"
@@ -69,44 +60,19 @@ jobs:
         run: pnpm build
       - run: pnpm test:client-template
         if: ${{ steps.release.outputs.needed == 'true' }}
-      - name: Version packages from Changesets
-        id: version
-        if: ${{ steps.release.outputs.needed == 'true' && !inputs.dry_run }}
-        env:
-          GH_TOKEN: ${{ secrets.AETHER_RELEASE_TOKEN }}
-        run: |
-          if find .changeset -maxdepth 1 -type f -name '*.md' ! -name README.md -print -quit | grep -q .; then
-            pnpm version:packages
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            release_branch="automation/aether-release-main"
-            git switch -c "$release_branch"
-            git add .changeset packages apps
-            git commit -m "chore: version Aether packages"
-            git fetch origin "refs/heads/$release_branch:refs/remotes/origin/$release_branch" || true
-            git push --force-with-lease origin "$release_branch"
-            if ! gh pr list --base main --head "$release_branch" --state open --json number --jq 'length' | grep -q '^1$'; then
-              gh pr create --base main --head "$release_branch" \
-                --title "chore: prepare Aether package release" \
-                --body "Automated Changesets version update. Merge this PR to publish the validated package release."
-            fi
-            echo "versioned_pr=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "versioned_pr=false" >> "$GITHUB_OUTPUT"
-          fi
       - name: Verify package archives
         if: ${{ inputs.dry_run && steps.release.outputs.needed == 'true' }}
         run: pnpm --filter "./packages/*" exec pnpm pack --pack-destination "${{ runner.temp }}/aether-packages"
       - name: Publish packages
-        if: ${{ !inputs.dry_run && steps.release.outputs.needed == 'true' && steps.version.outputs.versioned_pr != 'true' }}
+        if: ${{ !inputs.dry_run && steps.release.outputs.needed == 'true' }}
         run: pnpm publish:packages
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Push release tags
-        if: ${{ !inputs.dry_run && steps.release.outputs.needed == 'true' && steps.version.outputs.versioned_pr != 'true' }}
+        if: ${{ !inputs.dry_run && steps.release.outputs.needed == 'true' }}
         run: git push origin --tags
       - name: Notify Liminal client
-        if: ${{ !inputs.dry_run && steps.release.outputs.needed == 'true' && steps.version.outputs.versioned_pr != 'true' }}
+        if: ${{ !inputs.dry_run && steps.release.outputs.needed == 'true' }}
         env:
           GH_TOKEN: ${{ secrets.AETHER_CLIENT_DISPATCH_TOKEN }}
           CLIENT_REPOSITORY: ${{ vars.AETHER_CLIENT_REPOSITORY || 'aether-commerce/liminal-store' }}

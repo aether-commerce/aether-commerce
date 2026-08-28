@@ -90,8 +90,13 @@ ningún paquete público, no hace falta crear uno.
 ## Paquetes y release automatizado
 
 - La versión se prepara desde `develop` con Changesets y se revisa como un PR
-  normal a `main`. Tras fusionarlo, la publicación y las etiquetas se ejecutan
-  desde `main`, nunca desde una rama temporal.
+  normal a `develop`. Después de fusionar ese PR de release, se abre el único
+  PR de promoción `develop -> main`. La publicación y las etiquetas se ejecutan
+  desde el commit versionado ya fusionado en `main`, nunca desde una rama
+  temporal ni creando un segundo PR de release.
+- `main` no versiona paquetes ni crea PRs de release. Si el flujo de publicación
+  detecta changesets pendientes en `main`, debe fallar y pedir que se complete
+  primero el PR de Changesets en `develop`.
 - El actor que crea o actualiza el PR de versión debe ser una GitHub App (o un
   token de bot equivalente) con permisos de contenidos y pull requests. El
   repositorio debe guardar ese credential como `AETHER_RELEASE_TOKEN`. Los
@@ -101,6 +106,9 @@ ningún paquete público, no hace falta crear uno.
   sin el CI asociado. Los commits de release tampoco deben incluir
   `[skip ci]`: el PR de versión necesita ejecutar `Aether CI / validate` mediante
   el evento `pull_request`.
+- El CI aplica la política de release: cualquier PR a `main` debe tener
+  `develop` como head, no puede usar `automation/aether-release-main` y no puede
+  contener `[skip ci]` ni `[ci skip]`.
 - Configurar la automatización para reutilizar una sola rama estable de
   release, no para forzar ni recrear ramas activas. Si existe un PR de release
   abierto, actualizarlo de forma segura y esperar su CI real.
