@@ -2,7 +2,7 @@ import { integrationConfigSchema } from "@aether-commerce/config-schema";
 
 export const aetherIntegrationConfig = integrationConfigSchema.parse({
   api: {
-    productionBaseUrl: "https://aether-api.pickofwow.workers.dev",
+    productionBaseUrl: "https://aether-api-production.pickofwow.workers.dev",
     localBaseUrl: "http://localhost:8787",
     publicUrlEnv: "NEXT_PUBLIC_AETHER_API_URL"
   },

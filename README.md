@@ -57,7 +57,7 @@ pnpm test
 pnpm build
 ```
 
-La operación del asistente se documenta en `docs/ai-assistant/acceptance-status.md`. Sus valores server-side incluyen `GEMINI_API_KEY`, `AI_OPERATIONS_TOKEN` y `AI_ASSISTANT_ENABLED`; el storefront solo recibe `NEXT_PUBLIC_AETHER_AI_URL`. Conversaciones, auditoría y límites se almacenan en D1.
+La operación del asistente se documenta en `docs/ai-assistant/acceptance-status.md`. Sus valores server-side incluyen `GEMINI_API_KEY`, `AI_OPERATIONS_TOKEN` y `AI_ASSISTANT_ENABLED`; el storefront solo recibe `NEXT_PUBLIC_AETHER_AI_URL`. Conversaciones, auditoría y límites se almacenan en el D1 aislado de cada ambiente.
 
 ## Observabilidad
 
@@ -79,9 +79,9 @@ Consulta `docs/deployment.md`. El workflow de producción migra D1 y publica, en
 
 Servicios esperados:
 
-- Storefront: `https://aether-storefront.pickofwow.workers.dev`
-- API: `https://aether-api.pickofwow.workers.dev`
-- Asistente: `https://aether-ai.pickofwow.workers.dev`
-- Admin: `https://aether-admin.pages.dev`
+- Storefront: `https://store.diferez.com`
+- API: `https://aether-api-production.pickofwow.workers.dev`
+- Asistente: `https://aether-ai-production.pickofwow.workers.dev`
+- Admin: `https://admin.diferez.com`
 
 Ejecuta `pnpm deploy:preflight` después de configurar el environment `production` del repositorio.

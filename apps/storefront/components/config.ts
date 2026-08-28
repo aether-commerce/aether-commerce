@@ -5,7 +5,7 @@ import {
 } from "../../../config/aether";
 
 const productionApiBaseUrl = aetherIntegrationConfig.api.productionBaseUrl;
-const productionAiAssistantUrl = "https://aether-ai.pickofwow.workers.dev";
+const productionAiAssistantUrl = "https://aether-ai-production.pickofwow.workers.dev";
 
 // Next.js only exposes public environment variables to browser bundles when
 // their names are statically analyzable. The allowlist also makes it impossible

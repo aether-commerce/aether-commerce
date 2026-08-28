@@ -16,7 +16,7 @@ import { SentryProvider } from "../components/SentryProvider";
 export const metadata: Metadata = {
   title: "Aether | Premium Commerce Demo",
   description: "A bilingual premium technology commerce demo powered by a Cloudflare Worker API.",
-  metadataBase: new URL("https://aether-storefront.pickofwow.workers.dev"),
+  metadataBase: new URL("https://store.diferez.com"),
   openGraph: {
     title: "Aether Premium Commerce Demo",
     description: "Premium technology shopping demo with static storefront and Worker API.",

@@ -9,7 +9,7 @@ export const dynamic = "force-static";
 
 // Same origin layout.tsx's own metadataBase already hardcodes - kept
 // consistent rather than introducing a second source of truth for it.
-const baseUrl = "https://aether-storefront.pickofwow.workers.dev";
+const baseUrl = "https://store.diferez.com";
 
 type CatalogProductSeed = { slug?: string };
 

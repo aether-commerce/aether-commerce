@@ -11,7 +11,9 @@ if (!databaseId) {
 
 const config = {
   $schema: "../../node_modules/wrangler/config-schema.json",
-  name: process.env.AETHER_API_WORKER_NAME || (deployEnvironment === "production" ? "aether-api" : "aether-api-dev"),
+  name:
+    process.env.AETHER_API_WORKER_NAME ||
+    (deployEnvironment === "production" ? "aether-api-production" : "aether-api"),
   main: "src/index.ts",
   compatibility_date: "2026-08-08",
   compatibility_flags: ["nodejs_compat"],
@@ -59,7 +61,7 @@ const config = {
       binding: "DB",
       database_name:
         process.env.AETHER_D1_DATABASE_NAME ||
-        (deployEnvironment === "production" ? "aether-production" : "aether-development"),
+      (deployEnvironment === "production" ? "aether-production-live" : "aether-production"),
       database_id: databaseId,
       migrations_dir: "../../database/core/migrations",
     },

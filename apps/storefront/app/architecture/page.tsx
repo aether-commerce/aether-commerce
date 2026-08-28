@@ -110,13 +110,13 @@ const copy: Record<"en" | "es", ArchitectureCopy> = {
       ci: "GitHub Actions CI/CD",
       bindingsLabel: "Secrets & bindings (D1, Stripe, Resend, Clerk, Cloudinary)",
       deployTargets: [
-        { label: "aether-api", sub: "Cloudflare Worker", Icon: ServerCog },
-        { label: "aether-storefront", sub: "Cloudflare Worker", Icon: Blocks },
-        { label: "aether-admin", sub: "Cloudflare Pages", Icon: Layers },
-        { label: "ai-assistant", sub: "Cloudflare Worker", Icon: Bot }
+        { label: "aether-api-production", sub: "Cloudflare Worker", Icon: ServerCog },
+        { label: "store.diferez.com", sub: "Cloudflare Worker", Icon: Blocks },
+        { label: "aether-admin-production", sub: "Cloudflare Pages", Icon: Layers },
+        { label: "aether-ai-production", sub: "Cloudflare Worker", Icon: Bot }
       ],
       services: [
-        { label: "D1", sub: "aether-production", Icon: Database },
+        { label: "D1", sub: "aether-production-live", Icon: Database },
         { label: "Stripe", sub: "sandbox mode", Icon: CreditCard },
         { label: "Resend", sub: "transactional email", Icon: Mail },
         { label: "Clerk", sub: "auth (ready)", Icon: KeyRound },
@@ -234,13 +234,13 @@ const copy: Record<"en" | "es", ArchitectureCopy> = {
       ci: "GitHub Actions CI/CD",
       bindingsLabel: "Secretos y bindings (D1, Stripe, Resend, Clerk, Cloudinary)",
       deployTargets: [
-        { label: "aether-api", sub: "Cloudflare Worker", Icon: ServerCog },
-        { label: "aether-storefront", sub: "Cloudflare Worker", Icon: Blocks },
-        { label: "aether-admin", sub: "Cloudflare Pages", Icon: Layers },
-        { label: "ai-assistant", sub: "Cloudflare Worker", Icon: Bot }
+        { label: "aether-api-production", sub: "Cloudflare Worker", Icon: ServerCog },
+        { label: "store.diferez.com", sub: "Cloudflare Worker", Icon: Blocks },
+        { label: "aether-admin-production", sub: "Cloudflare Pages", Icon: Layers },
+        { label: "aether-ai-production", sub: "Cloudflare Worker", Icon: Bot }
       ],
       services: [
-        { label: "D1", sub: "aether-production", Icon: Database },
+        { label: "D1", sub: "aether-production-live", Icon: Database },
         { label: "Stripe", sub: "modo sandbox", Icon: CreditCard },
         { label: "Resend", sub: "correo transaccional", Icon: Mail },
         { label: "Clerk", sub: "auth (listo)", Icon: KeyRound },

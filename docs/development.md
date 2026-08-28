@@ -13,34 +13,34 @@
 
 ## Servicios esperados
 
-- Storefront desarrollo: `https://aether-storefront-dev.pickofwow.workers.dev`
-- API desarrollo: `https://aether-api-dev.pickofwow.workers.dev`
-- Asistente desarrollo: `https://aether-ai-dev.pickofwow.workers.dev`
-- Admin desarrollo: `https://develop.aether-admin.pages.dev`
+- Storefront desarrollo: `https://aether-storefront.pickofwow.workers.dev`
+- API desarrollo: `https://aether-api.pickofwow.workers.dev`
+- Asistente desarrollo: `https://aether-ai.pickofwow.workers.dev`
+- Admin desarrollo: `https://develop.aether-admin.pages.dev` (branch `develop`)
 
-Producción conserva:
+Producción nueva:
 
-- Storefront: `https://aether-storefront.pickofwow.workers.dev`
-- API: `https://aether-api.pickofwow.workers.dev`
-- Asistente: `https://aether-ai.pickofwow.workers.dev`
-- Admin: `https://aether-admin.pages.dev`
+- Storefront: `https://store.diferez.com`
+- API: `https://aether-api-production.pickofwow.workers.dev`
+- Asistente: `https://aether-ai-production.pickofwow.workers.dev`
+- Admin: `https://admin.diferez.com`
 
 ## GitHub Environment `development`
 
 Variables:
 
 - `CLOUDFLARE_DEPLOY_ENABLED=true`
-- `AETHER_API_WORKER_NAME=aether-api-dev`
-- `AETHER_AI_WORKER_NAME=aether-ai-dev`
-- `AETHER_FRONT_WORKER_NAME=aether-storefront-dev`
+- `AETHER_API_WORKER_NAME=aether-api`
+- `AETHER_AI_WORKER_NAME=aether-ai`
+- `AETHER_FRONT_WORKER_NAME=aether-storefront`
 - `AETHER_ADMIN_PAGES_PROJECT=aether-admin`
-- `AETHER_D1_DATABASE_NAME=aether-development`
-- `AETHER_D1_DATABASE_ID`: ID de la base D1 de desarrollo.
-- `APP_ORIGIN_STORE=https://aether-storefront-dev.pickofwow.workers.dev`
+- `AETHER_D1_DATABASE_NAME=aether-production` (reclasificada como D1 de develop).
+- `AETHER_D1_DATABASE_ID=a7f8dd17-1120-40f7-9457-374d53991702`
+- `APP_ORIGIN_STORE=https://aether-storefront.pickofwow.workers.dev`
 - `APP_ORIGIN_ADMIN=https://develop.aether-admin.pages.dev`
-- `NEXT_PUBLIC_AETHER_API_URL=https://aether-api-dev.pickofwow.workers.dev`
-- `NEXT_PUBLIC_AETHER_AI_URL=https://aether-ai-dev.pickofwow.workers.dev`
-- `NEXT_PUBLIC_PORTFOLIO_URL=https://portafolio-aether-commerce-dev.pickofwow.workers.dev`
+- `NEXT_PUBLIC_AETHER_API_URL=https://aether-api.pickofwow.workers.dev`
+- `NEXT_PUBLIC_AETHER_AI_URL=https://aether-ai.pickofwow.workers.dev`
+- `NEXT_PUBLIC_PORTFOLIO_URL=https://portafolio-aether-commerce.pickofwow.workers.dev`
 - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`: publishable key de Clerk test/dev.
 
 Secrets:
@@ -67,13 +67,10 @@ Usa llaves de test/dev. No reutilices secretos productivos en este environment.
 
 ## Base D1 de desarrollo
 
-Crea una D1 separada:
-
-```bash
-pnpm exec wrangler d1 create aether-development
-```
-
-Guarda el `database_id` resultante como `AETHER_D1_DATABASE_ID` en el environment `development`.
+El D1 existente `aether-production` se conserva como la base de develop para
+mantener sus datos actuales. La producción nueva usa una base independiente
+`aether-production-live`; su `database_id` debe guardarse únicamente en el
+environment `production` de GitHub.
 
 ## Validación local
 

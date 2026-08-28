@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Env } from "../types";
-import { createUploadSignature, sha1Hex } from "./cloudinary";
+import { cloudinaryProductPublicId, createUploadSignature, deleteCloudinaryProductImages, sha1Hex } from "./cloudinary";
 
 // createUploadSignature resolves its credentials via integration-settings.ts
 // (D1-backed, admin-managed settings layered over these env vars) - a bare
@@ -59,5 +59,65 @@ describe("cloudinary.createUploadSignature", () => {
     });
     const result = await createUploadSignature(env);
     expect(JSON.stringify(result)).not.toContain("super-secret-value");
+  });
+});
+
+describe("cloudinary.cloudinaryProductPublicId", () => {
+  it("extracts the public id from a catalog upload URL", () => {
+    expect(
+      cloudinaryProductPublicId(
+        "https://res.cloudinary.com/demo/image/upload/v1700000000/aether/products/funda%20slim.jpg",
+        "demo"
+      )
+    ).toBe("aether/products/funda slim");
+  });
+
+  it("ignores non-catalog assets and other Cloudinary accounts", () => {
+    expect(cloudinaryProductPublicId("https://res.cloudinary.com/demo/image/upload/aether/brand/logo.png", "demo")).toBeNull();
+    expect(cloudinaryProductPublicId("https://res.cloudinary.com/other/image/upload/aether/products/funda.jpg", "demo")).toBeNull();
+    expect(cloudinaryProductPublicId("https://example.com/aether/products/funda.jpg", "demo")).toBeNull();
+  });
+});
+
+describe("cloudinary.deleteCloudinaryProductImages", () => {
+  it("deletes each distinct catalog image and invalidates CDN copies", async () => {
+    const fetchMock = vi.fn<typeof fetch>(() =>
+      Promise.resolve(new Response(JSON.stringify({ result: "ok" }), { status: 200, headers: { "content-type": "application/json" } }))
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    try {
+      await deleteCloudinaryProductImages(
+        fakeEnv({ CLOUDINARY_CLOUD_NAME: "demo", CLOUDINARY_API_KEY: "123456", CLOUDINARY_API_SECRET: "secret" }),
+        [
+          "https://res.cloudinary.com/demo/image/upload/v1/aether/products/funda-a.jpg",
+          "https://res.cloudinary.com/demo/image/upload/v1/aether/products/funda-a.jpg",
+          "https://res.cloudinary.com/demo/image/upload/v2/aether/products/funda-b.png"
+        ]
+      );
+
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      const firstCall = fetchMock.mock.calls[0] as unknown as [RequestInfo | URL, RequestInit];
+      const firstRequest = firstCall[1];
+      const body = firstRequest.body as FormData;
+      expect(firstCall[0]).toBe("https://api.cloudinary.com/v1_1/demo/image/destroy");
+      expect(body.get("public_id")).toBe("aether/products/funda-a");
+      expect(body.get("invalidate")).toBe("true");
+      expect(body.get("api_key")).toBe("123456");
+      expect(body.get("signature")).toMatch(/^[0-9a-f]{40}$/);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("does not call Cloudinary for local images", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      await deleteCloudinaryProductImages(fakeEnv(), ["/products/funda.webp"]);
+      expect(fetchMock).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
