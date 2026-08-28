@@ -1,15 +1,9 @@
-# @aether-commerce/api-worker
+# @aether-commerce/schemas
 
-## 0.3.7
+## 0.2.1
 
 ### Patch Changes
 
 - a48a0c8: Add configurable storefront category merchandising across the API, admin, schema,
   migration, and default storefront packages, including category visuals, ordering,
   product counts, and related deployment integration.
-- Updated dependencies [a48a0c8]
-  - @aether-commerce/schemas@0.2.1
-  - @aether-commerce/api-core@0.2.1
-  - @aether-commerce/core@0.2.1
-
-All notable changes to this package are documented here.
