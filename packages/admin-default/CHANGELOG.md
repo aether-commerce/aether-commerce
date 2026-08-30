@@ -1,5 +1,11 @@
 # @aether-commerce/admin-default
 
+## 0.3.5
+
+### Patch Changes
+
+- eb1f889: Fix mobile category selection so opening the dropdown does not focus the search field and selecting a category closes the menu.
+
 ## 0.3.4
 
 ### Patch Changes
