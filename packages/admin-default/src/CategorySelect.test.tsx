@@ -20,6 +20,33 @@ const options: CategorySelectOption[] = [
 ];
 
 describe("CategorySelect", () => {
+  it("keeps focus on the trigger until the search field is selected", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <CategorySelect
+        value=""
+        options={options}
+        loading={false}
+        error={false}
+        onOpen={vi.fn()}
+        onRetry={vi.fn()}
+        onValueChange={vi.fn()}
+        labels={labels}
+      />
+    );
+
+    const trigger = screen.getByRole("button", { name: labels.placeholder });
+    await user.click(trigger);
+
+    const search = screen.getByRole("textbox", { name: labels.search });
+    expect(trigger).toHaveFocus();
+    expect(search).not.toHaveFocus();
+
+    await user.click(search);
+    expect(search).toHaveFocus();
+  });
+
   it("closes the listbox and restores focus after selecting a category", async () => {
     const user = userEvent.setup();
     const onValueChange = vi.fn();
@@ -65,6 +92,7 @@ describe("CategorySelect", () => {
     );
 
     await user.click(screen.getByRole("button", { name: labels.placeholder }));
+    await user.click(screen.getByRole("textbox", { name: labels.search }));
     await user.keyboard("{Enter}");
 
     expect(onValueChange).toHaveBeenCalledWith("audio");
