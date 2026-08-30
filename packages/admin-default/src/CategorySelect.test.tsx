@@ -74,6 +74,24 @@ describe("CategorySelect", () => {
     expect(trigger).toHaveFocus();
   });
 
+  it("supports an explicit accessible label for standalone form fields", () => {
+    render(
+      <CategorySelect
+        value=""
+        options={options}
+        loading={false}
+        error={false}
+        onOpen={vi.fn()}
+        onRetry={vi.fn()}
+        onValueChange={vi.fn()}
+        ariaLabel="Category"
+        labels={labels}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Category" })).toBeInTheDocument();
+  });
+
   it("closes the listbox after selecting a category with the keyboard", async () => {
     const user = userEvent.setup();
     const onValueChange = vi.fn();

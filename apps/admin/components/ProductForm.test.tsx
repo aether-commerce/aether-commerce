@@ -135,4 +135,18 @@ describe("ProductForm", () => {
     expect(screen.queryByText(/delete this product\?/i)).not.toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it("closes the category menu after selecting an option", async () => {
+    fetchMock.mockResolvedValueOnce({
+      json: () => Promise.resolve({ success: true, data: [{ id: "cat_audio", slug: "audio", name: "Audio", isHidden: false }] })
+    } as Response);
+
+    const user = userEvent.setup();
+    render(<ProductForm mode="create" initialValues={emptyProductForm} />);
+
+    await user.click(screen.getByRole("button", { name: /category/i }));
+    await user.click(await screen.findByRole("option", { name: /Audio audio/ }));
+
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+  });
 });
