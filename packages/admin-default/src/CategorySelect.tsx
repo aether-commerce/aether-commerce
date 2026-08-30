@@ -14,6 +14,7 @@ export function CategorySelect({
   onRetry,
   onValueChange,
   invalid = false,
+  ariaLabel,
   labels
 }: Readonly<{
   value: string;
@@ -24,6 +25,7 @@ export function CategorySelect({
   onRetry: () => void;
   onValueChange: (value: string) => void;
   invalid?: boolean;
+  ariaLabel?: string;
   labels: {
     placeholder: string;
     search: string;
@@ -95,6 +97,7 @@ export function CategorySelect({
         aria-expanded={open}
         aria-controls="product-category-options"
         aria-invalid={invalid}
+        aria-label={ariaLabel}
         onClick={openSelect}
       >
         <span className={selected ? "truncate" : "truncate text-ink-subtle"}>{selected?.name ?? (value || labels.placeholder)}</span>

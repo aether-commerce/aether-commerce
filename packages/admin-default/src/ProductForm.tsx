@@ -361,7 +361,7 @@ export function ProductForm({
               onChange={(event) => set("slug", event.target.value)}
             />
           </label>
-          <label className={labelClass}>
+          <div className={labelClass}>
             <span className={labelTextClass}>{t.productForm.categoryLabel}</span>
             <CategorySelect
               value={values.category}
@@ -372,10 +372,11 @@ export function ProductForm({
               onOpen={() => void loadCategories()}
               onRetry={() => { setCategoryStatus("idle"); void loadCategories(); }}
               onValueChange={(value) => { set("category", value); setFieldErrors((current) => ({ ...current, category: undefined })); }}
+              ariaLabel={t.productForm.categoryLabel}
               labels={{ placeholder: t.productForm.categoryPlaceholder, search: t.productForm.searchCategories, loading: t.productForm.loadingCategories, error: t.productForm.categoriesLoadError, empty: t.productForm.categoriesEmpty, noResults: t.productForm.categoriesNoResults, retry: t.productForm.retryCategories }}
             />
             {fieldErrors.category ? <span className="text-xs text-danger">{fieldErrors.category}</span> : null}
-          </label>
+          </div>
           <label className={labelClass}>
             <span className={labelTextClass}>{t.productForm.subcategoryLabel}</span>
             <input className={inputClass} value={values.subcategory} onChange={(event) => set("subcategory", event.target.value)} />
