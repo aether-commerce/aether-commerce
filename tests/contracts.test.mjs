@@ -399,6 +399,21 @@ test("security headers prevent framing and unsafe content sniffing on both stati
     assert.match(headers, /frame-ancestors 'none'/);
   }
 });
+test("Clerk CAPTCHA hosts are allowed by every generated static app policy", () => {
+  for (const path of [
+    "apps/storefront/public/_headers",
+    "apps/admin/public/_headers",
+    "templates/client/apps/storefront/public/_headers",
+    "templates/client/apps/admin/public/_headers"
+  ]) {
+    const headers = read(path);
+    assert.match(headers, /script-src[^;]*https:\/\/\*\.protect\.clerk\.com/);
+    assert.match(headers, /script-src[^;]*https:\/\/challenges\.cloudflare\.com/);
+    assert.match(headers, /connect-src[^;]*https:\/\/\*\.protect\.clerk\.com:\*/);
+    assert.match(headers, /frame-src[^;]*https:\/\/\*\.protect\.clerk\.com/);
+    assert.match(headers, /frame-src[^;]*https:\/\/challenges\.cloudflare\.com/);
+  }
+});
 test("admin security policy permits signed Cloudinary image uploads", () => {
   const headers = read("apps/admin/public/_headers");
 
