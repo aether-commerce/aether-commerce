@@ -46,4 +46,29 @@ describe("CategorySelect", () => {
     expect(trigger).toHaveAttribute("aria-expanded", "false");
     expect(trigger).toHaveFocus();
   });
+
+  it("closes the listbox after selecting a category with the keyboard", async () => {
+    const user = userEvent.setup();
+    const onValueChange = vi.fn();
+
+    render(
+      <CategorySelect
+        value=""
+        options={options}
+        loading={false}
+        error={false}
+        onOpen={vi.fn()}
+        onRetry={vi.fn()}
+        onValueChange={onValueChange}
+        labels={labels}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: labels.placeholder }));
+    await user.keyboard("{Enter}");
+
+    expect(onValueChange).toHaveBeenCalledWith("audio");
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: labels.placeholder })).toHaveFocus();
+  });
 });

@@ -123,6 +123,17 @@ textarea {
   font: inherit;
 }
 
+/* Keep focused product-form controls at a mobile-safe size without disabling
+   pinch zoom. This also covers the packaged category selector's search input. */
+@media (max-width: 1023px) {
+  .product-form input:not([type="checkbox"]):not([type="file"]),
+  .product-form select,
+  .product-form textarea {
+    font-size: 16px;
+    touch-action: manipulation;
+  }
+}
+
 /* Percentage-based, not 100vw-based: this sits inside AdminShell's content
    column, which is already offset by the sidebar width on desktop - a
    vw-relative calc here would ignore that offset and overflow past the
