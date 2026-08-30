@@ -166,6 +166,20 @@ textarea {
   font: inherit;
 }
 
+/* Mobile browsers zoom focused controls whose computed font size is below
+   16px. Keep the form usable after a category selection or numeric edit while
+   preserving pinch zoom for operators who need it. The component classes use
+   the same size, but this scoped guard also covers controls rendered inside
+   the packaged category selector. */
+@media (max-width: 1023px) {
+  .product-form input:not([type="checkbox"]):not([type="file"]),
+  .product-form select,
+  .product-form textarea {
+    font-size: 16px;
+    touch-action: manipulation;
+  }
+}
+
 /* Percentage-based, not 100vw-based: this sits inside AdminShell's content
    column, which is already offset by the sidebar width on desktop - a
    vw-relative calc here would ignore that offset and overflow past the

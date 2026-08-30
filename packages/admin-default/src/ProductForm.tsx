@@ -337,7 +337,7 @@ export function ProductForm({
   const allImages = [values.images.main, ...values.images.gallery].filter(Boolean);
 
   return (
-    <form noValidate onSubmit={(event) => void handleSubmit(event)} className="grid gap-6 pb-16 lg:grid-cols-2">
+    <form noValidate onSubmit={(event) => void handleSubmit(event)} className="product-form grid gap-6 pb-16 lg:grid-cols-2">
       {errorMessage ? (
         <div role="alert" className="flex items-start gap-2 rounded-md border border-danger/20 bg-danger-soft p-3 text-sm text-danger lg:col-span-2">
           <AlertTriangle size={16} className="mt-0.5 shrink-0" aria-hidden />
