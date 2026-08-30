@@ -1,5 +1,11 @@
 # @aether-commerce/admin-default
 
+## 0.3.6
+
+### Patch Changes
+
+- 5a29c35: Keep the product category menu closed after selecting an option in the form.
+
 ## 0.3.5
 
 ### Patch Changes
