@@ -1,5 +1,11 @@
 # @aether-commerce/admin-default
 
+## 0.3.4
+
+### Patch Changes
+
+- 0c78cd6: Close the product category selector after selection and keep product form controls at a mobile-safe size without disabling user zoom.
+
 ## 0.3.3
 
 ### Patch Changes
