@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { AdminLanguageProvider, AetherAdminProvider } from "@aether-commerce/admin-default";
@@ -17,6 +17,11 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: `${clientConfiguration.brand.name} Admin`,
   description: `Store administration for ${clientConfiguration.brand.name}.`
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1
 };
 
 const themeInitScript = `

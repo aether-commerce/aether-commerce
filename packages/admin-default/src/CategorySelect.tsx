@@ -82,8 +82,8 @@ export function CategorySelect({
   }
 
   function selectOption(option: CategorySelectOption) {
-    onValueChange(option.slug);
     closeSelect({ restoreFocus: true });
+    onValueChange(option.slug);
   }
 
   return (
