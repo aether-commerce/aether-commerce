@@ -1,53 +1,48 @@
 import type { Metadata } from "next";
-import products from "../../../data/products.json";
+import { notFound } from "next/navigation";
+import { fetchProductBySlug, ProductDetailClient } from "@aether-commerce/storefront-default";
 import { demoProducts } from "../../../components/demo-products";
-import { ProductDetailClient } from "./ProductDetailClient";
 
-type CatalogProductSeed = {
-  slug?: string;
-  name?: string;
-  shortDescription?: string;
-  images?: { main?: string };
-};
+import { apiBaseUrl } from "../../../components/config";
 
-export function generateStaticParams() {
-  return (products as CatalogProductSeed[])
-    .map((product) => product.slug)
-    .filter((slug): slug is string => Boolean(slug))
-    .map((slug) => ({ slug }));
+export const dynamic = "force-dynamic";
+
+async function productForRequest(slug: string) {
+  const lookup = await fetchProductBySlug(apiBaseUrl, slug);
+  if (lookup.status === "found") return lookup.product;
+  return demoProducts.find((candidate) => candidate.slug === slug) ?? null;
 }
 
-// Static export has no per-request server, so this runs once at build time
-// against the same bundled seed data generateStaticParams uses (never the
-// live API) - the live catalog can override title/description per product
-// (details.seoTitle/seoDescription in apps/api/src/services/catalog.ts),
-// but this seed never carries those overrides, so the fallback formula here
-// deliberately matches the API's own default exactly: `${name} | Aether`
-// and the first 150 characters of the short description.
-export function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
-  return params.then(({ slug }) => {
-    const product = (products as CatalogProductSeed[]).find((candidate) => candidate.slug === slug);
-    if (!product?.name) return {};
-    const title = `${product.name} | Aether`;
-    const description = (product.shortDescription ?? "").slice(0, 150);
-    const canonicalPath = `/products/${slug}/`;
-    return {
-      title,
-      description,
-      alternates: { canonical: canonicalPath },
-      openGraph: {
-        title,
-        description,
-        type: "website",
-        url: canonicalPath,
-        ...(product.images?.main ? { images: [{ url: product.images.main }] } : {})
-      }
-    };
-  });
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  const product = await productForRequest(slug);
+  if (!product) return {};
+
+  return {
+    title: product.seo.title,
+    description: product.seo.description,
+    alternates: { canonical: product.seo.canonicalPath },
+    openGraph: {
+      title: product.seo.title,
+      description: product.seo.description,
+      type: "website",
+      url: product.seo.canonicalPath,
+      images: [{ url: product.images[0]?.url ?? product.thumbnail, alt: product.images[0]?.alt ?? product.name }]
+    }
+  };
 }
 
 export default async function ProductDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
+  const lookup = await fetchProductBySlug(apiBaseUrl, slug);
   const fallbackProduct = demoProducts.find((candidate) => candidate.slug === slug) ?? null;
-  return <ProductDetailClient slug={slug} fallbackProduct={fallbackProduct} />;
+  if (lookup.status === "not-found" && !fallbackProduct) notFound();
+
+  return (
+    <ProductDetailClient
+      slug={slug}
+      initialProduct={lookup.status === "found" ? lookup.product : null}
+      fallbackProduct={fallbackProduct}
+    />
+  );
 }

@@ -7,7 +7,6 @@ const e2eClerkStub = process.env.AETHER_E2E_STUB_CLERK === "true";
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: "export",
   basePath,
   images: {
     unoptimized: true,
@@ -16,6 +15,12 @@ const nextConfig = {
       { protocol: "https", hostname: "images.unsplash.com" },
       { protocol: "http", hostname: "localhost" }
     ]
+  },
+  // The storefront deliberately uses unoptimized images. Excluding the
+  // optional native image stack keeps the Workers bundle portable and avoids
+  // tracing platform-specific binaries that are not needed at runtime.
+  outputFileTracingExcludes: {
+    "*": ["node_modules/@img/sharp-wasm32/**/*", "node_modules/@emnapi/**/*"]
   },
   trailingSlash: true,
   turbopack: {

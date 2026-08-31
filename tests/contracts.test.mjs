@@ -333,14 +333,15 @@ test("storefront assistant CTA keeps readable active and hover colors", () => {
   assert.doesNotMatch(hero, /hover:bg-zinc-100/);
 });
 
-test("storefront exports a branded custom 404 through Cloudflare static assets", () => {
+test("storefront keeps a branded 404 while serving dynamic pages through OpenNext", () => {
   const notFoundPage = read("apps/storefront/app/not-found.tsx");
   const storefrontWrangler = read("apps/storefront/wrangler.jsonc");
 
   assert.match(notFoundPage, /notFoundTitle/);
   assert.match(notFoundPage, /returnHome/);
   assert.match(notFoundPage, /exploreCatalog/);
-  assert.match(storefrontWrangler, /"not_found_handling": "404-page"/);
+  assert.match(storefrontWrangler, /\.open-next\/worker\.js/);
+  assert.match(storefrontWrangler, /"binding": "ASSETS"/);
 });
 
 test("admin product management routes are real (not the old orphaned override stubs)", () => {
@@ -421,12 +422,33 @@ test("admin security policy permits signed Cloudinary image uploads", () => {
   assert.match(headers, /img-src[^;]*https:\/\/res\.cloudinary\.com/);
 });
 
-test("storefront 404 resolves product slugs created after the static build", () => {
-  const notFound = read("apps/storefront/app/not-found.tsx");
+test("storefront resolves product slugs and metadata at request time", () => {
+  for (const path of [
+    "apps/storefront/app/products/[slug]/page.tsx",
+    "templates/client/apps/storefront/app/products/[slug]/page.tsx"
+  ]) {
+    const page = read(path);
+    assert.match(page, /force-dynamic/);
+    assert.match(page, /fetchProductBySlug/);
+    assert.match(page, /initialProduct/);
+    assert.match(page, /notFound/);
+  }
 
-  assert.match(notFound, /ProductDetailClient/);
-  assert.match(notFound, /lastIndexOf\("products"\)/);
-  assert.match(notFound, /decodeURIComponent/);
+  const serverLoader = read("packages/storefront-default/src/product-detail-server.ts");
+  assert.match(serverLoader, /cache\(async/);
+  assert.match(serverLoader, /products\/slug/);
+  assert.match(serverLoader, /cache: "no-store"/);
+});
+
+test("storefront deploys the dynamic Next server through OpenNext", () => {
+  for (const path of ["apps/storefront", "templates/client/apps/storefront"]) {
+    assert.doesNotMatch(read(`${path}/next.config.mjs`), /output:\s*["']export/);
+    assert.match(read(`${path}/open-next.config.ts`), /defineCloudflareConfig/);
+    const wrangler = read(`${path}/wrangler.jsonc`);
+    assert.match(wrangler, /\.open-next\/worker\.js/);
+    assert.match(wrangler, /\.open-next\/assets/);
+    assert.match(read(`${path}/package.json`), /build:cloudflare/);
+  }
 });
 
 test("checkout orders require an immutable server-side snapshot", () => {

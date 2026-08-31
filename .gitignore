@@ -4,6 +4,7 @@ __pycache__/
 *$py.class
 next-env.d.ts
 .next
+.open-next
 out
 dist
 .turbo
