@@ -1,5 +1,11 @@
 # @aether-commerce/i18n
 
+## 0.2.4
+
+### Patch Changes
+
+- 6ea006b: Use the live store currency in product pricing fields, order totals, and admin assistant money values.
+
 ## 0.2.3
 
 ### Patch Changes
