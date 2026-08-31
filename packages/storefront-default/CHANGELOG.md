@@ -1,5 +1,11 @@
 # @aether-commerce/storefront-default
 
+## 0.2.5
+
+### Patch Changes
+
+- 2651398: Ship a reusable legal-document renderer and complete legal route shells in the client template. Legal copy and contact details remain client-owned.
+
 ## 0.2.4
 
 ### Patch Changes
