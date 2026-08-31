@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useAuth } from "@clerk/react";
 import { EyeOff, Plus, Send } from "lucide-react";
+import { formatMoney } from "@aether-commerce/core";
 import { RequireAdminAuth } from "./RequireAdminAuth";
 import { useAdminConfig } from "./AetherAdminProvider";
 import { PageHeader } from "./PageHeader";
@@ -56,7 +57,7 @@ function readFiltersFromUrl() {
 }
 
 function money(cents: number, currency: string, locale: string) {
-  return new Intl.NumberFormat(locale === "es" ? "es-CO" : "en-US", { style: "currency", currency }).format(cents / 100);
+  return formatMoney(cents, currency, locale === "es" ? "es-CO" : "en-US");
 }
 
 function stockColorClass(stock: number, lowStockThreshold: number): string {

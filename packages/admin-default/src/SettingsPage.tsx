@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@clerk/react";
 import { ImagePlus, Loader2, MessageCircle, Timer, Truck, X } from "lucide-react";
+import { formatMoney } from "@aether-commerce/core";
 import { RequireAdminAuth } from "./RequireAdminAuth";
 import { useAdminConfig } from "./AetherAdminProvider";
 import { PageHeader } from "./PageHeader";
@@ -50,10 +51,7 @@ const defaultShipping: ShippingSettings = { enabled: false, amountCents: 0 };
 const defaultReservations: ReservationSettings = { ttlMinutes: 15 };
 
 function money(cents: number, locale: string, currency: string, storeLocale: string) {
-  return new Intl.NumberFormat(locale === "es" ? storeLocale : "en-US", {
-    style: "currency",
-    currency
-  }).format(cents / 100);
+  return formatMoney(cents, currency, locale === "es" ? storeLocale : "en-US");
 }
 
 export function SettingsPage() {

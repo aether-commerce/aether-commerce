@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { MapPin, ShieldCheck, UserRound } from "lucide-react";
 import { useAuth } from "@clerk/react";
+import { formatMoney } from "@aether-commerce/core";
 import { RequireAdminAuth } from "./RequireAdminAuth";
 import { useAdminConfig } from "./AetherAdminProvider";
 import { PageHeader } from "./PageHeader";
@@ -63,7 +64,7 @@ type CustomerDetail = {
 const assignableRoles = ["customer", "support", "catalog_manager", "order_manager", "admin", "super_admin", "demo_viewer"] as const;
 
 function money(cents: number, currency: string, locale: string) {
-  return new Intl.NumberFormat(locale === "es" ? "es-ES" : "en-US", { style: "currency", currency }).format(cents / 100);
+  return formatMoney(cents, currency, locale === "es" ? "es-ES" : "en-US");
 }
 
 function orderStatusLabel(t: AdminDictionary, value: string | undefined) {

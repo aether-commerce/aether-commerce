@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@clerk/react";
 import { AlertTriangle, CheckCircle2, ExternalLink, HelpCircle, RefreshCw, Search, ShieldAlert, XCircle } from "lucide-react";
 import { Skeleton } from "@aether-commerce/ui";
-import { formatDurationMinutes } from "@aether-commerce/core";
+import { formatDurationMinutes, formatMoney } from "@aether-commerce/core";
 import { RequireAdminAuth } from "./RequireAdminAuth";
 import { useAdminConfig } from "./AetherAdminProvider";
 import { PageHeader } from "./PageHeader";
@@ -56,15 +56,6 @@ type SystemHealthData = {
 };
 
 const AUTO_REFRESH_MS = 60_000;
-
-// Same fixed en-US formatting and tone table as AdminChat/format.ts (that
-// file belongs to AdminChat, not yet migrated - see Phase 2c-x plan). Kept
-// as an independent local copy, same as every other packaged page's own
-// money()/statusLabel(), rather than importing across the app/package
-// boundary.
-function money(cents: number, currency: string) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(cents / 100);
-}
 
 const fulfillmentTone: Record<string, StatusTone> = {
   unfulfilled: "neutral",
@@ -303,7 +294,7 @@ export function SystemHealthPage() {
                         </span>
                       </span>
                       <span className="flex shrink-0 items-center gap-2">
-                        <span className="tabular-nums text-ink-muted">{money(order.totalCents, order.currency)}</span>
+                        <span className="tabular-nums text-ink-muted">{formatMoney(order.totalCents, order.currency, locale === "es" ? "es-ES" : "en-US")}</span>
                         <StatusBadge tone={fulfillmentTone[order.fulfillmentStatus] ?? "neutral"}>{statusLabel(t, order.fulfillmentStatus)}</StatusBadge>
                       </span>
                     </a>

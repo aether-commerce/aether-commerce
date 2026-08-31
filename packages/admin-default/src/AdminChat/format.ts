@@ -1,12 +1,12 @@
 import type { StatusTone } from "../StatusBadge";
+import { formatMoney } from "@aether-commerce/core";
 import type { AdminDictionary } from "@aether-commerce/i18n";
 import type { ActivityItemArtifact } from "./types";
 
-// Same formatting/tone conventions as app/products/page.tsx and
-// app/orders/page.tsx, kept local here so chat result cards read identically
-// to the pages they link out to.
-export function money(cents: number, currency: string) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(cents / 100);
+// Same formatting/tone conventions as the admin pages, backed by the shared
+// currency-aware formatter so chat cards follow the active store locale.
+export function money(cents: number, currency: string, locale = "en-US") {
+  return formatMoney(cents, currency, locale);
 }
 
 export const visibilityTone: Record<"draft" | "visible" | "hidden", StatusTone> = {
@@ -40,7 +40,7 @@ export const healthLevelTone: Record<string, StatusTone> = {
 // label/format table covers both instead of each tool inventing its own
 // display convention. "status" is excluded here since ToolResultCard renders
 // it as a badge, not a grid cell.
-function getStatFieldMeta(t: AdminDictionary, currency: string): Record<string, { label: string; format?: (value: number | string | null) => string }> {
+function getStatFieldMeta(t: AdminDictionary, currency: string, locale: string): Record<string, { label: string; format?: (value: number | string | null) => string }> {
   return {
     errors24h: { label: t.chat.statErrors24h },
     webhooksFailed24h: { label: t.chat.statWebhooksFailed24h },
@@ -50,9 +50,9 @@ function getStatFieldMeta(t: AdminDictionary, currency: string): Record<string, 
     blockedOrdersCount: { label: t.chat.statBlockedOrders },
     avgLatencyMs: { label: t.chat.statAvgLatency, format: (v) => (typeof v === "number" ? `${Math.round(v)}ms` : t.chat.statNoData) },
     lastCriticalTask: { label: t.chat.statLastCriticalTask },
-    revenue: { label: t.chat.statRevenue, format: (v) => (typeof v === "number" ? money(v, currency) : String(v ?? "-")) },
+    revenue: { label: t.chat.statRevenue, format: (v) => (typeof v === "number" ? money(v, currency, locale) : String(v ?? "-")) },
     orders: { label: t.chat.statOrders },
-    averageTicket: { label: t.chat.statAverageTicket, format: (v) => (typeof v === "number" ? money(v, currency) : String(v ?? "-")) },
+    averageTicket: { label: t.chat.statAverageTicket, format: (v) => (typeof v === "number" ? money(v, currency, locale) : String(v ?? "-")) },
     conversionRate: { label: t.chat.statConversionRate, format: (v) => (typeof v === "number" ? `${v}%` : String(v ?? "-")) },
     lowStock: { label: t.chat.statLowStock },
     outOfStock: { label: t.chat.statOutOfStock },
@@ -69,11 +69,11 @@ function humanizeKey(key: string): string {
 }
 
 export function statFieldLabel(t: AdminDictionary, key: string): string {
-  return getStatFieldMeta(t, "USD")[key]?.label ?? humanizeKey(key);
+  return getStatFieldMeta(t, "USD", "en-US")[key]?.label ?? humanizeKey(key);
 }
 
-export function formatStatValue(t: AdminDictionary, key: string, value: number | string | null, currency: string): string {
-  const format = getStatFieldMeta(t, currency)[key]?.format;
+export function formatStatValue(t: AdminDictionary, key: string, value: number | string | null, currency: string, locale = "en-US"): string {
+  const format = getStatFieldMeta(t, currency, locale)[key]?.format;
   if (format) return format(value);
   return value === null ? "-" : String(value);
 }

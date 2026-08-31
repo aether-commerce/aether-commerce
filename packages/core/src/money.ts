@@ -45,11 +45,36 @@ export function calculateCartTotals(
   };
 }
 
+function getFractionDigits(currency: string): number | undefined {
+  switch (currency.toUpperCase()) {
+    case "COP":
+      return 0;
+    case "USD":
+      return 2;
+    default:
+      return undefined;
+  }
+}
+
+function getMoneyOptions(currency: string, style: "currency" | "decimal"): Intl.NumberFormatOptions {
+  const fractionDigits = getFractionDigits(currency);
+  return {
+    style,
+    ...(style === "currency" ? { currency: currency.toUpperCase() } : {}),
+    ...(fractionDigits === undefined
+      ? {}
+      : { minimumFractionDigits: fractionDigits, maximumFractionDigits: fractionDigits })
+  };
+}
+
+/** Format stored integer cents using the currency's business precision. */
 export function formatMoney(cents: number, currency = "USD", locale = "en-US"): string {
-  return new Intl.NumberFormat(locale, {
-    style: "currency",
-    currency
-  }).format(clampCents(cents) / 100);
+  return new Intl.NumberFormat(locale, getMoneyOptions(currency, "currency")).format(clampCents(cents) / 100);
+}
+
+/** Format the editable numeric part of a money field without a currency symbol. */
+export function formatMoneyInput(cents: number, currency = "USD", locale = "en-US"): string {
+  return new Intl.NumberFormat(locale, getMoneyOptions(currency, "decimal")).format(clampCents(cents) / 100);
 }
 
 /** @deprecated Use formatMoney(cents, currency, locale) in reusable consumers. */

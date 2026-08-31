@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { useAuth } from "@clerk/react";
+import { formatMoney } from "@aether-commerce/core";
 import { AlertTriangle, Boxes, ChevronDown, Download, History, Mail, PackageCheck, Settings, Shield, TicketPercent, UsersRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useAdminConfig } from "./AetherAdminProvider";
@@ -82,10 +83,7 @@ const demoFallback: Summary = {
 };
 
 function money(cents: number, locale: string, currency: string, storeLocale: string) {
-  return new Intl.NumberFormat(locale === "es" ? storeLocale : "en-US", {
-    style: "currency",
-    currency
-  }).format(cents / 100);
+  return formatMoney(cents, currency, locale === "es" ? storeLocale : "en-US");
 }
 
 const stockTone: Record<"in" | "low" | "out", StatusTone> = {

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { MessageCircle, Package, RotateCcw } from "lucide-react";
 import { useAuth } from "@clerk/react";
+import { formatMoney } from "@aether-commerce/core";
 import { RequireAdminAuth } from "./RequireAdminAuth";
 import { useAdminConfig } from "./AetherAdminProvider";
 import { PageHeader } from "./PageHeader";
@@ -93,7 +94,7 @@ const fulfillmentTone: Record<FulfillmentStatus, StatusTone> = {
 };
 
 function money(cents: number, currency: string, locale: string) {
-  return new Intl.NumberFormat(locale === "es" ? "es-ES" : "en-US", { style: "currency", currency }).format(cents / 100);
+  return formatMoney(cents, currency, locale === "es" ? "es-ES" : "en-US");
 }
 
 function statusLabel(t: AdminDictionary, value: string) {
