@@ -84,8 +84,9 @@ function buildProductsParams(filters: ReturnType<typeof readFiltersFromUrl>): UR
 
 export function ProductsListPage() {
   const { getToken } = useAuth();
-  const { apiBaseUrl } = useAdminConfig();
+  const { apiBaseUrl, config } = useAdminConfig();
   const { t, locale } = useAdminLanguage();
+  const fallbackCurrency = config.store.currency === "COP" ? "COP" : "USD";
   const visibilityLabel: Record<AdminProductSummary["visibility"], string> = {
     visible: t.productsPage.statusPublished,
     draft: t.productsPage.statusDraft,
@@ -196,8 +197,8 @@ export function ProductsListPage() {
       align: "end",
       render: (product) => (
         <>
-          {money(product.finalPriceCents, product.currency, locale)}
-          {product.compareAtPriceCents ? <span className="ml-1.5 text-xs text-ink-subtle line-through">{money(product.compareAtPriceCents, product.currency, locale)}</span> : null}
+          {money(product.finalPriceCents, product.currency ?? fallbackCurrency, locale)}
+          {product.compareAtPriceCents ? <span className="ml-1.5 text-xs text-ink-subtle line-through">{money(product.compareAtPriceCents, product.currency ?? fallbackCurrency, locale)}</span> : null}
         </>
       )
     },
