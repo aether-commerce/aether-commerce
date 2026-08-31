@@ -1,5 +1,11 @@
 # @aether-commerce/api-worker
 
+## 0.3.8
+
+### Patch Changes
+
+- 6ea006b: Use the live store currency in product pricing fields, order totals, and admin assistant money values.
+
 ## 0.3.7
 
 ### Patch Changes
