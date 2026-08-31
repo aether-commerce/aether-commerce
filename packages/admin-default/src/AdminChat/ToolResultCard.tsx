@@ -27,7 +27,7 @@ import type {
 // string rendered as HTML. Links are plain <a href> (static export, no
 // client router, same convention as CommandMenu's search results).
 
-function ProductRow({ product, t, storeCurrency }: { product: ProductSummaryArtifact; t: AdminDictionary; storeCurrency: string }) {
+function ProductRow({ product, t, storeCurrency, moneyLocale }: { product: ProductSummaryArtifact; t: AdminDictionary; storeCurrency: string; moneyLocale: string }) {
   return (
     <a href={product.href} className="focus-ring flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2 text-sm hover:bg-surface-hover">
       <span className="min-w-0">
@@ -35,7 +35,7 @@ function ProductRow({ product, t, storeCurrency }: { product: ProductSummaryArti
         <span className="block text-xs text-ink-subtle">{product.sku} - {product.category}</span>
       </span>
       <span className="flex shrink-0 items-center gap-2">
-        <span className="tabular-nums text-ink-muted">{money(product.priceCents, product.currency ?? storeCurrency)}</span>
+        <span className="tabular-nums text-ink-muted">{money(product.priceCents, product.currency ?? storeCurrency, moneyLocale)}</span>
         <StatusBadge tone={visibilityTone[product.visibility]}>{t.chat.inStock.replace("{count}", String(product.stock))}</StatusBadge>
       </span>
     </a>
@@ -47,7 +47,7 @@ function orderStatusLabel(t: AdminDictionary, value: string) {
   return raw.charAt(0).toUpperCase() + raw.slice(1);
 }
 
-function OrderRow({ order, t }: { order: OrderSummaryArtifact; t: AdminDictionary }) {
+function OrderRow({ order, t, moneyLocale }: { order: OrderSummaryArtifact; t: AdminDictionary; moneyLocale: string }) {
   return (
     <a href={order.href} className="focus-ring flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2 text-sm hover:bg-surface-hover">
       <span className="min-w-0">
@@ -55,7 +55,7 @@ function OrderRow({ order, t }: { order: OrderSummaryArtifact; t: AdminDictionar
         <span className="block text-xs text-ink-subtle">{order.email}</span>
       </span>
       <span className="flex shrink-0 items-center gap-2">
-        <span className="tabular-nums text-ink-muted">{money(order.totalCents, order.currency)}</span>
+        <span className="tabular-nums text-ink-muted">{money(order.totalCents, order.currency, moneyLocale)}</span>
         <StatusBadge tone={fulfillmentTone[order.fulfillmentStatus] ?? "neutral"}>{orderStatusLabel(t, order.fulfillmentStatus)}</StatusBadge>
       </span>
     </a>
@@ -135,6 +135,7 @@ function ActivityRow({ item, locale, t }: { item: ActivityItemArtifact; locale: 
 export function ToolResultCard({ artifact }: { artifact: ChatArtifact }) {
   const { t, locale } = useAdminLanguage();
   const storeCurrency = useAdminStoreCurrency();
+  const moneyLocale = locale === "es" ? "es-CO" : "en-US";
   switch (artifact.type) {
     case "text":
       return null;
@@ -150,21 +151,21 @@ export function ToolResultCard({ artifact }: { artifact: ChatArtifact }) {
       return artifact.products.length === 0 ? (
         <p className="text-sm text-ink-subtle">{t.chat.noProductsMatched}</p>
       ) : (
-        <div className="grid gap-1.5">{artifact.products.map((product) => <ProductRow key={product.id} product={product} t={t} storeCurrency={storeCurrency} />)}</div>
+        <div className="grid gap-1.5">{artifact.products.map((product) => <ProductRow key={product.id} product={product} t={t} storeCurrency={storeCurrency} moneyLocale={moneyLocale} />)}</div>
       );
 
     case "product_detail":
-      return <ProductRow product={artifact.product} t={t} storeCurrency={storeCurrency} />;
+      return <ProductRow product={artifact.product} t={t} storeCurrency={storeCurrency} moneyLocale={moneyLocale} />;
 
     case "order_list":
       return artifact.orders.length === 0 ? (
         <p className="text-sm text-ink-subtle">{t.chat.noOrdersMatched}</p>
       ) : (
-        <div className="grid gap-1.5">{artifact.orders.map((order) => <OrderRow key={order.id} order={order} t={t} />)}</div>
+        <div className="grid gap-1.5">{artifact.orders.map((order) => <OrderRow key={order.id} order={order} t={t} moneyLocale={moneyLocale} />)}</div>
       );
 
     case "order_detail":
-      return <OrderRow order={artifact.order} t={t} />;
+      return <OrderRow order={artifact.order} t={t} moneyLocale={moneyLocale} />;
 
     case "customer_card":
       return <CustomerRow customer={artifact.customer} t={t} />;
@@ -180,7 +181,7 @@ export function ToolResultCard({ artifact }: { artifact: ChatArtifact }) {
       return artifact.orders.length === 0 ? (
         <p className="text-sm text-ink-subtle">{t.chat.noOrdersYet}</p>
       ) : (
-        <div className="grid gap-1.5">{artifact.orders.map((order) => <OrderRow key={order.id} order={order} t={t} />)}</div>
+        <div className="grid gap-1.5">{artifact.orders.map((order) => <OrderRow key={order.id} order={order} t={t} moneyLocale={moneyLocale} />)}</div>
       );
 
     case "dashboard_summary": {
@@ -203,7 +204,7 @@ export function ToolResultCard({ artifact }: { artifact: ChatArtifact }) {
               {statEntries.map(([key, value]) => (
                 <div key={key} className="min-w-0 rounded-md border border-border px-3 py-2">
                   <dt className="text-xs text-ink-subtle">{statFieldLabel(t, key)}</dt>
-                  <dd className="tabular-nums text-sm font-semibold text-ink [overflow-wrap:anywhere]">{formatStatValue(t, key, value, storeCurrency)}</dd>
+                  <dd className="tabular-nums text-sm font-semibold text-ink [overflow-wrap:anywhere]">{formatStatValue(t, key, value, storeCurrency, moneyLocale)}</dd>
                 </div>
               ))}
             </dl>
@@ -211,7 +212,7 @@ export function ToolResultCard({ artifact }: { artifact: ChatArtifact }) {
           {artifact.relatedOrders && artifact.relatedOrders.length > 0 ? (
             <div className="grid gap-1.5">
               {artifact.relatedOrders.map((order) => (
-                <OrderRow key={order.id} order={order} t={t} />
+                <OrderRow key={order.id} order={order} t={t} moneyLocale={moneyLocale} />
               ))}
             </div>
           ) : null}

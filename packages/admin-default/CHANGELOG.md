@@ -1,5 +1,14 @@
 # @aether-commerce/admin-default
 
+## 0.3.8
+
+### Patch Changes
+
+- 105a819: Format COP prices as whole pesos with localized thousands separators and keep USD prices at two decimal places across admin money fields.
+- Updated dependencies [105a819]
+  - @aether-commerce/core@0.2.2
+  - @aether-commerce/ui@0.2.2
+
 ## 0.3.7
 
 ### Patch Changes

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useAuth } from "@clerk/react";
 import { Plus, Search, Trash2 } from "lucide-react";
+import { formatMoney } from "@aether-commerce/core";
 import { RequireAdminAuth } from "./RequireAdminAuth";
 import { useAdminConfig } from "./AetherAdminProvider";
 import { PageHeader } from "./PageHeader";
@@ -20,7 +21,7 @@ type ProductOption = {
 type LineItem = { productId: string; name: string; unitPriceCents: number; quantity: number; currency: "USD" | "COP" };
 
 function money(cents: number, currency: string, locale: string) {
-  return new Intl.NumberFormat(locale === "es" ? "es-CO" : "en-US", { style: "currency", currency }).format(cents / 100);
+  return formatMoney(cents, currency, locale === "es" ? "es-CO" : "en-US");
 }
 
 export function OrdersNewPage() {

@@ -84,7 +84,7 @@ export function ProductForm({
   const router = useRouter();
   const { getToken } = useAuth();
   const { apiBaseUrl, config } = useAdminConfig();
-  const { t } = useAdminLanguage();
+  const { locale: adminLocale, t } = useAdminLanguage();
   const [values, setValues] = useState<ProductFormValues>(initialValues);
   const [status, setStatus] = useState<SaveStatus>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -95,6 +95,7 @@ export function ProductForm({
   const [categoryStatus, setCategoryStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<"name" | "category" | "shortDescription" | "description" | "price", string | undefined>>>({});
   const storeCurrency = useAdminStoreCurrency();
+  const moneyLocale = adminLocale === "es" ? config.store.locale : "en-US";
   const fileInputRef = useRef<HTMLInputElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
 
@@ -469,12 +470,12 @@ export function ProductForm({
         <div className="grid gap-3 sm:grid-cols-2">
           <label className={labelClass}>
             <span className={labelTextClass}>{t.productForm.priceLabel.replace("{currency}", storeCurrency)}</span>
-            <MoneyInput value={values.priceCents} currency={storeCurrency} className={inputClass} onValueChange={(value) => set("priceCents", value ?? 0)} />
+            <MoneyInput value={values.priceCents} currency={storeCurrency} locale={moneyLocale} className={inputClass} onValueChange={(value) => set("priceCents", value ?? 0)} />
             {fieldErrors.price ? <span className="text-xs text-danger">{fieldErrors.price}</span> : null}
           </label>
           <label className={labelClass}>
             <span className={labelTextClass}>{t.productForm.compareAtPriceLabel}</span>
-            <MoneyInput value={values.compareAtPriceCents} currency={storeCurrency} className={inputClass} onValueChange={setCompareAtPrice} />
+            <MoneyInput value={values.compareAtPriceCents} currency={storeCurrency} locale={moneyLocale} className={inputClass} onValueChange={setCompareAtPrice} />
             <span className="text-xs text-ink-subtle">{t.productForm.compareAtPriceHint}</span>
           </label>
         </div>
