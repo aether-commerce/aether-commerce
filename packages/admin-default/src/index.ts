@@ -1,4 +1,4 @@
-export { AetherAdminProvider, useAdminConfig, type AdminRuntimeConfig } from "./AetherAdminProvider";
+export { AetherAdminProvider, useAdminConfig, useAdminStoreCurrency, type AdminRuntimeConfig, type AdminStoreCurrency } from "./AetherAdminProvider";
 export { useBrand } from "./useBrand";
 export { AdminLanguageProvider, useAdminLanguage } from "./AdminLanguageProvider";
 export { ThemeToggle } from "./ThemeToggle";

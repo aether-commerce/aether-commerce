@@ -62,7 +62,7 @@ const AUTO_REFRESH_MS = 60_000;
 // as an independent local copy, same as every other packaged page's own
 // money()/statusLabel(), rather than importing across the app/package
 // boundary.
-function money(cents: number, currency = "USD") {
+function money(cents: number, currency: string) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(cents / 100);
 }
 

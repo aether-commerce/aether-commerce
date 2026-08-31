@@ -15,6 +15,7 @@ export type ProductSummaryArtifact = {
   category: string;
   stock: number;
   priceCents: number;
+  currency?: string;
   href: string;
 };
 

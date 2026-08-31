@@ -16,6 +16,10 @@ vi.mock("@clerk/react", () => ({
 
 const fetchMock = vi.fn();
 
+function productApiCalls() {
+  return fetchMock.mock.calls.filter(([url]) => !String(url).includes("/runtime-config"));
+}
+
 function filledValues(overrides: Partial<ProductFormValues> = {}): ProductFormValues {
   return {
     ...emptyProductForm,
@@ -46,7 +50,7 @@ describe("ProductForm", () => {
 
     await user.click(screen.getByRole("button", { name: /create product/i }));
 
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(productApiCalls()).toHaveLength(0);
   });
 
   it("blocks submission when the compare-at price is not higher than the price", async () => {
@@ -56,7 +60,19 @@ describe("ProductForm", () => {
     await user.click(screen.getByRole("button", { name: /create product/i }));
 
     expect(await screen.findByText(/compare-at price must be higher/i)).toBeInTheDocument();
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(productApiCalls()).toHaveLength(0);
+  });
+
+  it("uses the live store currency for the price fields", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ success: true, data: { currency: "COP" } })
+    } as Response);
+
+    render(<ProductForm mode="create" initialValues={emptyProductForm} />);
+
+    expect(await screen.findByText("Price (COP) *")).toBeInTheDocument();
+    expect(screen.getAllByText("COP")).toHaveLength(2);
   });
 
   it("blocks submission when there is no main image yet", async () => {
@@ -70,6 +86,10 @@ describe("ProductForm", () => {
 
   it("submits a POST with the built payload and redirects to the edit page on success", async () => {
     fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ success: true, data: { currency: "USD" } })
+    } as Response);
+    fetchMock.mockResolvedValueOnce({
       json: () => Promise.resolve({ success: true, data: { id: "prd_new_1" } })
     } as Response);
 
@@ -77,8 +97,8 @@ describe("ProductForm", () => {
     render(<ProductForm mode="create" initialValues={filledValues({ featured: true, featuredPosition: 2 })} />);
     await user.click(screen.getByRole("button", { name: /create product/i }));
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    await waitFor(() => expect(productApiCalls()).toHaveLength(1));
+    const [url, init] = productApiCalls()[0] as [string, RequestInit];
     expect(url).toContain("/api/v1/admin/products");
     expect(init.method).toBe("POST");
     const body = JSON.parse(init.body as string) as { name: string; priceCents: number; featuredPosition: number | null };
@@ -90,6 +110,10 @@ describe("ProductForm", () => {
   });
 
   it("shows the API's error message when the save fails", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ success: true, data: { currency: "USD" } })
+    } as Response);
     fetchMock.mockResolvedValueOnce({
       json: () => Promise.resolve({ success: false, error: { message: "Slug already in use." } })
     } as Response);
@@ -107,7 +131,7 @@ describe("ProductForm", () => {
     render(<ProductForm mode="edit" productId="prd_1" initialValues={filledValues()} />);
 
     await user.click(screen.getByRole("button", { name: /^delete$/i }));
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(productApiCalls()).toHaveLength(0);
     expect(screen.getByText(/delete this product\?/i)).toBeInTheDocument();
 
     fetchMock.mockResolvedValueOnce({
@@ -133,10 +157,14 @@ describe("ProductForm", () => {
     await user.click(screen.getByRole("button", { name: /cancel/i }));
 
     expect(screen.queryByText(/delete this product\?/i)).not.toBeInTheDocument();
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(productApiCalls()).toHaveLength(0);
   });
 
   it("closes the category menu after selecting an option", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ success: true, data: { currency: "USD" } })
+    } as Response);
     fetchMock.mockResolvedValueOnce({
       json: () => Promise.resolve({ success: true, data: [{ id: "cat_audio", slug: "audio", name: "Audio", isHidden: false }] })
     } as Response);

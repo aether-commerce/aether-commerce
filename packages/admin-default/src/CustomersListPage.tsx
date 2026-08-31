@@ -3,6 +3,7 @@
 import { useAuth } from "@clerk/react";
 import { UserRound } from "lucide-react";
 import { RequireAdminAuth } from "./RequireAdminAuth";
+import { useAdminConfig } from "./AetherAdminProvider";
 import { PageHeader } from "./PageHeader";
 import { TableToolbar } from "./TableToolbar";
 import { FilterBar, type FilterChip } from "./FilterBar";
@@ -45,8 +46,8 @@ function readFiltersFromUrl() {
   };
 }
 
-function money(cents: number, currency: string | undefined, locale: string) {
-  return new Intl.NumberFormat(locale === "es" ? "es-CO" : "en-US", { style: "currency", currency: currency ?? "USD" }).format(cents / 100);
+function money(cents: number, currency: string, locale: string) {
+  return new Intl.NumberFormat(locale === "es" ? "es-CO" : "en-US", { style: "currency", currency }).format(cents / 100);
 }
 
 function formatOptionalDate(value: string | null, locale: string): string {
@@ -65,7 +66,9 @@ function buildCustomersParams(filters: ReturnType<typeof readFiltersFromUrl>): U
 
 export function CustomersListPage() {
   const { getToken } = useAuth();
+  const { config } = useAdminConfig();
   const { t, locale } = useAdminLanguage();
+  const fallbackCurrency = config.store.currency === "COP" ? "COP" : "USD";
   const { filters, searchInput, setSearchInput, result, status, updateFilter, submitSearch } = useAdminList<
     ReturnType<typeof readFiltersFromUrl>,
     ListResponse
@@ -105,7 +108,7 @@ export function CustomersListPage() {
     },
     { key: "status", header: t.customersPage.colStatus, render: (customer) => <StatusBadge tone={customer.status === "suspended" ? "error" : "success"}>{t.customerStatus[customer.status]}</StatusBadge> },
     { key: "orders", header: t.customersPage.colOrders, align: "end", hideBelow: "md", render: (customer) => customer.orderCount },
-    { key: "spent", header: t.customersPage.colSpent, align: "end", hideBelow: "md", render: (customer) => money(customer.totalSpent, customer.currency, locale) },
+    { key: "spent", header: t.customersPage.colSpent, align: "end", hideBelow: "md", render: (customer) => money(customer.totalSpent, customer.currency ?? fallbackCurrency, locale) },
     {
       key: "lastOrder",
       header: t.customersPage.colLastOrder,

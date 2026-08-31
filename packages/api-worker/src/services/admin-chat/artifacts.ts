@@ -9,6 +9,7 @@ export type ProductSummaryArtifact = {
   sku: string;
   category: string;
   priceCents: number;
+  currency?: string;
   stock: number;
   visibility: "draft" | "visible" | "hidden";
   href: string;

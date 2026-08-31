@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@clerk/react";
 import { AlertTriangle, GripVertical, ImagePlus, Loader2, Star, Trash2, X } from "lucide-react";
-import { useAdminConfig } from "./AetherAdminProvider";
+import { useAdminConfig, useAdminStoreCurrency } from "./AetherAdminProvider";
 import { FormSection } from "./FormSection";
 import { StickyFormActions } from "./StickyFormActions";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -94,7 +94,7 @@ export function ProductForm({
   const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [categoryStatus, setCategoryStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<"name" | "category" | "shortDescription" | "description" | "price", string | undefined>>>({});
-  const storeCurrency: "USD" | "COP" = config.store.currency === "COP" ? "COP" : "USD";
+  const storeCurrency = useAdminStoreCurrency();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
 
@@ -468,7 +468,7 @@ export function ProductForm({
       <FormSection title={t.productForm.priceSection}>
         <div className="grid gap-3 sm:grid-cols-2">
           <label className={labelClass}>
-            <span className={labelTextClass}>{t.productForm.priceLabel}</span>
+            <span className={labelTextClass}>{t.productForm.priceLabel.replace("{currency}", storeCurrency)}</span>
             <MoneyInput value={values.priceCents} currency={storeCurrency} className={inputClass} onValueChange={(value) => set("priceCents", value ?? 0)} />
             {fieldErrors.price ? <span className="text-xs text-danger">{fieldErrors.price}</span> : null}
           </label>
