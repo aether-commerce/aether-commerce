@@ -8,23 +8,72 @@ import { createClient } from "./create-client.mjs";
 // call below search PATH for a bare "pnpm" - PATH can contain writable
 // directories, so spawning by name is a search-path injection risk (Sonar
 // javascript:S4036).
-const pnpmBinary = execFileSync(process.platform === "win32" ? "where" : "which", ["pnpm"], { encoding: "utf8" })
+const pnpmBinary = execFileSync(process.platform === "win32" ? "where" : "which", ["pnpm"], {
+  encoding: "utf8"
+})
   .trim()
   .split(/\r?\n/)[0];
 
 const root = process.cwd();
-const adminRouteManifest = JSON.parse(readFileSync(resolve(root, "packages/admin-default/admin-routes.manifest.json"), "utf8"));
+const adminRouteManifest = JSON.parse(
+  readFileSync(resolve(root, "packages/admin-default/admin-routes.manifest.json"), "utf8")
+);
 const adminRouteFiles = adminRouteManifest.routes.map(({ file }) => `apps/admin/app/${file}`);
 const required = [
-  "config/brand.ts", "config/store.ts", "config/features.ts", "config/theme.ts", "config/checkout.ts", "config/integrations.ts", "config/agent.ts", "config/navigation.ts", "src/configuration.ts",
-  "apps/storefront/adapter.ts", "apps/storefront/app/layout.tsx", "apps/storefront/app/not-found.tsx", "apps/storefront/app/page.tsx", "apps/storefront/app/products/[slug]/page.tsx", "apps/storefront/package.json", "apps/storefront/next.config.mjs", "apps/storefront/open-next.config.ts", "apps/storefront/wrangler.jsonc",
-  "apps/admin/adapter.ts", "apps/admin/app/layout.tsx", "apps/admin/app/page.tsx", "apps/admin/package.json", "apps/admin/next.config.mjs",
+  "config/brand.ts",
+  "config/store.ts",
+  "config/features.ts",
+  "config/theme.ts",
+  "config/checkout.ts",
+  "config/integrations.ts",
+  "config/agent.ts",
+  "config/navigation.ts",
+  "src/configuration.ts",
+  "apps/storefront/adapter.ts",
+  "apps/storefront/app/layout.tsx",
+  "apps/storefront/app/not-found.tsx",
+  "apps/storefront/app/page.tsx",
+  "apps/storefront/app/products/[slug]/page.tsx",
+  "apps/storefront/app/privacy/page.tsx",
+  "apps/storefront/app/cookies/page.tsx",
+  "apps/storefront/app/terms/page.tsx",
+  "apps/storefront/app/returns/page.tsx",
+  "apps/storefront/app/shipping/page.tsx",
+  "apps/storefront/package.json",
+  "apps/storefront/next.config.mjs",
+  "apps/storefront/open-next.config.ts",
+  "apps/storefront/wrangler.jsonc",
+  "apps/admin/adapter.ts",
+  "apps/admin/app/layout.tsx",
+  "apps/admin/app/page.tsx",
+  "apps/admin/package.json",
+  "apps/admin/next.config.mjs",
   ...adminRouteFiles,
-  "apps/api/adapter.ts", "apps/api/package.json", "apps/api/wrangler.jsonc", "apps/api/src/index.ts", "apps/ai/adapter.ts", "src/adapters.ts",
-  ".github/dependabot.yml", ".github/workflows/deploy.yml", ".github/workflows/aether-update.yml",
-  "scripts/bootstrap-cloudflare.mjs", "tests/cloudflare-bootstrap.test.mjs",
-  "custom/animations/.gitkeep", "custom/components/.gitkeep", "custom/pages/.gitkeep", "custom/styles/.gitkeep", "custom/assets/.gitkeep",
-  "database/extensions/.gitkeep", "database/seeds/.gitkeep", ".npmrc", ".gitignore", "README.md", "package.json", "pnpm-workspace.yaml", "tsconfig.json", "tsconfig.validation.json"
+  "apps/api/adapter.ts",
+  "apps/api/package.json",
+  "apps/api/wrangler.jsonc",
+  "apps/api/src/index.ts",
+  "apps/ai/adapter.ts",
+  "src/adapters.ts",
+  ".github/dependabot.yml",
+  ".github/workflows/deploy.yml",
+  ".github/workflows/aether-update.yml",
+  "scripts/bootstrap-cloudflare.mjs",
+  "tests/cloudflare-bootstrap.test.mjs",
+  "custom/animations/.gitkeep",
+  "custom/components/.gitkeep",
+  "custom/pages/.gitkeep",
+  "custom/styles/.gitkeep",
+  "custom/assets/.gitkeep",
+  "database/extensions/.gitkeep",
+  "database/seeds/.gitkeep",
+  ".npmrc",
+  ".gitignore",
+  "README.md",
+  "package.json",
+  "pnpm-workspace.yaml",
+  "tsconfig.json",
+  "tsconfig.validation.json"
 ];
 const template = resolve(root, "templates/client");
 const distributablePackages = [
@@ -42,30 +91,60 @@ const distributablePackages = [
   ["@aether-commerce/storefront-default", "packages/storefront-default"],
   ["@aether-commerce/admin-default", "packages/admin-default"]
 ];
-for (const entry of required) if (!existsSync(resolve(template, entry))) throw new Error(`Client template is missing ${entry}`);
-execFileSync(pnpmBinary, ["exec", "tsc", "-p", "templates/client/tsconfig.validation.json", "--noEmit"], { cwd: root, stdio: "inherit", shell: process.platform === "win32" });
+for (const entry of required)
+  if (!existsSync(resolve(template, entry))) throw new Error(`Client template is missing ${entry}`);
+execFileSync(
+  pnpmBinary,
+  ["exec", "tsc", "-p", "templates/client/tsconfig.validation.json", "--noEmit"],
+  { cwd: root, stdio: "inherit", shell: process.platform === "win32" }
+);
 
 const temporaryParent = mkdtempSync(join(tmpdir(), "aether-client-template-"));
 try {
   const generated = createClient("validation-store", { destinationParent: temporaryParent });
   for (const entry of [
-    "apps/storefront/adapter.ts", "apps/storefront/app/layout.tsx", "apps/storefront/app/not-found.tsx", "apps/storefront/app/page.tsx", "apps/storefront/app/products/[slug]/page.tsx", "apps/storefront/open-next.config.ts",
-    "apps/admin/adapter.ts", "apps/admin/app/layout.tsx", "apps/admin/app/page.tsx",
+    "apps/storefront/adapter.ts",
+    "apps/storefront/app/layout.tsx",
+    "apps/storefront/app/not-found.tsx",
+    "apps/storefront/app/page.tsx",
+    "apps/storefront/app/products/[slug]/page.tsx",
+    "apps/storefront/app/privacy/page.tsx",
+    "apps/storefront/app/cookies/page.tsx",
+    "apps/storefront/app/terms/page.tsx",
+    "apps/storefront/app/returns/page.tsx",
+    "apps/storefront/app/shipping/page.tsx",
+    "apps/storefront/open-next.config.ts",
+    "apps/admin/adapter.ts",
+    "apps/admin/app/layout.tsx",
+    "apps/admin/app/page.tsx",
     ...adminRouteFiles,
-    "apps/api/adapter.ts", "apps/api/package.json", "apps/api/wrangler.jsonc", "apps/api/src/index.ts", "apps/ai/adapter.ts",
-    ".github/dependabot.yml", ".github/workflows/deploy.yml", ".github/workflows/aether-update.yml",
-    "scripts/bootstrap-cloudflare.mjs", "tests/cloudflare-bootstrap.test.mjs",
-    "database/migrations/0001_initial.sql", "database/migrations/0005_ai_assistant.sql", "database/migrations/0023_low_stock_alerts.sql", ".npmrc"
+    "apps/api/adapter.ts",
+    "apps/api/package.json",
+    "apps/api/wrangler.jsonc",
+    "apps/api/src/index.ts",
+    "apps/ai/adapter.ts",
+    ".github/dependabot.yml",
+    ".github/workflows/deploy.yml",
+    ".github/workflows/aether-update.yml",
+    "scripts/bootstrap-cloudflare.mjs",
+    "tests/cloudflare-bootstrap.test.mjs",
+    "database/migrations/0001_initial.sql",
+    "database/migrations/0005_ai_assistant.sql",
+    "database/migrations/0023_low_stock_alerts.sql",
+    ".npmrc"
   ]) {
-    if (!existsSync(resolve(generated, entry))) throw new Error(`Generated client is missing ${entry}`);
+    if (!existsSync(resolve(generated, entry)))
+      throw new Error(`Generated client is missing ${entry}`);
   }
-  if (existsSync(resolve(generated, "tsconfig.validation.json"))) throw new Error("Generated client retained monorepo-only validation config");
+  if (existsSync(resolve(generated, "tsconfig.validation.json")))
+    throw new Error("Generated client retained monorepo-only validation config");
   // create-client.mjs's replaceText() only rewrites .json/.jsonc/.md/.ts/
   // .tsx/.yml/.yaml files - a stray "client-store" anywhere in the deploy
   // workflow (e.g. a copy-paste of a placeholder name into a new step)
   // would otherwise silently ship un-renamed.
   const deployWorkflow = readFileSync(resolve(generated, ".github/workflows/deploy.yml"), "utf8");
-  if (deployWorkflow.includes("client-store")) throw new Error("Generated client's deploy.yml still contains the client-store placeholder");
+  if (deployWorkflow.includes("client-store"))
+    throw new Error("Generated client's deploy.yml still contains the client-store placeholder");
   const archivesDirectory = resolve(temporaryParent, "archives");
   const archives = new Map();
   for (const [name, packageDirectory] of distributablePackages) {
@@ -80,13 +159,17 @@ try {
       stdio: "inherit",
       shell: process.platform === "win32"
     });
-    const existingArchives = new Set(existsSync(archivesDirectory) ? readdirSync(archivesDirectory) : []);
+    const existingArchives = new Set(
+      existsSync(archivesDirectory) ? readdirSync(archivesDirectory) : []
+    );
     execFileSync(pnpmBinary, ["pack", "--pack-destination", archivesDirectory], {
       cwd: resolve(root, packageDirectory),
       stdio: "inherit",
       shell: process.platform === "win32"
     });
-    const archive = readdirSync(archivesDirectory).find((entry) => entry.endsWith(".tgz") && !existingArchives.has(entry));
+    const archive = readdirSync(archivesDirectory).find(
+      (entry) => entry.endsWith(".tgz") && !existingArchives.has(entry)
+    );
     if (!archive) throw new Error(`Could not pack ${name}`);
     archives.set(name, resolve(archivesDirectory, archive));
   }
@@ -98,7 +181,10 @@ try {
     manifest.dependencies[name] = localArchive;
     archiveOverrides[name] = localArchive;
   }
-  manifest.pnpm = { ...manifest.pnpm, overrides: { ...manifest.pnpm?.overrides, ...archiveOverrides } };
+  manifest.pnpm = {
+    ...manifest.pnpm,
+    overrides: { ...manifest.pnpm?.overrides, ...archiveOverrides }
+  };
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
 
   // src/adapters.ts and src/configuration.ts only import type-only symbols

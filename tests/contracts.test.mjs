@@ -103,6 +103,20 @@ test("generated clients validate Aether updates in develop before production", (
   assert.match(dependabot, /target-branch: develop/);
 });
 
+test("the client template ships legal page shells and keeps copy client-owned", () => {
+  for (const route of ["privacy", "cookies", "terms", "returns", "shipping"]) {
+    const page = read(`templates/client/apps/storefront/app/${route}/page.tsx`);
+    assert.match(page, /LegalDocument/);
+    assert.match(page, /legalDocuments/);
+  }
+  const legalConfig = read("templates/client/config/legal.ts");
+  assert.match(legalConfig, /satisfies LegalDocuments/);
+  assert.match(legalConfig, /owner@example\.com/);
+  const renderer = read("packages/storefront-default/src/LegalDocument.tsx");
+  assert.match(renderer, /documents: LegalDocuments/);
+  assert.doesNotMatch(renderer, /owner@example\.com|diferez676@gmail\.com/);
+});
+
 test("main release workflow publishes and notifies client repositories", () => {
   const workflow = read(".github/workflows/publish-packages.yml");
 
@@ -142,7 +156,16 @@ test("public API includes the requested route groups", () => {
 
 test("order state machine includes required commerce states", () => {
   const schema = read("packages/schemas/src/order.ts");
-  for (const state of ["pending_payment", "payment_processing", "paid", "processing", "shipped", "refund_requested", "returned", "closed"]) {
+  for (const state of [
+    "pending_payment",
+    "payment_processing",
+    "paid",
+    "processing",
+    "shipped",
+    "refund_requested",
+    "returned",
+    "closed"
+  ]) {
     assert.match(schema, new RegExp(`"${state}"`));
   }
 });
@@ -277,7 +300,10 @@ test("CI uses deterministic guest auth and the assistant is a LangGraph Worker",
   const widget = read("packages/storefront-default/src/AssistantWidget.tsx");
 
   assert.match(packageJson, /NEXT_PUBLIC_AETHER_E2E=true/);
-  assert.doesNotMatch(packageJson, /NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_Y2xlcmsuZXhhbXBsZS5jb20k/);
+  assert.doesNotMatch(
+    packageJson,
+    /NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_Y2xlcmsuZXhhbXBsZS5jb20k/
+  );
   assert.match(workflow, /NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_Y2xlcmsuZXhhbXBsZS5jb20k/);
   assert.doesNotMatch(evaluationWorkflow, /GEMINI_API_KEY/);
   assert.match(evaluationWorkflow, /AETHER_AI_EVAL_URL/);
@@ -302,7 +328,12 @@ test("API rate limiting uses Cloudflare bindings with local fallback", () => {
   const wrangler = read("apps/api/wrangler.jsonc");
   const deployConfig = read("scripts/write-api-wrangler-config.mjs");
 
-  for (const binding of ["RATE_LIMITER_GLOBAL", "RATE_LIMITER_ACCOUNT", "RATE_LIMITER_MUTATION", "RATE_LIMITER_SENSITIVE"]) {
+  for (const binding of [
+    "RATE_LIMITER_GLOBAL",
+    "RATE_LIMITER_ACCOUNT",
+    "RATE_LIMITER_MUTATION",
+    "RATE_LIMITER_SENSITIVE"
+  ]) {
     assert.match(types, new RegExp(`${binding}\\?: RateLimit`));
     assert.match(wrangler, new RegExp(`"name": "${binding}"`));
     assert.match(deployConfig, new RegExp(`name: "${binding}"`));
@@ -352,14 +383,38 @@ test("admin product management routes are real (not the old orphaned override st
   // admin never changed what a shopper saw. Confirms that dead path is gone.
   assert.doesNotMatch(admin, /product_overrides/);
 
-  assert.match(admin, /adminRoutes\.post\(\s*"\/products",\s*requirePermission\("products\.write"\)/);
-  assert.match(admin, /adminRoutes\.patch\(\s*"\/products\/:id",\s*requirePermission\("products\.write"\)/);
-  assert.match(admin, /adminRoutes\.post\("\/products\/:id\/publish", requirePermission\("products\.write"\)/);
-  assert.match(admin, /adminRoutes\.post\("\/products\/:id\/archive", requirePermission\("products\.write"\)/);
-  assert.match(admin, /adminRoutes\.post\(\s*"\/products\/bulk",\s*requirePermission\("products\.write"\)/);
-  assert.match(admin, /adminRoutes\.delete\("\/products\/:id", requirePermission\("products\.write"\)/);
-  assert.match(admin, /adminRoutes\.post\(\s*"\/products\/:id\/inventory-adjustment",\s*requirePermission\("inventory\.write"\)/);
-  assert.match(admin, /adminRoutes\.post\("\/uploads\/signature", requirePermission\("products\.write"\)/);
+  assert.match(
+    admin,
+    /adminRoutes\.post\(\s*"\/products",\s*requirePermission\("products\.write"\)/
+  );
+  assert.match(
+    admin,
+    /adminRoutes\.patch\(\s*"\/products\/:id",\s*requirePermission\("products\.write"\)/
+  );
+  assert.match(
+    admin,
+    /adminRoutes\.post\("\/products\/:id\/publish", requirePermission\("products\.write"\)/
+  );
+  assert.match(
+    admin,
+    /adminRoutes\.post\("\/products\/:id\/archive", requirePermission\("products\.write"\)/
+  );
+  assert.match(
+    admin,
+    /adminRoutes\.post\(\s*"\/products\/bulk",\s*requirePermission\("products\.write"\)/
+  );
+  assert.match(
+    admin,
+    /adminRoutes\.delete\("\/products\/:id", requirePermission\("products\.write"\)/
+  );
+  assert.match(
+    admin,
+    /adminRoutes\.post\(\s*"\/products\/:id\/inventory-adjustment",\s*requirePermission\("inventory\.write"\)/
+  );
+  assert.match(
+    admin,
+    /adminRoutes\.post\("\/uploads\/signature", requirePermission\("products\.write"\)/
+  );
 });
 
 test("products table is the catalog's source of truth, not the bundled JSON snapshot", () => {
@@ -367,7 +422,12 @@ test("products table is the catalog's source of truth, not the bundled JSON snap
   const seed = read("database/core/migrations/0014_seed_products_from_json.sql");
   const catalog = read("packages/api-worker/src/services/catalog.ts");
 
-  for (const column of ["sku TEXT NOT NULL UNIQUE", "slug TEXT NOT NULL UNIQUE", "visibility TEXT NOT NULL", "details_json TEXT NOT NULL"]) {
+  for (const column of [
+    "sku TEXT NOT NULL UNIQUE",
+    "slug TEXT NOT NULL UNIQUE",
+    "visibility TEXT NOT NULL",
+    "details_json TEXT NOT NULL"
+  ]) {
     assert.match(migration, new RegExp(column.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   }
   assert.match(seed, /INSERT OR IGNORE INTO products/);
