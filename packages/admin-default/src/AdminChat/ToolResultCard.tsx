@@ -1,5 +1,6 @@
 import { AlertTriangle, ArrowRight, CheckCircle2, HelpCircle, XCircle } from "lucide-react";
 import { StatusBadge } from "../StatusBadge";
+import { useAdminStoreCurrency } from "../AetherAdminProvider";
 import {
   money,
   visibilityTone,
@@ -26,7 +27,7 @@ import type {
 // string rendered as HTML. Links are plain <a href> (static export, no
 // client router, same convention as CommandMenu's search results).
 
-function ProductRow({ product, t }: { product: ProductSummaryArtifact; t: AdminDictionary }) {
+function ProductRow({ product, t, storeCurrency }: { product: ProductSummaryArtifact; t: AdminDictionary; storeCurrency: string }) {
   return (
     <a href={product.href} className="focus-ring flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2 text-sm hover:bg-surface-hover">
       <span className="min-w-0">
@@ -34,7 +35,7 @@ function ProductRow({ product, t }: { product: ProductSummaryArtifact; t: AdminD
         <span className="block text-xs text-ink-subtle">{product.sku} - {product.category}</span>
       </span>
       <span className="flex shrink-0 items-center gap-2">
-        <span className="tabular-nums text-ink-muted">{money(product.priceCents)}</span>
+        <span className="tabular-nums text-ink-muted">{money(product.priceCents, product.currency ?? storeCurrency)}</span>
         <StatusBadge tone={visibilityTone[product.visibility]}>{t.chat.inStock.replace("{count}", String(product.stock))}</StatusBadge>
       </span>
     </a>
@@ -133,6 +134,7 @@ function ActivityRow({ item, locale, t }: { item: ActivityItemArtifact; locale: 
 
 export function ToolResultCard({ artifact }: { artifact: ChatArtifact }) {
   const { t, locale } = useAdminLanguage();
+  const storeCurrency = useAdminStoreCurrency();
   switch (artifact.type) {
     case "text":
       return null;
@@ -148,11 +150,11 @@ export function ToolResultCard({ artifact }: { artifact: ChatArtifact }) {
       return artifact.products.length === 0 ? (
         <p className="text-sm text-ink-subtle">{t.chat.noProductsMatched}</p>
       ) : (
-        <div className="grid gap-1.5">{artifact.products.map((product) => <ProductRow key={product.id} product={product} t={t} />)}</div>
+        <div className="grid gap-1.5">{artifact.products.map((product) => <ProductRow key={product.id} product={product} t={t} storeCurrency={storeCurrency} />)}</div>
       );
 
     case "product_detail":
-      return <ProductRow product={artifact.product} t={t} />;
+      return <ProductRow product={artifact.product} t={t} storeCurrency={storeCurrency} />;
 
     case "order_list":
       return artifact.orders.length === 0 ? (
@@ -201,7 +203,7 @@ export function ToolResultCard({ artifact }: { artifact: ChatArtifact }) {
               {statEntries.map(([key, value]) => (
                 <div key={key} className="min-w-0 rounded-md border border-border px-3 py-2">
                   <dt className="text-xs text-ink-subtle">{statFieldLabel(t, key)}</dt>
-                  <dd className="tabular-nums text-sm font-semibold text-ink [overflow-wrap:anywhere]">{formatStatValue(t, key, value)}</dd>
+                  <dd className="tabular-nums text-sm font-semibold text-ink [overflow-wrap:anywhere]">{formatStatValue(t, key, value, storeCurrency)}</dd>
                 </div>
               ))}
             </dl>

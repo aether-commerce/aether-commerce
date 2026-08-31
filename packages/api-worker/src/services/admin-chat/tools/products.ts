@@ -12,6 +12,7 @@ function toSummaryArtifact(row: AdminProductSummary): ProductSummaryArtifact {
     sku: row.sku,
     category: row.category,
     priceCents: row.finalPriceCents,
+    currency: row.currency,
     stock: row.stock,
     visibility: row.visibility,
     href: `/products/edit/?id=${encodeURIComponent(row.id)}`

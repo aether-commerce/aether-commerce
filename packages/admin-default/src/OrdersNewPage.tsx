@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useAuth } from "@clerk/react";
 import { Plus, Search, Trash2 } from "lucide-react";
 import { RequireAdminAuth } from "./RequireAdminAuth";
-import { useAdminConfig } from "./AetherAdminProvider";
+import { useAdminConfig, useAdminStoreCurrency } from "./AetherAdminProvider";
 import { PageHeader } from "./PageHeader";
 import { FormSection } from "./FormSection";
 import { useAdminLanguage } from "./AdminLanguageProvider";
@@ -19,13 +19,14 @@ type ProductOption = {
 
 type LineItem = { productId: string; name: string; unitPriceCents: number; quantity: number; currency: "USD" | "COP" };
 
-function money(cents: number, currency: string | undefined, locale: string) {
-  return new Intl.NumberFormat(locale === "es" ? "es-CO" : "en-US", { style: "currency", currency: currency ?? "USD" }).format(cents / 100);
+function money(cents: number, currency: string, locale: string) {
+  return new Intl.NumberFormat(locale === "es" ? "es-CO" : "en-US", { style: "currency", currency }).format(cents / 100);
 }
 
 export function OrdersNewPage() {
   const { getToken } = useAuth();
   const { apiBaseUrl } = useAdminConfig();
+  const storeCurrency = useAdminStoreCurrency();
   const { t, locale } = useAdminLanguage();
   const [email, setEmail] = useState("");
   const [notes, setNotes] = useState("");
@@ -218,7 +219,7 @@ export function OrdersNewPage() {
               )}
               <div className="flex justify-between border-t border-border pt-3 text-sm font-semibold text-ink">
                 <span>{t.newOrderPage.subtotal}</span>
-                <span className="tabular-nums">{money(subtotal, items[0]?.currency ?? "USD", locale)}</span>
+                <span className="tabular-nums">{money(subtotal, items[0]?.currency ?? storeCurrency, locale)}</span>
               </div>
 
               {submitError ? <p className="text-sm text-danger">{submitError}</p> : null}
