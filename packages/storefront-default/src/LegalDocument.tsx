@@ -33,7 +33,7 @@ export function LegalDocument({
   documents
 }: Readonly<{ documentKey: LegalDocumentKey; documents: LegalDocuments }>) {
   const { locale } = useLanguage();
-  const document = documents[locale][documentKey]!;
+  const document = documents[locale][documentKey];
 
   return (
     <main className="aether-shell py-10 md:py-14">
