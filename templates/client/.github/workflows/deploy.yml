@@ -80,6 +80,12 @@ jobs:
           NEXT_PUBLIC_AETHER_API_URL: ${{ vars.NEXT_PUBLIC_AETHER_API_URL || steps.cloudflare.outputs.api_url }}
           NEXT_PUBLIC_AETHER_BASE_PATH: ${{ vars.NEXT_PUBLIC_AETHER_BASE_PATH }}
         run: pnpm --filter ./apps/storefront build
+      - name: Build storefront Worker bundle
+        env:
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+          NEXT_PUBLIC_AETHER_API_URL: ${{ vars.NEXT_PUBLIC_AETHER_API_URL || steps.cloudflare.outputs.api_url }}
+          NEXT_PUBLIC_AETHER_BASE_PATH: ${{ vars.NEXT_PUBLIC_AETHER_BASE_PATH }}
+        run: pnpm --filter ./apps/storefront build:cloudflare
       # Bootstrap writes an ignored, account-specific config. The source
       # config remains portable and never needs an account UUID committed.
       - name: Apply D1 migrations

@@ -1,6 +1,7 @@
 node_modules
 next-env.d.ts
 .next
+.open-next
 out
 dist
 .turbo

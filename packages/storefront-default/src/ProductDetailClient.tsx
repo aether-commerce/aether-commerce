@@ -21,11 +21,14 @@ import { ReviewsSection } from "./ReviewsSection";
 
 export function ProductDetailClient({
   slug,
-  fallbackProduct
+  fallbackProduct,
+  initialProduct
 }: {
   slug: string;
   /** Optional catalog seed to show if the live API is unreachable or doesn't have this product. A generic default skin ships no hardcoded products - pass your own (or omit for a "not found" state). */
   fallbackProduct?: Product | null;
+  /** Product loaded by a server-rendered route. The client revalidates it after hydration. */
+  initialProduct?: Product | null;
 }) {
   const { locale, t } = useLanguage();
   const { config, apiBaseUrl, reviewsEnabled } = useStorefrontConfig();
@@ -34,8 +37,8 @@ export function ProductDetailClient({
   const { isComparing, toggle: toggleCompareHook } = useCompare();
   const productWindowRef = useRef<HTMLDivElement | null>(null);
   const fallback = fallbackProduct ?? null;
-  const [product, setProduct] = useState<Product | null>(null);
-  const [status, setStatus] = useState<"loading" | "demo" | "live" | "offline" | "not-found">("loading");
+  const [product, setProduct] = useState<Product | null>(initialProduct ?? null);
+  const [status, setStatus] = useState<"loading" | "demo" | "live" | "offline" | "not-found">(initialProduct ? "live" : "loading");
   const [isAdding, setIsAdding] = useState(false);
   const [compareNotice, setCompareNotice] = useState<string | null>(null);
   const [activeImage, setActiveImage] = useState(0);
@@ -71,10 +74,9 @@ export function ProductDetailClient({
   useEffect(() => {
     if (!slug) return;
     const controller = new AbortController();
-    setProduct(null);
     setActiveImage(0);
     setQuantity(1);
-    setStatus("loading");
+    setStatus(initialProduct ? "live" : "loading");
     fetch(`${apiBaseUrl}/api/v1/products/slug/${encodeURIComponent(slug)}`, {
       signal: controller.signal
     })
@@ -86,16 +88,18 @@ export function ProductDetailClient({
           setStatus("live");
           return;
         }
-        setProduct(fallback);
-        setStatus(fallback ? "demo" : "not-found");
+        const nextProduct = initialProduct ?? fallback;
+        setProduct(nextProduct);
+        setStatus(nextProduct ? (initialProduct ? "offline" : "demo") : "not-found");
       })
       .catch(() => {
         if (controller.signal.aborted) return;
-        setProduct(fallback);
-        setStatus(fallback ? "offline" : "not-found");
+        const nextProduct = initialProduct ?? fallback;
+        setProduct(nextProduct);
+        setStatus(nextProduct ? "offline" : "not-found");
       });
     return () => controller.abort();
-  }, [fallback, slug, apiBaseUrl]);
+  }, [fallback, initialProduct, slug, apiBaseUrl]);
 
   useEffect(() => {
     if (!product) return;

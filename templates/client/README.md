@@ -9,9 +9,10 @@ copy Aether demo data, provider secrets or deployment resources.
    the included `.npmrc` configures the scoped registry without storing a secret.
 3. Run `pnpm install`, `pnpm validate`, then `git init`.
 4. `apps/admin/` and `apps/storefront/` are real, deployable Next.js projects
-   (App Router, `output: "export"`, their own `package.json`/`next.config.mjs`)
-   wired together by the root `pnpm-workspace.yaml` - `pnpm --filter ./apps/admin build`
-   (or `./apps/storefront`) produces a static `out/` directory for each.
+   (App Router, their own `package.json`/`next.config.mjs`) wired together by
+   the root `pnpm-workspace.yaml`. The storefront is rendered by an edge Worker
+   so catalog records created after deployment do not require a rebuild; the
+   admin remains a static Pages application.
    `apps/admin/app/{layout,page}.tsx` and `apps/storefront/app/{layout,page}.tsx`
    already render a working default skin - `@aether-commerce/admin-default` and
    `@aether-commerce/storefront-default` - wired to `config/`. Both directories also ship
@@ -53,18 +54,16 @@ copy Aether demo data, provider secrets or deployment resources.
      already substituted. `apps/ai/adapter.ts` has no packaged default yet -
      implement it using its typed `adapter.ts`, `src/configuration.ts`, and
      the versioned `@aether-commerce/*` packages.
-   - `apps/storefront/app/products/[slug]/page.tsx` and `categories/[slug]/page.tsx`
-     ship `generateStaticParams()` returning a single `"example"` placeholder
-     slug - `output: "export"` refuses to emit zero pages for a dynamic
-     segment, and a fresh client has no catalog yet. Replace it with real
-     slugs from your own catalog once you have one.
+   - `apps/storefront/app/products/[slug]/page.tsx` resolves product details and
+     metadata against the live API at request time. New products therefore do
+     not require a frontend build or static route generation.
    - Privacy, cookies, terms, returns, and shipping pages aren't included -
      that content is genuinely yours to write, not something a starter can
      provide. `config/legal.ts`'s `legalPolicyVersion` (sent by the contact
      form and the AI assistant) is a placeholder until you add real pages.
 5. `apps/storefront/wrangler.jsonc` and `apps/api/wrangler.jsonc` each deploy
    their own Cloudflare Worker (`wrangler deploy`, or each app's own
-   `pnpm deploy`) - the storefront's serves its static `out/` directory, the
+   `pnpm deploy`) - the storefront's runs the OpenNext server bundle and the
    API's runs `@aether-commerce/api-worker` directly. The admin panel has no
    `wrangler.jsonc` of its own - deploy its `out/` directory to Cloudflare
    Pages instead (`wrangler pages deploy apps/admin/out --project-name=<name>`),

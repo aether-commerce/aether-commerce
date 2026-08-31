@@ -1,7 +1,9 @@
 {
   "$schema": "../../node_modules/wrangler/config-schema.json",
   "name": "aether-storefront",
-  "compatibility_date": "2026-08-08",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-08-28",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "workers_dev": true,
   "preview_urls": true,
   "observability": {
@@ -9,8 +11,8 @@
     "head_sampling_rate": 1
   },
   "assets": {
-    "directory": "./out",
-    "html_handling": "auto-trailing-slash",
-    "not_found_handling": "404-page"
-  }
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "aether-storefront" }]
 }

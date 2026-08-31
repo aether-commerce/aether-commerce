@@ -79,6 +79,8 @@ jobs:
           node scripts/write-api-wrangler-config.mjs
           node scripts/write-ai-wrangler-config.mjs
           node scripts/write-storefront-wrangler-config.mjs
+      - name: Build development storefront Worker bundle
+        run: pnpm --filter @aether-commerce/storefront build:cloudflare
       - name: Apply development D1 migrations
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

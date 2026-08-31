@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "next dev --port 3000",
     "build": "next build",
+    "build:cloudflare": "opennextjs-cloudflare build",
+    "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "deploy": "wrangler deploy --config ./wrangler.jsonc",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint app"
@@ -19,10 +21,11 @@
     "@aether-commerce/ui": "^0.1.0",
     "@clerk/react": "^6.12.3",
     "@hookform/resolvers": "^5.2.0",
+    "@opennextjs/cloudflare": "^1.20.4",
     "@tanstack/react-query": "^5.90.0",
     "framer-motion": "^12.42.0",
     "lucide-react": "^1.24.0",
-    "next": "^16.3.0",
+    "next": "^16.3.3",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "react-hook-form": "^7.68.0",
@@ -36,6 +39,6 @@
     "sharp": "^0.35.0",
     "tailwindcss": "^4.2.0",
     "typescript": "^5.9.0",
-    "wrangler": "^4.120.0"
+    "wrangler": "^4.127.1"
   }
 }
