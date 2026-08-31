@@ -1,4 +1,9 @@
-export { AetherStorefrontProvider, useStorefrontConfig, useStorefrontPath, type StorefrontRuntimeConfig } from "./AetherStorefrontProvider";
+export {
+  AetherStorefrontProvider,
+  useStorefrontConfig,
+  useStorefrontPath,
+  type StorefrontRuntimeConfig
+} from "./AetherStorefrontProvider";
 export { LanguageProvider, useLanguage } from "./LanguageProvider";
 export { dictionaries, locales, type Locale } from "./dictionaries";
 export { StorefrontLink } from "./StorefrontLink";
@@ -28,10 +33,23 @@ export {
 export { CompareProvider, useCompare, type CompareContextValue } from "./CompareProvider";
 
 export { getLocalizedProduct } from "./product-localization";
-export { LOW_STOCK_THRESHOLD, EXPOSE_EXACT_STOCK_COUNT, getImageBadge, isLowStock, getLowStockLabel, type ImageBadge } from "./product-badge-logic";
+export {
+  LOW_STOCK_THRESHOLD,
+  EXPOSE_EXACT_STOCK_COUNT,
+  getImageBadge,
+  isLowStock,
+  getLowStockLabel,
+  type ImageBadge
+} from "./product-badge-logic";
 export { ProductBadge } from "./ProductBadge";
 export { ProductCard, ProductCardSkeleton } from "./ProductCard";
-export { CategoryGrid, CategorySection, DefaultCategorySectionRenderer, type CategorySectionRenderer, type StorefrontCategorySectionData } from "./CategoryGrid";
+export {
+  CategoryGrid,
+  CategorySection,
+  DefaultCategorySectionRenderer,
+  type CategorySectionRenderer,
+  type StorefrontCategorySectionData
+} from "./CategoryGrid";
 export { ProductGrid } from "./ProductGrid";
 export { FloatingCart } from "./FloatingCart";
 
@@ -47,8 +65,18 @@ export { FavoritesPage } from "./FavoritesPage";
 export { ThemeToggle } from "./ThemeToggle";
 export { SiteHeader } from "./SiteHeader";
 
-export { useCheckoutOptions, useShippingSettings, type CheckoutOptions, type ShippingSettings } from "./checkout-options";
-export { buildWhatsappUrl, buildCartWhatsappMessage, buildInquiryWhatsappMessage, buildProductWhatsappMessage } from "./whatsapp-checkout";
+export {
+  useCheckoutOptions,
+  useShippingSettings,
+  type CheckoutOptions,
+  type ShippingSettings
+} from "./checkout-options";
+export {
+  buildWhatsappUrl,
+  buildCartWhatsappMessage,
+  buildInquiryWhatsappMessage,
+  buildProductWhatsappMessage
+} from "./whatsapp-checkout";
 export { WhatsappBubble } from "./WhatsappBubble";
 export { CartPage } from "./CartPage";
 export { CheckoutPage } from "./CheckoutPage";
@@ -66,3 +94,10 @@ export { CookieNotice } from "./CookieNotice";
 export { ContactForm } from "./ContactForm";
 export { HomePage } from "./HomePage";
 export { ComparePage } from "./ComparePage";
+export {
+  LegalDocument,
+  type LegalDocumentContent,
+  type LegalDocumentKey,
+  type LegalDocumentSection,
+  type LegalDocuments
+} from "./LegalDocument";
