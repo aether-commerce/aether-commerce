@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://store.diferez.com"),
   openGraph: {
     title: "Aether Premium Commerce Demo",
-    description: "Premium technology shopping demo with static storefront and Worker API.",
+    description: "Premium technology shopping demo with a dynamic storefront and Worker API.",
     type: "website"
   }
 };

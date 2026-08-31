@@ -1,5 +1,11 @@
 # @aether-commerce/storefront-default
 
+## 0.2.4
+
+### Patch Changes
+
+- 5244e2e: Add request-time product loading support for storefronts so products created in the admin do not require a frontend rebuild.
+
 ## 0.2.3
 
 ### Patch Changes

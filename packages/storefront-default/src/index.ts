@@ -57,6 +57,7 @@ export { CheckoutCancelPage } from "./CheckoutCancelPage";
 
 export { ReviewsSection } from "./ReviewsSection";
 export { ProductDetailClient } from "./ProductDetailClient";
+export { fetchProductBySlug, type ProductLookup } from "./product-detail-server";
 
 export { AssistantWidget } from "./AssistantWidget";
 

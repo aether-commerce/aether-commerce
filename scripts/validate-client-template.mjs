@@ -17,7 +17,7 @@ const adminRouteManifest = JSON.parse(readFileSync(resolve(root, "packages/admin
 const adminRouteFiles = adminRouteManifest.routes.map(({ file }) => `apps/admin/app/${file}`);
 const required = [
   "config/brand.ts", "config/store.ts", "config/features.ts", "config/theme.ts", "config/checkout.ts", "config/integrations.ts", "config/agent.ts", "config/navigation.ts", "src/configuration.ts",
-  "apps/storefront/adapter.ts", "apps/storefront/app/layout.tsx", "apps/storefront/app/page.tsx", "apps/storefront/package.json", "apps/storefront/next.config.mjs", "apps/storefront/wrangler.jsonc",
+  "apps/storefront/adapter.ts", "apps/storefront/app/layout.tsx", "apps/storefront/app/not-found.tsx", "apps/storefront/app/page.tsx", "apps/storefront/app/products/[slug]/page.tsx", "apps/storefront/package.json", "apps/storefront/next.config.mjs", "apps/storefront/open-next.config.ts", "apps/storefront/wrangler.jsonc",
   "apps/admin/adapter.ts", "apps/admin/app/layout.tsx", "apps/admin/app/page.tsx", "apps/admin/package.json", "apps/admin/next.config.mjs",
   ...adminRouteFiles,
   "apps/api/adapter.ts", "apps/api/package.json", "apps/api/wrangler.jsonc", "apps/api/src/index.ts", "apps/ai/adapter.ts", "src/adapters.ts",
@@ -49,7 +49,7 @@ const temporaryParent = mkdtempSync(join(tmpdir(), "aether-client-template-"));
 try {
   const generated = createClient("validation-store", { destinationParent: temporaryParent });
   for (const entry of [
-    "apps/storefront/adapter.ts", "apps/storefront/app/layout.tsx", "apps/storefront/app/page.tsx",
+    "apps/storefront/adapter.ts", "apps/storefront/app/layout.tsx", "apps/storefront/app/not-found.tsx", "apps/storefront/app/page.tsx", "apps/storefront/app/products/[slug]/page.tsx", "apps/storefront/open-next.config.ts",
     "apps/admin/adapter.ts", "apps/admin/app/layout.tsx", "apps/admin/app/page.tsx",
     ...adminRouteFiles,
     "apps/api/adapter.ts", "apps/api/package.json", "apps/api/wrangler.jsonc", "apps/api/src/index.ts", "apps/ai/adapter.ts",

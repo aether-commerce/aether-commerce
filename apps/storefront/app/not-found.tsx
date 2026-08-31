@@ -1,40 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { ArrowRight, Compass, Home, SearchX, Sparkles } from "lucide-react";
-import { ProductDetailClient } from "@aether-commerce/storefront-default";
 import { StorefrontLink } from "../components/StorefrontLink";
 import { useLanguage } from "../components/LanguageProvider";
 
-function dynamicProductSlug(pathname: string) {
-  const segments = pathname.split("/").filter(Boolean);
-  const productsIndex = segments.lastIndexOf("products");
-  const candidate = productsIndex >= 0 ? segments[productsIndex + 1] : undefined;
-
-  if (!candidate || candidate === "detail") return null;
-
-  try {
-    return decodeURIComponent(candidate);
-  } catch {
-    return candidate;
-  }
-}
-
 export default function NotFoundPage() {
   const { t } = useLanguage();
-  const [productSlug, setProductSlug] = useState<string | null>(null);
-
-  useEffect(() => {
-    // Static export can only emit product pages known at build time. Cloudflare
-    // Pages serves this 404 document for newly-created catalog slugs, so let
-    // the client detail flow resolve those slugs against the live API.
-
-    setProductSlug(dynamicProductSlug(window.location.pathname));
-  }, []);
-
-  if (productSlug) {
-    return <ProductDetailClient slug={productSlug} fallbackProduct={null} />;
-  }
 
   return (
     <main className="aether-shell grid min-h-[calc(100vh-4rem)] place-items-center py-12 sm:py-16">

@@ -6,10 +6,14 @@ const basePath = process.env.NEXT_PUBLIC_AETHER_BASE_PATH?.replace(/\/$/, "") ||
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: "export",
   basePath,
   images: {
     unoptimized: true
+  },
+  // Client storefronts use unoptimized images; do not trace optional native
+  // image binaries into the Workers bundle.
+  outputFileTracingExcludes: {
+    "*": ["node_modules/@img/sharp-wasm32/**/*", "node_modules/@emnapi/**/*"]
   },
   trailingSlash: true,
   turbopack: {

@@ -78,10 +78,17 @@ jobs:
           NEXT_PUBLIC_PORTFOLIO_URL: https://portfolio.example.com
           NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_Y2xlcmsuZXhhbXBsZS5jb20k
         run: pnpm build
+      - name: Build storefront Worker bundle
+        env:
+          NEXT_PUBLIC_AETHER_API_URL: https://api.example.com
+          NEXT_PUBLIC_AETHER_AI_URL: https://ai.example.com
+          NEXT_PUBLIC_PORTFOLIO_URL: https://portfolio.example.com
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_Y2xlcmsuZXhhbXBsZS5jb20k
+        run: pnpm --filter @aether-commerce/storefront build:cloudflare
       - name: Verify outputs
         run: |
           test -f apps/api/dist/index.js
-          test -f apps/storefront/out/index.html
+          test -f apps/storefront/.open-next/worker.js
           test -f apps/admin/out/index.html
       - name: Install Playwright browser
         run: pnpm exec playwright install chromium
