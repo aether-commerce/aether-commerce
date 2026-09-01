@@ -19,5 +19,5 @@
   // for apps/api) inside a freshly generated client, where react/next/
   // @sentry/cloudflare and Workers types all resolve normally because it's a
   // real, standalone npm-style project.
-  "exclude": ["apps/**/*.tsx", "apps/api/src/**/*.ts", "apps/storefront/open-next.config.ts"]
+  "exclude": ["apps/**/*.tsx", "apps/api/src/**/*.ts", "apps/storefront/app/**/*.ts", "apps/storefront/open-next.config.ts"]
 }
