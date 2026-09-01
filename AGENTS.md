@@ -9,6 +9,18 @@ rama de trabajo -> PR a develop -> PR de promoción develop a main -> CI -> prod
 `develop` es la rama de integración y `main` es la rama de producción. No se
 publica ni se despliega desde ramas de trabajo.
 
+## Sincronización del agente de administración
+
+Cada vez que se agregue o modifique una funcionalidad, una ruta o un flujo
+visible para el operador, se debe revisar y actualizar en el mismo cambio el
+agente de administración para que responda según la interfaz vigente. Esto
+incluye el prompt versionado en
+`packages/api-worker/src/prompts/admin-chat-system-prompt.ts`, las herramientas
+de navegación y las herramientas/contratos afectados, además de sus pruebas o
+evaluaciones de regresión. El agente no debe describir un flujo antiguo ni
+redirigir a un módulo distinto cuando existe una sección específica para esa
+acción.
+
 ## Reglas de las ramas
 
 - Crear una rama corta desde `develop` para cada cambio: `feat/...`, `fix/...`

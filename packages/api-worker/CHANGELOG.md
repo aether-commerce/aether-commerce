@@ -1,5 +1,11 @@
 # @aether-commerce/api-worker
 
+## 0.3.10
+
+### Patch Changes
+
+- ec78d69: Keep the administration assistant aligned with the dedicated categories module and route category-management questions to it.
+
 ## 0.3.9
 
 ### Patch Changes

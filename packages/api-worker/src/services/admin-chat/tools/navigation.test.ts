@@ -3,6 +3,15 @@ import { navigateToTool } from "./navigation";
 import { fakeContext, fakeEnv } from "../test-support";
 
 describe("navigateToTool", () => {
+  it("opens the dedicated categories module in Spanish", async () => {
+    const { env } = fakeEnv();
+    const result = await navigateToTool.run({ module: "categories" }, fakeContext(env, {}, { language: "es" }));
+    expect(result).toMatchObject({
+      message: "Aquí está Categorías.",
+      artifact: { type: "navigate", href: "/categories/", label: "Categorías" }
+    });
+  });
+
   it("builds a plain module link when no filters are given", async () => {
     const { env } = fakeEnv();
     const result = await navigateToTool.run({ module: "products" }, fakeContext(env));
