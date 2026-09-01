@@ -23,7 +23,7 @@ function formString(form: FormData, key: string, fallback = "") {
 // (not part of AetherStorefrontProvider's shared config) for the same reason
 // AssistantWidget takes it as a prop - it comes from a legal-copy module
 // this package doesn't own.
-export function ContactForm({ legalPolicyVersion, addressBlock }: Readonly<{ legalPolicyVersion: string; addressBlock?: ReactNode }>) {
+export function ContactForm({ legalPolicyVersion, addressBlock, headingLevel = "h2" }: Readonly<{ legalPolicyVersion: string; addressBlock?: ReactNode; headingLevel?: "h1" | "h2" }>) {
   const { locale, t } = useLanguage();
   const { apiBaseUrl } = useStorefrontConfig();
   const [status, setStatus] = useState("");
@@ -58,6 +58,8 @@ export function ContactForm({ legalPolicyVersion, addressBlock }: Readonly<{ leg
     }
   }
 
+  const Heading = headingLevel === "h1" ? "h1" : "h2";
+
   return (
     <section className="aether-shell py-10" aria-labelledby="contact-heading">
       <div className="grid gap-6 rounded-lg border border-zinc-200 bg-white p-5 md:grid-cols-[0.8fr_1.2fr]">
@@ -66,9 +68,9 @@ export function ContactForm({ legalPolicyVersion, addressBlock }: Readonly<{ leg
             <Mail size={17} aria-hidden />
             {labels.eyebrow}
           </p>
-          <h2 id="contact-heading" className="mt-2 text-2xl font-semibold text-zinc-950">
+          <Heading id="contact-heading" className="mt-2 text-2xl font-semibold text-zinc-950">
             {labels.title}
-          </h2>
+          </Heading>
           <p className="mt-3 text-sm leading-6 text-zinc-600">{labels.description}</p>
           {addressBlock}
           <p className="mt-4 rounded-md bg-zinc-100 px-3 py-2 text-sm font-medium text-zinc-700">

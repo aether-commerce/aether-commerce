@@ -3,7 +3,8 @@
   "compilerOptions": {
     "baseUrl": "../..",
     "paths": {
-      "@aether-commerce/config-schema": ["packages/config-schema/src/index.ts"]
+      "@aether-commerce/config-schema": ["packages/config-schema/src/index.ts"],
+      "@aether-commerce/storefront-default": ["packages/storefront-default/src/index.ts"]
     }
   },
   // The .tsx example files (apps/storefront, apps/admin) need real react/next
@@ -18,5 +19,5 @@
   // for apps/api) inside a freshly generated client, where react/next/
   // @sentry/cloudflare and Workers types all resolve normally because it's a
   // real, standalone npm-style project.
-  "exclude": ["apps/**/*.tsx", "apps/api/src/**/*.ts", "apps/storefront/open-next.config.ts"]
+  "exclude": ["apps/**/*.tsx", "apps/api/src/**/*.ts", "apps/storefront/app/**/*.ts", "apps/storefront/open-next.config.ts"]
 }

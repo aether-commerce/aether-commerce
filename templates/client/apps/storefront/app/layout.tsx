@@ -3,22 +3,33 @@ import "./globals.css";
 import {
   AetherAuthProvider,
   AetherStorefrontProvider,
+  Analytics,
   AssistantWidget,
   CookieNotice,
   FloatingCart,
   LanguageProvider,
   SiteFooter,
   SiteHeader,
-  WhatsappBubble
+  WhatsappBubble,
+  StorefrontJsonLd
 } from "@aether-commerce/storefront-default";
 import { themeTokensToCssVariables } from "@aether-commerce/ui/theme";
 import { clientConfiguration } from "../../../src/configuration";
 import { legalPolicyVersion } from "../../../config/legal";
 import { AppProviders } from "../components/AppProviders";
+import { analyticsMeasurementId, googleSiteVerification, storefrontMetadataBase, storefrontSiteName, storefrontSiteUrl } from "./seo-config";
 
 export const metadata: Metadata = {
-  title: clientConfiguration.brand.name,
-  description: `${clientConfiguration.brand.name} storefront.`
+  title: { default: `${storefrontSiteName} | Storefront`, template: `%s | ${storefrontSiteName}` },
+  description: `${storefrontSiteName} storefront.`,
+  metadataBase: storefrontMetadataBase,
+  openGraph: {
+    title: `${storefrontSiteName} | Storefront`,
+    description: `${storefrontSiteName} storefront.`,
+    type: "website",
+    url: storefrontMetadataBase
+  },
+  ...(googleSiteVerification ? { verification: { google: googleSiteVerification } } : {})
 };
 
 const themeInitScript = `
@@ -56,6 +67,13 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <style>{`html[data-locale-pending] body { visibility: hidden; }`}</style>
       </head>
       <body>
+        <Analytics measurementId={analyticsMeasurementId} />
+        <StorefrontJsonLd
+          data={[
+            { "@context": "https://schema.org", "@type": "WebSite", name: storefrontSiteName, url: storefrontSiteUrl.toString() },
+            { "@context": "https://schema.org", "@type": "Organization", name: storefrontSiteName, url: storefrontSiteUrl.toString() }
+          ]}
+        />
         {/* AI assistant Worker URL isn't part of clientConfiguration (it's a
             separate deployment, config/agent.ts only names which env var
             holds it) - NEXT_PUBLIC_* vars must be referenced statically like
@@ -73,7 +91,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
                 <SiteHeader />
                 {children}
                 <SiteFooter />
-                <CookieNotice />
+                <CookieNotice analyticsEnabled={Boolean(analyticsMeasurementId)} />
                 <AssistantWidget legalPolicyVersion={legalPolicyVersion} />
                 <WhatsappBubble />
                 <FloatingCart />

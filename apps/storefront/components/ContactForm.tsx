@@ -8,10 +8,11 @@ import { legalPolicyVersion } from "./legal-content";
 // fields/submit logic - only the address block (this deployment's real
 // contact details) and legalPolicyVersion (from the legal-content module
 // this package doesn't own) are deployment-specific.
-export function ContactForm() {
+export function ContactForm({ headingLevel = "h2" }: { headingLevel?: "h1" | "h2" } = {}) {
   return (
     <PackagedContactForm
       legalPolicyVersion={legalPolicyVersion}
+      headingLevel={headingLevel}
       addressBlock={
         <address className="mt-4 grid gap-2 text-sm not-italic text-ink-muted">
           <span className="flex items-start gap-2">
