@@ -1,21 +1,9 @@
 import type { MetadataRoute } from "next";
-import products from "../data/products.json";
+import { absoluteStorefrontUrl, fetchAllCatalogProducts, fetchCatalogCategories } from "@aether-commerce/storefront-default";
+import { apiBaseUrl } from "../components/config";
+import { demoProducts } from "../components/demo-products";
+import { storefrontSiteUrl } from "./seo-config";
 
-// output: "export" (next.config.mjs) requires every dynamic-looking route -
-// sitemap.xml and robots.txt included - to explicitly opt into static
-// generation, even though this one has no real per-request behavior to
-// begin with (confirmed live: the build fails without this).
-export const dynamic = "force-static";
-
-// Same origin layout.tsx's own metadataBase already hardcodes - kept
-// consistent rather than introducing a second source of truth for it.
-const baseUrl = "https://store.diferez.com";
-
-type CatalogProductSeed = { slug?: string };
-
-// Every public, indexable page - deliberately excludes /account/*, /cart,
-// /checkout, /login, /register (private or transactional, no content of
-// value to a crawler - see robots.ts's matching disallow list).
 const staticPaths: Array<{ path: string; priority: number }> = [
   { path: "/", priority: 1 },
   { path: "/products/", priority: 0.9 },
@@ -23,33 +11,34 @@ const staticPaths: Array<{ path: string; priority: number }> = [
   { path: "/deals/", priority: 0.7 },
   { path: "/featured/", priority: 0.7 },
   { path: "/new-arrivals/", priority: 0.7 },
-  { path: "/compare/", priority: 0.4 },
-  { path: "/search/", priority: 0.4 },
   { path: "/contact/", priority: 0.3 },
   { path: "/shipping/", priority: 0.3 },
   { path: "/returns/", priority: 0.3 },
   { path: "/terms/", priority: 0.2 },
   { path: "/privacy/", priority: 0.2 },
-  { path: "/cookies/", priority: 0.2 },
-  { path: "/architecture/", priority: 0.2 },
-  { path: "/api-docs/", priority: 0.2 }
+  { path: "/cookies/", priority: 0.2 }
 ];
 
-export default function sitemap(): MetadataRoute.Sitemap {
-  const staticEntries: MetadataRoute.Sitemap = staticPaths.map(({ path, priority }) => ({
-    url: `${baseUrl}${path}`,
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const [liveProducts, categories] = await Promise.all([fetchAllCatalogProducts(apiBaseUrl), fetchCatalogCategories(apiBaseUrl)]);
+  const products = liveProducts ?? demoProducts;
+
+  const staticEntries = staticPaths.map(({ path, priority }) => ({
+    url: absoluteStorefrontUrl(storefrontSiteUrl, path),
     changeFrequency: path === "/" ? "daily" : "weekly",
     priority
+  })) satisfies MetadataRoute.Sitemap;
+  const categoryEntries = (categories ?? []).map((category) => ({
+    url: absoluteStorefrontUrl(storefrontSiteUrl, `/categories/${category.slug}`),
+    changeFrequency: "weekly" as const,
+    priority: 0.6
+  }));
+  const productEntries = products.map((product) => ({
+    url: absoluteStorefrontUrl(storefrontSiteUrl, product.seo.canonicalPath),
+    lastModified: product.updatedAt,
+    changeFrequency: "weekly" as const,
+    priority: 0.6
   }));
 
-  const productEntries: MetadataRoute.Sitemap = (products as CatalogProductSeed[])
-    .map((product) => product.slug)
-    .filter((slug): slug is string => Boolean(slug))
-    .map((slug) => ({
-      url: `${baseUrl}/products/${slug}/`,
-      changeFrequency: "weekly",
-      priority: 0.6
-    }));
-
-  return [...staticEntries, ...productEntries];
+  return [...staticEntries, ...categoryEntries, ...productEntries];
 }

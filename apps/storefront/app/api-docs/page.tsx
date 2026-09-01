@@ -1,3 +1,7 @@
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "API docs", robots: { index: false, follow: false } };
+
 const endpoints = [
   ["GET", "/api/v1/catalog/products", "Paginated normalized products"],
   ["GET", "/api/v1/catalog/products/:slug", "Product detail"],

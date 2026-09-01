@@ -124,13 +124,13 @@ export const legalDocuments: Record<Locale, Record<LegalDocumentKey, LegalDocume
       eyebrow: "Legal / Navegador",
       title: "Política de cookies y almacenamiento local",
       summary:
-        "Aether no usa publicidad ni analítica de marketing. Estas tecnologías funcionales y de diagnóstico mantienen y protegen el servicio.",
+        "Aether no usa publicidad. La analítica opcional de uso solo se activa si la autorizas; las tecnologías funcionales y de diagnóstico mantienen y protegen el servicio.",
       updated: "Última actualización: 15 de agosto de 2026",
       sections: [
         {
           title: "1. Uso actual",
           paragraphs: [
-            "La tienda no instala cookies publicitarias, de perfiles ni de analítica de marketing. Sentry puede recibir eventos técnicos minimizados de errores y rendimiento; la grabación de sesiones está desactivada."
+            "La tienda no instala cookies publicitarias ni de perfiles. Si el operador configura GA4, la analítica de uso solo se carga después de que la aceptes y puedes rechazarla. Sentry puede recibir eventos técnicos minimizados de errores y rendimiento; la grabación de sesiones está desactivada."
           ]
         },
         {
@@ -145,13 +145,13 @@ export const legalDocuments: Record<Locale, Record<LegalDocumentKey, LegalDocume
           items: [
             "Local: aether.locale y aether.theme.v1 para idioma y apariencia; identificador y productos del carrito; favoritos; y la marca de migración de datos antiguos.",
             "De sesión: token temporal del carrito, identificador del chat y constancia de que aceptaste el aviso del asistente. Se eliminan normalmente al cerrar la sesión del navegador.",
-            "Aviso: aether.cookieNotice.v1 recuerda que cerraste esta notificación."
+            "Aviso: aether.cookieNotice.v1 recuerda que cerraste esta notificación. Si aceptas GA4, aether.analyticsConsent.v1 conserva esa elección."
           ]
         },
         {
           title: "4. Cómo gestionarlas",
           paragraphs: [
-            "Puedes borrar cookies y almacenamiento desde la configuración del navegador. Al hacerlo cerrarás la sesión o perderás carrito, favoritos, idioma, tema e historial visible del chat. Las funciones esenciales no se activan con fines publicitarios."
+            "Puedes borrar cookies y almacenamiento desde la configuración del navegador. Al hacerlo cerrarás la sesión o perderás carrito, favoritos, idioma, tema, historial visible del chat y la elección de analítica. Borrar aether.analyticsConsent.v1 retira el consentimiento para futuras cargas de GA4. Las funciones esenciales no se activan con fines publicitarios."
           ]
         },
         {
@@ -401,13 +401,13 @@ export const legalDocuments: Record<Locale, Record<LegalDocumentKey, LegalDocume
       eyebrow: "Legal / Browser",
       title: "Cookie and local storage policy",
       summary:
-        "Aether uses no advertising or marketing analytics. Functional and diagnostic technologies maintain and protect the service.",
+        "Aether uses no advertising. Optional usage analytics loads only when you allow it; functional and diagnostic technologies maintain and protect the service.",
       updated: "Last updated: August 15, 2026",
       sections: [
         {
           title: "1. Current use",
           paragraphs: [
-            "The store does not install advertising, profiling, or marketing analytics cookies. Sentry may receive minimized technical error and performance events; session replay is disabled."
+            "The store does not install advertising or profiling cookies. If the operator configures GA4, usage analytics loads only after you allow it and you may reject it. Sentry may receive minimized technical error and performance events; session replay is disabled."
           ]
         },
         {
@@ -422,19 +422,19 @@ export const legalDocuments: Record<Locale, Record<LegalDocumentKey, LegalDocume
           items: [
             "Local: aether.locale and aether.theme.v1; cart identifier and products; favorites; and the legacy-data migration marker.",
             "Session: temporary cart token, chat identifier, and the assistant privacy acknowledgement. These normally disappear when the browser session closes.",
-            "Notice: aether.cookieNotice.v1 remembers that you dismissed this message."
+            "Notice: aether.cookieNotice.v1 remembers that you dismissed this message. If you allow GA4, aether.analyticsConsent.v1 stores that choice."
           ]
         },
         {
           title: "4. Controls",
           paragraphs: [
-            "You may clear cookies and storage in browser settings. Doing so may sign you out or remove cart, favorites, language, theme, and visible chat history. Essential features are not used for advertising."
+            "You may clear cookies and storage in browser settings. Doing so may sign you out or remove cart, favorites, language, theme, visible chat history, and analytics choice. Clearing aether.analyticsConsent.v1 withdraws consent for future GA4 loads. Essential features are not used for advertising."
           ]
         },
         {
           title: "5. Future changes",
           paragraphs: [
-            "If analytics, non-essential personalization, or advertising is later added, Aether will provide controls to accept or reject those categories before activation where required."
+            "If additional analytics, non-essential personalization, or advertising is added, Aether will provide controls to accept or reject those categories before activation where required."
           ]
         }
       ]

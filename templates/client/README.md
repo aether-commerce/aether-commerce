@@ -98,7 +98,12 @@ the first run can succeed:
      the default `enam`; and `NEXT_PUBLIC_AETHER_BASE_PATH` only if the
      storefront isn't served from its domain's root. Optional custom-domain
      overrides are `NEXT_PUBLIC_AETHER_API_URL`, `APP_ORIGIN_STORE`, and
-     `APP_ORIGIN_ADMIN`.
+     `APP_ORIGIN_ADMIN`. `APP_ORIGIN_STORE` is also passed to the storefront
+     build so canonical URLs, Open Graph URLs, robots.txt, and sitemap.xml
+     point at the deployed store origin. Optional
+     `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` enables Google Search Console
+     verification metadata, and `NEXT_PUBLIC_GA_MEASUREMENT_ID` enables
+     consent-gated GA4 analytics.
 2. Push to `main` or run the workflow manually. The bootstrap is idempotent:
    it creates or reuses the D1 database, Pages project, and workers.dev
    subdomain, then generates `apps/api/wrangler.deploy.jsonc` for that run.

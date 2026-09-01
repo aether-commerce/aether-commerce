@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { AetherAuthProvider, AetherStorefrontProvider, AssistantWidget, CookieNotice } from "@aether-commerce/storefront-default";
+import { AetherAuthProvider, AetherStorefrontProvider, Analytics, AssistantWidget, CookieNotice, StorefrontJsonLd } from "@aether-commerce/storefront-default";
 import { AppProviders } from "../components/AppProviders";
 import { LanguageProvider } from "../components/LanguageProvider";
 import { FloatingCart } from "../components/FloatingCart";
@@ -12,16 +12,19 @@ import { legalPolicyVersion } from "../components/legal-content";
 import { WhatsappBubble } from "../components/WhatsappBubble";
 import { SiteFooter } from "../components/SiteFooter";
 import { SentryProvider } from "../components/SentryProvider";
+import { analyticsMeasurementId, googleSiteVerification, storefrontMetadataBase, storefrontSiteName, storefrontSiteUrl } from "./seo-config";
 
 export const metadata: Metadata = {
-  title: "Aether | Premium Commerce Demo",
+  title: { default: `${storefrontSiteName} | Premium Commerce`, template: `%s | ${storefrontSiteName}` },
   description: "A bilingual premium technology commerce demo powered by a Cloudflare Worker API.",
-  metadataBase: new URL("https://store.diferez.com"),
+  metadataBase: storefrontMetadataBase,
   openGraph: {
-    title: "Aether Premium Commerce Demo",
+    title: `${storefrontSiteName} | Premium Commerce`,
     description: "Premium technology shopping demo with a dynamic storefront and Worker API.",
-    type: "website"
-  }
+    type: "website",
+    url: storefrontMetadataBase
+  },
+  ...(googleSiteVerification ? { verification: { google: googleSiteVerification } } : {})
 };
 
 const themeInitScript = `
@@ -51,6 +54,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <style>{`html[data-locale-pending] body { visibility: hidden; }`}</style>
       </head>
       <body>
+        <Analytics measurementId={analyticsMeasurementId} />
+        <StorefrontJsonLd
+          data={[
+            { "@context": "https://schema.org", "@type": "WebSite", name: storefrontSiteName, url: storefrontSiteUrl.toString() },
+            { "@context": "https://schema.org", "@type": "Organization", name: storefrontSiteName, url: storefrontSiteUrl.toString() }
+          ]}
+        />
         <SentryProvider>
           <AetherStorefrontProvider
             config={aetherClientConfiguration}
@@ -64,7 +74,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   <SiteHeader />
                   {children}
                   <SiteFooter />
-                  <CookieNotice />
+                  <CookieNotice analyticsEnabled={Boolean(analyticsMeasurementId)} />
                   <AssistantWidget legalPolicyVersion={legalPolicyVersion} />
                   <WhatsappBubble />
                   <FloatingCart />

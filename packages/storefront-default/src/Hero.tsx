@@ -8,10 +8,10 @@ import { useStorefrontConfig } from "./AetherStorefrontProvider";
 import { useLanguage } from "./LanguageProvider";
 import { StorefrontLink } from "./StorefrontLink";
 
-export function Hero() {
+export function Hero({ initialProducts }: { initialProducts?: Product[] | undefined } = {}) {
   const { t } = useLanguage();
   const { config, apiBaseUrl } = useStorefrontConfig();
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<Product[]>(initialProducts ?? []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -61,7 +61,14 @@ export function Hero() {
                   index === 0 ? "col-span-2 aspect-[7/3] sm:aspect-[2/1]" : "aspect-square"
                 }`}
               >
-                <Image src={product.thumbnail} alt={product.name} fill sizes="(min-width: 1024px) 22vw, 50vw" className="object-contain p-3" />
+                <Image
+                  src={product.thumbnail}
+                  alt={product.name}
+                  fill
+                  priority={index === 0}
+                  sizes="(min-width: 1024px) 22vw, 50vw"
+                  className="object-contain p-3"
+                />
               </StorefrontLink>
             ) : (
               <div

@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import type { Product } from "@aether-commerce/schemas";
 import { ArrowRight } from "lucide-react";
 import { Benefits } from "./Benefits";
 import { CategorySection } from "./CategoryGrid";
@@ -9,6 +10,16 @@ import { Hero } from "./Hero";
 import { ProductGrid } from "./ProductGrid";
 import { useLanguage } from "./LanguageProvider";
 import { StorefrontLink } from "./StorefrontLink";
+import type { CatalogPagination } from "./catalog-server";
+import type { StorefrontCategorySectionData } from "./CategoryGrid";
+
+export type HomePageInitialData = {
+  heroProducts?: Product[] | undefined;
+  categorySection?: StorefrontCategorySectionData | null | undefined;
+  deals?: { products: Product[]; pagination: CatalogPagination } | null | undefined;
+  topRated?: { products: Product[]; pagination: CatalogPagination } | null | undefined;
+  newArrivals?: { products: Product[]; pagination: CatalogPagination } | null | undefined;
+};
 
 // The composition (Hero, categories, product rails, benefits, final CTA) is
 // the single source of truth - a fresh client keeping the default skin and
@@ -17,14 +28,14 @@ import { StorefrontLink } from "./StorefrontLink";
 // contactForm is the one slot the reference deployment overrides, passing
 // its own real ContactForm (apps/storefront/components/ContactForm.tsx)
 // instead of this package's address-less generic one.
-export function HomePage({ legalPolicyVersion, contactForm }: Readonly<{ legalPolicyVersion: string; contactForm?: ReactNode }>) {
+export function HomePage({ legalPolicyVersion, contactForm, initialData }: Readonly<{ legalPolicyVersion: string; contactForm?: ReactNode; initialData?: HomePageInitialData }>) {
   const { t } = useLanguage();
 
   return (
     <main>
-      <Hero />
+      <Hero initialProducts={initialData?.heroProducts} />
 
-      <CategorySection />
+      <CategorySection initialData={initialData?.categorySection} />
 
       <ProductGrid
         compact
@@ -33,8 +44,18 @@ export function HomePage({ legalPolicyVersion, contactForm }: Readonly<{ legalPo
         initialSort="discount"
         heading={t.dealsHeading}
         description={t.dealsDescription}
+        initialProducts={initialData?.deals?.products}
+        initialPagination={initialData?.deals?.pagination}
       />
-      <ProductGrid compact pageSize={4} initialSort="rating" heading={t.topRatedHeading} description={t.topRatedDescription} />
+      <ProductGrid
+        compact
+        pageSize={4}
+        initialSort="rating"
+        heading={t.topRatedHeading}
+        description={t.topRatedDescription}
+        initialProducts={initialData?.topRated?.products}
+        initialPagination={initialData?.topRated?.pagination}
+      />
       <ProductGrid
         compact
         pageSize={4}
@@ -42,6 +63,8 @@ export function HomePage({ legalPolicyVersion, contactForm }: Readonly<{ legalPo
         initialSort="newest"
         heading={t.lastChanceHeading}
         description={t.lastChanceDescription}
+        initialProducts={initialData?.newArrivals?.products}
+        initialPagination={initialData?.newArrivals?.pagination}
       />
 
       <Benefits />

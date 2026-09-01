@@ -51,6 +51,8 @@ export {
   type StorefrontCategorySectionData
 } from "./CategoryGrid";
 export { ProductGrid } from "./ProductGrid";
+export { fetchCatalogCategories, fetchCatalogCategorySection, fetchCatalogProducts, fetchAllCatalogProducts, type CatalogCategory, type CatalogPagination, type CatalogProductsResult, type CatalogQuery } from "./catalog-server";
+export { absoluteStorefrontUrl, buildProductJsonLd, normalizeStorefrontPath, resolveStorefrontUrl, StorefrontJsonLd } from "./seo";
 export { FloatingCart } from "./FloatingCart";
 
 export { AetherAuthProvider, useAetherAuth, type AuthCustomer } from "./AetherAuthProvider";
@@ -91,8 +93,9 @@ export { AssistantWidget } from "./AssistantWidget";
 
 export { Benefits } from "./Benefits";
 export { CookieNotice } from "./CookieNotice";
+export { Analytics, setAnalyticsConsent, type AnalyticsConsent } from "./Analytics";
 export { ContactForm } from "./ContactForm";
-export { HomePage } from "./HomePage";
+export { HomePage, type HomePageInitialData } from "./HomePage";
 export { ComparePage } from "./ComparePage";
 export {
   LegalDocument,

@@ -1,4 +1,6 @@
 import type { MetadataRoute } from "next";
+import { absoluteStorefrontUrl } from "@aether-commerce/storefront-default";
+import { storefrontSiteUrl } from "./seo-config";
 
 // output: "export" (next.config.mjs) requires every dynamic-looking route -
 // robots.txt included - to explicitly opt into static generation (see
@@ -7,8 +9,6 @@ export const dynamic = "force-static";
 
 // Same origin layout.tsx's own metadataBase already hardcodes - kept
 // consistent rather than introducing a second source of truth for it.
-const baseUrl = "https://store.diferez.com";
-
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: {
@@ -18,6 +18,6 @@ export default function robots(): MetadataRoute.Robots {
       // index - a signed-out visitor sees the same login wall on every one.
       disallow: ["/account/", "/checkout/", "/cart/", "/login/", "/register/"]
     },
-    sitemap: `${baseUrl}/sitemap.xml`
+    sitemap: absoluteStorefrontUrl(storefrontSiteUrl, "/sitemap.xml")
   };
 }

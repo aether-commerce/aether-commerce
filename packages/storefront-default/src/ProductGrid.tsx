@@ -12,18 +12,12 @@ import { useFavorites } from "./FavoritesProvider";
 import { useLanguage } from "./LanguageProvider";
 import { ProductCard, ProductCardSkeleton } from "./ProductCard";
 import { StorefrontLink } from "./StorefrontLink";
-
-type ApiPagination = {
-  page: number;
-  pageSize: number;
-  total: number;
-  pageCount: number;
-};
+import type { CatalogPagination } from "./catalog-server";
 
 type ApiProducts = {
   success: true;
   data: Product[];
-  pagination?: ApiPagination;
+  pagination?: CatalogPagination;
 };
 
 type ApiList = { success: true; data: Array<{ slug: string; name: string } | string> };
@@ -80,7 +74,10 @@ export function ProductGrid({
   description,
   pageSize = 12,
   fallbackProducts,
-  onProductOpen
+  onProductOpen,
+  initialProducts,
+  initialPagination,
+  headingLevel = "h2"
 }: {
   compact?: boolean;
   fixedCategory?: string;
@@ -94,6 +91,10 @@ export function ProductGrid({
   /** Optional catalog to show if the live API is unreachable. A generic default skin ships no hardcoded products - pass your own (or omit for an empty offline state). */
   fallbackProducts?: Product[];
   onProductOpen?: (event: MouseEvent<HTMLAnchorElement>, product: Product) => void;
+  /** Products fetched by the route during SSR. The browser still refreshes them for filters and freshness. */
+  initialProducts?: Product[] | undefined;
+  initialPagination?: CatalogPagination | undefined;
+  headingLevel?: "h1" | "h2" | undefined;
 }) {
   const syncUrl = !compact;
   const { config, apiBaseUrl } = useStorefrontConfig();
@@ -116,8 +117,8 @@ export function ProductGrid({
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [flag] = useState<"featured" | "deal" | "new" | "">(initialFlag);
 
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [products, setProducts] = useState<Product[]>(initialProducts ?? []);
+  const [loading, setLoading] = useState(!initialProducts);
   const [brands, setBrands] = useState<string[]>([]);
   const [categories, setCategories] = useState<Array<{ slug: string; name: string }>>([]);
   const [addingIds, setAddingIds] = useState<string[]>([]);
@@ -127,7 +128,7 @@ export function ProductGrid({
   const [restockEmail, setRestockEmail] = useState("");
   const [restockError, setRestockError] = useState("");
   const [restockSubmitting, setRestockSubmitting] = useState(false);
-  const [pagination, setPagination] = useState<ApiPagination>({
+  const [pagination, setPagination] = useState<CatalogPagination>(initialPagination ?? {
     page: 1,
     pageSize,
     total: 0,
@@ -184,7 +185,7 @@ export function ProductGrid({
   useEffect(() => {
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), catalogApiTimeoutMs);
-    setLoading(true);
+    setLoading(!initialProducts);
 
     const params = new URLSearchParams({
       page: String(page),
@@ -238,7 +239,8 @@ export function ProductGrid({
     inStock,
     excludeSlug,
     apiBaseUrl,
-    fallbackProducts
+    fallbackProducts,
+    initialProducts
   ]);
 
   const favoriteIds = useMemo(() => favorites.map((product) => product.id), [favorites]);
@@ -404,13 +406,15 @@ export function ProductGrid({
     </div>
   );
 
+  const Heading = headingLevel === "h1" ? "h1" : "h2";
+
   return (
     <section className="aether-shell py-8" aria-labelledby="catalog-heading">
       <div className="mb-5">
         {eyebrow ? <p className="text-sm font-semibold uppercase text-accent">{eyebrow}</p> : null}
-        <h2 id="catalog-heading" className={`${eyebrow ? "mt-1" : ""} text-2xl font-semibold tracking-normal text-zinc-950 md:text-4xl`}>
+        <Heading id="catalog-heading" className={`${eyebrow ? "mt-1" : ""} text-2xl font-semibold tracking-normal text-zinc-950 md:text-4xl`}>
           {heading ?? t.premiumCatalog}
-        </h2>
+        </Heading>
         {description ? <p className="mt-3 max-w-2xl text-base leading-7 text-zinc-600">{description}</p> : null}
       </div>
 
