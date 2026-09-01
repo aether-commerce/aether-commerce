@@ -185,6 +185,7 @@ export function ProductDetailClient({
                   src={product.images[activeImage]?.url ?? product.thumbnail}
                   alt={product.images[activeImage]?.alt || product.name}
                   fill
+                  priority
                   sizes="(min-width: 1024px) 48vw, 100vw"
                   className="object-contain p-6"
                 />

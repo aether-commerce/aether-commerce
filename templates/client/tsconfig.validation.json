@@ -3,7 +3,8 @@
   "compilerOptions": {
     "baseUrl": "../..",
     "paths": {
-      "@aether-commerce/config-schema": ["packages/config-schema/src/index.ts"]
+      "@aether-commerce/config-schema": ["packages/config-schema/src/index.ts"],
+      "@aether-commerce/storefront-default": ["packages/storefront-default/src/index.ts"]
     }
   },
   // The .tsx example files (apps/storefront, apps/admin) need real react/next

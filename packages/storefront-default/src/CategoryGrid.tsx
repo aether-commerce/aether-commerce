@@ -66,9 +66,9 @@ export function DefaultCategorySectionRenderer({ section, categories }: Storefro
 }
 
 /** Fetches a theme-neutral DTO. Empty, disabled, or failed data hides the section rather than rendering an empty grid. */
-export function CategorySection({ renderer }: { renderer?: CategorySectionRenderer }) {
+export function CategorySection({ renderer, initialData }: { renderer?: CategorySectionRenderer; initialData?: StorefrontCategorySectionData | null | undefined }) {
   const { apiBaseUrl } = useStorefrontConfig();
-  const [data, setData] = useState<StorefrontCategorySectionData | null>(null);
+  const [data, setData] = useState<StorefrontCategorySectionData | null>(initialData ?? null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -87,6 +87,6 @@ export function CategorySection({ renderer }: { renderer?: CategorySectionRender
 }
 
 /** Backward-compatible default-theme export. New themes should provide a CategorySection renderer. */
-export function CategoryGrid() {
-  return <CategorySection />;
+export function CategoryGrid({ initialData }: { initialData?: StorefrontCategorySectionData | null | undefined } = {}) {
+  return <CategorySection initialData={initialData} />;
 }
