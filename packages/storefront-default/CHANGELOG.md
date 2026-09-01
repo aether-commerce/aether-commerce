@@ -1,5 +1,11 @@
 # @aether-commerce/storefront-default
 
+## 0.3.0
+
+### Minor Changes
+
+- a76853c: Add server-rendered catalog data, reusable storefront SEO helpers, product structured data, responsive image optimization, consent-gated analytics, and category/catalog fetch utilities for client storefronts.
+
 ## 0.2.5
 
 ### Patch Changes
