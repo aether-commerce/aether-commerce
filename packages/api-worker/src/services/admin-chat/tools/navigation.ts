@@ -4,24 +4,36 @@ import { getProductRow } from "../../products-admin";
 import { getCustomerDetail } from "../../customers";
 import { pick } from "../language";
 
-type NavModule = "home" | "orders" | "products" | "inventory" | "customers" | "settings" | "activity";
+type NavModule = "home" | "orders" | "products" | "categories" | "inventory" | "customers" | "settings" | "activity";
 
 const KNOWN_MODULES: Record<NavModule, string> = {
   home: "/",
   orders: "/orders/",
   products: "/products/",
+  categories: "/categories/",
   inventory: "/inventory/",
   customers: "/customers/",
   settings: "/settings/",
   activity: "/activity/"
 };
 
+const MODULE_LABELS: Record<NavModule, { en: string; es: string }> = {
+  home: { en: "Home", es: "Inicio" },
+  orders: { en: "Orders", es: "Pedidos" },
+  products: { en: "Products", es: "Productos" },
+  categories: { en: "Categories", es: "Categorías" },
+  inventory: { en: "Inventory", es: "Inventario" },
+  customers: { en: "Customers", es: "Clientes" },
+  settings: { en: "Settings", es: "Configuración" },
+  activity: { en: "Activity", es: "Actividad" }
+};
+
 export const navigateToTool = defineAdminChatTool({
   name: "navigate_to",
   description:
-    "Builds a link to an admin panel module, optionally with filters already applied (e.g. products filtered to out-of-stock). Use this instead of explaining where to click.",
+    "Builds a link to an admin panel module, optionally with filters already applied (e.g. products filtered to out-of-stock). Use categories for creating, editing, hiding, reordering, or deleting catalog categories instead of products. Use this instead of explaining where to click.",
   schema: z.object({
-    module: z.enum(["home", "orders", "products", "inventory", "customers", "settings", "activity"]),
+    module: z.enum(["home", "orders", "products", "categories", "inventory", "customers", "settings", "activity"]),
     // An array of pairs, not z.record() - Gemini's function-calling schema
     // (via LangChain's bindTools) rejects the "propertyNames" keyword zod's
     // JSON Schema output emits for record types, confirmed live (400
@@ -30,15 +42,16 @@ export const navigateToTool = defineAdminChatTool({
   }),
   run: (args, ctx) => {
     const base = KNOWN_MODULES[args.module];
+    const label = MODULE_LABELS[args.module][ctx.language];
     const query = args.filters && args.filters.length > 0 ? new URLSearchParams(args.filters.map((f) => [f.key, f.value])).toString() : "";
     const href = query ? `${base}?${query}` : base;
     return Promise.resolve({
       message: pick(
         ctx.language,
-        `Here's ${args.module}${query ? " with those filters applied" : ""}.`,
-        `Aquí está ${args.module}${query ? " con esos filtros aplicados" : ""}.`
+        `Here's ${label}${query ? " with those filters applied" : ""}.`,
+        `Aquí está ${label}${query ? " con esos filtros aplicados" : ""}.`
       ),
-      artifact: { type: "navigate" as const, href, label: args.module }
+      artifact: { type: "navigate" as const, href, label }
     });
   }
 });
