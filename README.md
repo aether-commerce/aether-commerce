@@ -73,6 +73,13 @@ El repo usa `develop` como ambiente de prueba antes de producción:
 
 Consulta `docs/development.md` para variables, secrets, D1 de desarrollo y URLs.
 
+Enlaces rápidos del ambiente de desarrollo:
+
+- [Storefront](https://aether-storefront.pickofwow.workers.dev)
+- [Panel administrativo](https://develop.aether-admin.pages.dev)
+- [API — health check](https://aether-api.pickofwow.workers.dev/api/v1/health)
+- [Asistente — health check](https://aether-ai.pickofwow.workers.dev/healthz)
+
 ## Despliegue en Cloudflare
 
 Consulta `docs/deployment.md`. El workflow de producción migra D1 y publica, en orden, API, asistente, storefront y admin. Los secretos se mantienen en GitHub Environments y Cloudflare; nunca se incluyen en variables públicas ni en archivos versionados.
