@@ -55,7 +55,9 @@ describe("ProductForm", () => {
 
   it("blocks submission when the compare-at price is not higher than the price", async () => {
     const user = userEvent.setup();
-    render(<ProductForm mode="create" initialValues={filledValues({ compareAtPriceCents: 4000 })} />);
+    render(
+      <ProductForm mode="create" initialValues={filledValues({ compareAtPriceCents: 4000 })} />
+    );
 
     await user.click(screen.getByRole("button", { name: /create product/i }));
 
@@ -77,7 +79,12 @@ describe("ProductForm", () => {
 
   it("blocks submission when there is no main image yet", async () => {
     const user = userEvent.setup();
-    render(<ProductForm mode="create" initialValues={filledValues({ images: { main: "", gallery: [] } })} />);
+    render(
+      <ProductForm
+        mode="create"
+        initialValues={filledValues({ images: { main: "", gallery: [] } })}
+      />
+    );
 
     await user.click(screen.getByRole("button", { name: /create product/i }));
 
@@ -94,14 +101,23 @@ describe("ProductForm", () => {
     } as Response);
 
     const user = userEvent.setup();
-    render(<ProductForm mode="create" initialValues={filledValues({ featured: true, featuredPosition: 2 })} />);
+    render(
+      <ProductForm
+        mode="create"
+        initialValues={filledValues({ featured: true, featuredPosition: 2 })}
+      />
+    );
     await user.click(screen.getByRole("button", { name: /create product/i }));
 
     await waitFor(() => expect(productApiCalls()).toHaveLength(1));
     const [url, init] = productApiCalls()[0] as [string, RequestInit];
     expect(url).toContain("/api/v1/admin/products");
     expect(init.method).toBe("POST");
-    const body = JSON.parse(init.body as string) as { name: string; priceCents: number; featuredPosition: number | null };
+    const body = JSON.parse(init.body as string) as {
+      name: string;
+      priceCents: number;
+      featuredPosition: number | null;
+    };
     expect(body.name).toBe("Auriculares QA");
     expect(body.priceCents).toBe(5000);
     expect(body.featuredPosition).toBe(2);
@@ -166,15 +182,86 @@ describe("ProductForm", () => {
       json: () => Promise.resolve({ success: true, data: { currency: "USD" } })
     } as Response);
     fetchMock.mockResolvedValueOnce({
-      json: () => Promise.resolve({ success: true, data: [{ id: "cat_audio", slug: "audio", name: "Audio", isHidden: false }] })
+      json: () =>
+        Promise.resolve({
+          success: true,
+          data: [{ id: "cat_audio", slug: "audio", name: "Audio", isHidden: false }]
+        })
     } as Response);
 
     const user = userEvent.setup();
     render(<ProductForm mode="create" initialValues={emptyProductForm} />);
 
+    await user.click(screen.getByText(/generated details and advanced options/i));
     await user.click(screen.getByRole("button", { name: /category/i }));
     await user.click(await screen.findByRole("option", { name: /Audio audio/ }));
 
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+  });
+
+  it("keeps generated fields hidden until Gemini completes them from the name and description", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ success: true, data: { currency: "USD" } })
+    } as Response);
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          success: true,
+          data: {
+            category: "audio",
+            subcategory: "wireless-headphones",
+            shortDescription: "Comfortable wireless sound for every day.",
+            tags: ["wireless", "audio"],
+            highlights: ["Comfortable over-ear design", "Simple wireless listening"],
+            seoTitle: "Comfortable wireless headphones",
+            seoDescription: "Shop comfortable wireless headphones for everyday music and listening."
+          }
+        })
+    } as Response);
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          success: true,
+          data: [{ id: "cat_audio", slug: "audio", name: "Audio", isHidden: false }]
+        })
+    } as Response);
+
+    const user = userEvent.setup();
+    render(<ProductForm mode="create" initialValues={emptyProductForm} />);
+
+    expect(screen.getByLabelText(/short description/i)).not.toBeVisible();
+    await user.type(screen.getByLabelText(/^name/i), "Wireless headphones");
+    await user.type(
+      screen.getByLabelText(/^description/i),
+      "Comfortable over-ear headphones for music and everyday listening."
+    );
+    await user.click(screen.getByRole("button", { name: /complete details with ai/i }));
+
+    expect(await screen.findByText(/details generated/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/short description/i)).toHaveValue(
+      "Comfortable wireless sound for every day."
+    );
+    expect(screen.getByLabelText(/tags/i)).toHaveValue("wireless, audio");
+    expect(screen.getByLabelText(/seo title/i)).toHaveValue("Comfortable wireless headphones");
+
+    await user.click(screen.getByRole("button", { name: /undo ai changes/i }));
+    expect(screen.getByLabelText(/short description/i)).toHaveValue("");
+    expect(screen.getByLabelText(/^name/i)).toHaveValue("Wireless headphones");
+    expect(screen.getByLabelText(/^description/i)).toHaveValue(
+      "Comfortable over-ear headphones for music and everyday listening."
+    );
+
+    const generationCall = fetchMock.mock.calls.find(([url]) =>
+      String(url).includes("/products/generate-content")
+    );
+    expect(generationCall).toBeDefined();
+    expect(JSON.parse((generationCall?.[1] as RequestInit).body as string)).toEqual({
+      name: "Wireless headphones",
+      description: "Comfortable over-ear headphones for music and everyday listening.",
+      locale: "en"
+    });
   });
 });

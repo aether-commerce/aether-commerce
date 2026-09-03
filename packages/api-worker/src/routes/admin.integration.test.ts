@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { encryptSecret } from "@aether-commerce/core";
 import type { Env } from "../types";
 import { createApiApp } from "../index";
+import { generateProductContent } from "../services/product-content-generator";
 
 const worker = createApiApp();
 
@@ -15,6 +16,10 @@ const worker = createApiApp();
 vi.mock("jose", () => ({
   createRemoteJWKSet: vi.fn(() => vi.fn()),
   jwtVerify: vi.fn()
+}));
+
+vi.mock("../services/product-content-generator", () => ({
+  generateProductContent: vi.fn()
 }));
 
 type QueuedResponse = { first?: unknown; all?: unknown[] };
@@ -44,7 +49,9 @@ function fakeEnv(responses: QueuedResponse[] = [], overrides: Partial<Env> = {})
         run: vi.fn(() => Promise.resolve({ success: true, meta: { changes: 1 } }))
       };
     }),
-    batch: vi.fn((stmts: unknown[]) => Promise.resolve(stmts.map(() => ({ success: true, meta: { changes: 1 } }))))
+    batch: vi.fn((stmts: unknown[]) =>
+      Promise.resolve(stmts.map(() => ({ success: true, meta: { changes: 1 } })))
+    )
   };
   const env = {
     DB: db,
@@ -133,6 +140,62 @@ describe("admin routes integration (real middleware chain, mocked D1)", () => {
     expect(statements.some((s) => s.sql.includes("from orders"))).toBe(true);
   });
 
+  it("generates editable product details from only the name and description", async () => {
+    await mockVerifiedActor(["catalog_manager"]);
+    vi.mocked(generateProductContent).mockResolvedValueOnce({
+      category: "audio",
+      subcategory: "wireless-headphones",
+      shortDescription: "Comfortable wireless sound for daily listening.",
+      tags: ["wireless", "audio"],
+      highlights: ["Comfortable over-ear design"],
+      seoTitle: "Comfortable wireless headphones",
+      seoDescription: "Shop comfortable wireless headphones for music and everyday listening."
+    });
+    const { env } = fakeEnv([
+      { first: null },
+      {
+        all: [
+          {
+            id: "cat_audio",
+            store_id: "store_default",
+            slug: "audio",
+            name: "Audio",
+            sort_order: 1,
+            is_hidden: 0,
+            is_system: 0,
+            product_count: 0,
+            created_at: "2026-09-01T00:00:00Z",
+            updated_at: "2026-09-01T00:00:00Z"
+          }
+        ]
+      }
+    ]);
+
+    const response = await worker.fetch(
+      adminRequest("/products/generate-content", {
+        method: "POST",
+        token: "tok",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: "Wireless headphones",
+          description: "Comfortable over-ear headphones for music and everyday listening.",
+          locale: "en"
+        })
+      }),
+      env,
+      ctx
+    );
+
+    expect(response.status).toBe(200);
+    expect(generateProductContent).toHaveBeenCalledWith(
+      env,
+      expect.objectContaining({ name: "Wireless headphones", locale: "en" }),
+      [{ slug: "audio", name: "Audio" }]
+    );
+    const body = await response.json<{ success: boolean; data: { category: string } }>();
+    expect(body).toMatchObject({ success: true, data: { category: "audio" } });
+  });
+
   it("downgrades a suspended user to guest and blocks the request end-to-end", async () => {
     await mockVerifiedActor(["admin"]);
     const { env, db } = fakeEnv([{ first: { status: "suspended" } }]);
@@ -207,7 +270,11 @@ describe("admin routes integration (real middleware chain, mocked D1)", () => {
       product_name: "Funda Slim Grip",
       user_email: "buyer@example.com"
     });
-    expect(statements.some((s) => s.sql.includes("left join products") && s.sql.includes("left join users"))).toBe(true);
+    expect(
+      statements.some(
+        (s) => s.sql.includes("left join products") && s.sql.includes("left join users")
+      )
+    ).toBe(true);
   });
 
   it("returns 403 for an actor without reviews.moderate (e.g. catalog_manager)", async () => {
@@ -253,8 +320,12 @@ describe("admin routes integration (real middleware chain, mocked D1)", () => {
     const next = vi.fn();
     const context = {
       req: { method: "PATCH" },
-      get: (key: string) => (key === "actor" ? { roles: ["admin"], permissions: ["settings.manage"], mode: "demo" } : undefined),
-      json: (body: unknown, status?: number) => new Response(JSON.stringify(body), { status: status ?? 200 })
+      get: (key: string) =>
+        key === "actor"
+          ? { roles: ["admin"], permissions: ["settings.manage"], mode: "demo" }
+          : undefined,
+      json: (body: unknown, status?: number) =>
+        new Response(JSON.stringify(body), { status: status ?? 200 })
     } as unknown as Parameters<typeof middleware>[0];
 
     const response = (await middleware(context, next)) as Response;
@@ -322,7 +393,9 @@ describe("admin routes integration (real middleware chain, mocked D1)", () => {
     expect(response.status).toBe(200);
     expect(body.data).toHaveLength(1);
     expect(body.pagination.total).toBe(1);
-    const selectStatement = statements.find((s) => s.sql.includes("select") && s.sql.includes("from audit_logs"));
+    const selectStatement = statements.find(
+      (s) => s.sql.includes("select") && s.sql.includes("from audit_logs")
+    );
     expect(selectStatement?.sql).not.toContain("ip_address");
     expect(selectStatement?.sql).not.toContain("user_agent");
   });
@@ -339,7 +412,9 @@ describe("admin routes integration (real middleware chain, mocked D1)", () => {
       ctx
     );
 
-    const countStatement = statements.find((s) => s.sql.includes("count(*)") && s.sql.includes("audit_logs"));
+    const countStatement = statements.find(
+      (s) => s.sql.includes("count(*)") && s.sql.includes("audit_logs")
+    );
     expect(countStatement?.sql).toContain("actor_id = ?");
     expect(countStatement?.sql).toContain("action = ?");
     expect(countStatement?.sql).toContain("request_id = ?");
@@ -350,7 +425,11 @@ describe("admin routes integration (real middleware chain, mocked D1)", () => {
     await mockVerifiedActor(["admin"]);
     const { env, db } = fakeEnv([{ first: null }]);
 
-    const response = await worker.fetch(adminRequest("/audit?from=not-a-date", { token: "tok" }), env, ctx);
+    const response = await worker.fetch(
+      adminRequest("/audit?from=not-a-date", { token: "tok" }),
+      env,
+      ctx
+    );
 
     expect(response.status).toBe(400);
     // Only the suspension check ran - validation rejected the request before any audit_logs query.
@@ -474,7 +553,9 @@ describe("admin routes integration (real middleware chain, mocked D1)", () => {
     );
 
     expect(response.status).toBe(400);
-    expect(db.prepare).not.toHaveBeenCalledWith(expect.stringContaining("insert or replace into coupons"));
+    expect(db.prepare).not.toHaveBeenCalledWith(
+      expect.stringContaining("insert or replace into coupons")
+    );
   });
 
   it("PATCH /admin/orders/:id/status transitions the order via the shared changeOrderState helper", async () => {
@@ -534,7 +615,11 @@ describe("admin routes integration (real middleware chain, mocked D1)", () => {
     await mockVerifiedActor(["admin"]);
     const { env } = fakeEnv([{ first: null }]);
 
-    const response = await worker.fetch(adminRequest("/refunds", { method: "POST", token: "tok" }), env, ctx);
+    const response = await worker.fetch(
+      adminRequest("/refunds", { method: "POST", token: "tok" }),
+      env,
+      ctx
+    );
 
     expect(response.status).toBe(404);
   });
@@ -560,7 +645,9 @@ describe("admin routes integration (real middleware chain, mocked D1)", () => {
     );
     const fetchMock = vi.fn((url: RequestInfo | URL) =>
       urlOf(url).includes("api.stripe.com/v1/refunds")
-        ? Promise.resolve(new Response(JSON.stringify({ id: "re_123", status: "succeeded" }), { status: 200 }))
+        ? Promise.resolve(
+            new Response(JSON.stringify({ id: "re_123", status: "succeeded" }), { status: 200 })
+          )
         : Promise.resolve(new Response("{}", { status: 200 }))
     );
     vi.stubGlobal("fetch", fetchMock);
@@ -708,7 +795,11 @@ describe("admin routes integration (real middleware chain, mocked D1)", () => {
       { first: null } // no stored integrations row - falls back to env vars
     ]);
 
-    const response = await worker.fetch(adminRequest("/integration-settings", { token: "tok" }), { ...env, RESEND_API_KEY: "re_env_secret_value" }, ctx);
+    const response = await worker.fetch(
+      adminRequest("/integration-settings", { token: "tok" }),
+      { ...env, RESEND_API_KEY: "re_env_secret_value" },
+      ctx
+    );
     const body = await response.json<{
       success: boolean;
       data: { resend: { configured: boolean; apiKeyPreview: string | null } };
