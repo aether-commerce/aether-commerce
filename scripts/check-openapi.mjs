@@ -21,6 +21,7 @@ const requiredPaths = [
   "/contact:",
   "/admin/dashboard:",
   "/admin/products:",
+  "/admin/products/generate-content:",
   "/admin/orders:",
   "/admin/demo/summary:",
   "/webhooks/stripe:"

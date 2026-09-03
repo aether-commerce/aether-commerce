@@ -132,7 +132,8 @@ export const adminDictionaries = {
       ordersSubtitleFallback: "Fulfillment, payments and refunds.",
       couldNotLoadOrders: "Could not load recent orders.",
       noOrdersYetTitle: "No orders yet",
-      noOrdersYetDescription: "Orders placed on the storefront or created manually will show up here.",
+      noOrdersYetDescription:
+        "Orders placed on the storefront or created manually will show up here.",
       openOrder: "Open order",
       customersHeading: "Customers",
       customersCountOne: "{count} customer tracked.",
@@ -145,16 +146,19 @@ export const adminDictionaries = {
       registered: "Registered",
       openCustomer: "Open customer",
       contactMessagesHeading: "Contact messages",
-      contactMessagesSubtitle: "Every submission from the portfolio and storefront contact forms lands here.",
+      contactMessagesSubtitle:
+        "Every submission from the portfolio and storefront contact forms lands here.",
       demoHidesMessages: "Public demo mode hides real visitor messages.",
       noContactPermission: "Your role does not have the contacts.read permission.",
       couldNotLoadMessages: "Could not load contact messages.",
       noMessagesYetTitle: "No messages yet",
       noMessagesYetDescription: "Contact form submissions will appear here as they come in.",
       couponsHeading: "Coupons",
-      couponsDescription: "Case-insensitive coupons with usage and subtotal rules, managed via the API today.",
+      couponsDescription:
+        "Case-insensitive coupons with usage and subtotal rules, managed via the API today.",
       reviewsHeading: "Reviews",
-      reviewsDescription: "Moderation queue for verified or seeded demo reviews, managed via the API today.",
+      reviewsDescription:
+        "Moderation queue for verified or seeded demo reviews, managed via the API today.",
       activityHeading: "Activity",
       activityDescription: "Every privileged action records actor, entity and request ID.",
       settingsHeading: "Settings",
@@ -257,7 +261,8 @@ export const adminDictionaries = {
       refundOnlyVia: "This order's payment status can only change through a real refund below.",
       refundVia: "Refund via {provider}",
       refundViaTitle: "Refund via {provider}?",
-      refundDescription: "Refund the full amount ({amount}) via {provider}? This calls the real {provider} API and cannot be undone.",
+      refundDescription:
+        "Refund the full amount ({amount}) via {provider}? This calls the real {provider} API and cannot be undone.",
       confirmRefund: "Confirm refund",
       actionCouldNotComplete: "The action could not be completed.",
       orderNotFoundTitle: "Order not found",
@@ -302,7 +307,8 @@ export const adminDictionaries = {
     },
     newProductPage: {
       title: "New product",
-      description: "Starts as a draft - publish it once it looks right.",
+      description:
+        "Add the essentials, let AI prepare the details, then review and save as a draft.",
       productsBreadcrumb: "Products"
     },
     editProductPage: {
@@ -329,7 +335,11 @@ export const adminDictionaries = {
       networkErrorProductNotDeleted: "Network error - the product was not deleted.",
       networkErrorProductNotSaved: "Network error - the product was not saved.",
       basicInfoSection: "Basic information",
+      essentialInfoSection: "Start with the essentials",
+      essentialInfoDescription:
+        "Give the product a clear name and describe what it is. You can refine everything else afterward.",
       nameLabel: "Name *",
+      nameHint: "Use the name customers will recognize in the catalog.",
       slugLabel: "Slug",
       slugPlaceholder: "auto-generated from name if empty",
       categoryLabel: "Category *",
@@ -345,12 +355,33 @@ export const adminDictionaries = {
       statusLabel: "Status",
       shortDescriptionLabel: "Short description *",
       descriptionLabel: "Description *",
+      descriptionHint:
+        "Include the main features, materials, uses, or compatibility you know. Avoid information you cannot verify.",
+      nameRequiredForAi: "Enter a product name before using AI.",
+      descriptionRequiredForAi: "Enter a description before using AI.",
+      aiNeedsEssentials: "Add the name and description first.",
+      aiAssistantTitle: "Let AI prepare the product details",
+      aiAssistantDescription:
+        "Gemini can suggest the category, short description, tags, highlights and SEO copy. You can review and edit every suggestion.",
+      aiGenerateButton: "Complete details with AI",
+      aiGenerateAgain: "Generate again",
+      aiGeneratingButton: "Generating details...",
+      aiGenerating: "Gemini is preparing the product details.",
+      aiGenerationComplete: "Details generated. Review them in advanced options before saving.",
+      aiGenerationFailed: "Details could not be generated. Try again or complete them manually.",
+      aiNotConfigured:
+        "Gemini is not configured. Complete the advanced options manually or configure it in Integrations.",
+      aiPrivacyHint:
+        "Only the name and description are sent to Gemini. Nothing is saved until you create the product.",
+      undoAiChanges: "Undo AI changes",
+      aiChangesUndone: "AI suggestions were removed and your previous values were restored.",
       tagsLabel: "Tags (comma separated)",
       highlightsLabel: "Highlights (one per line)",
       featured: "Featured",
       featuredPositionLabel: "Hero position",
       featuredPositionAutomatic: "Automatic",
-      featuredPositionHint: "Choose 1–4 to place this product in that exact hero slot. Automatic uses rating after positioned products.",
+      featuredPositionHint:
+        "Choose 1–4 to place this product in that exact hero slot. Automatic uses rating after positioned products.",
       newArrival: "New arrival",
       onSale: "On sale",
       priceSection: "Price",
@@ -358,6 +389,7 @@ export const adminDictionaries = {
       compareAtPriceLabel: "Compare-at price (optional)",
       compareAtPriceHint: "Must be higher than the price - shown struck through.",
       inventorySection: "Inventory",
+      inventoryHint: "The SKU and low-stock alert can be adjusted in advanced options.",
       skuLabel: "SKU",
       skuPlaceholder: "auto-generated if empty",
       stockLabel: "Stock *",
@@ -369,13 +401,32 @@ export const adminDictionaries = {
       uploading: "Uploading...",
       addImage: "Add image",
       seoSection: "SEO",
+      seoDescription: "These suggestions control how the product may appear in search results.",
       seoTitleLabel: "SEO title",
       seoDescriptionLabel: "SEO description",
       previewLabel: "Preview:",
+      storefrontSection: "Catalog visibility",
+      storefrontDescription:
+        "Choose how the product appears in the store. New products start as drafts by default.",
+      statusHint: "Keep it as a draft until the copy, price and images are ready.",
+      catalogBadgesLabel: "Catalog badges",
+      advancedOptionsTitle: "Generated details and advanced options",
+      advancedOptionsDescription:
+        "Category, short copy, search metadata and technical identifiers. Open only when you want to review or override them.",
+      organizationSection: "Organization",
+      organizationDescription:
+        "Gemini suggests a category and subcategory when it can match the description confidently.",
+      generatedCopySection: "Generated catalog copy",
+      generatedCopyDescription:
+        "Short copy helps customers scan the catalog. Tags and highlights improve discovery and product detail pages.",
+      technicalSection: "Technical identifiers",
+      technicalDescription:
+        "Slug and SKU are created automatically when left empty. Change them only when your catalog requires a specific format.",
       saveChanges: "Save changes",
       saved: "Saved.",
       deleteThisProductTitle: "Delete this product?",
-      deleteThisProductDescription: "This removes it from the catalog. If it has order history, it's archived instead of hard-deleted.",
+      deleteThisProductDescription:
+        "This removes it from the catalog. If it has order history, it's archived instead of hard-deleted.",
       confirmDelete: "Confirm delete"
     },
     inventoryPage: {
@@ -413,7 +464,8 @@ export const adminDictionaries = {
       noProductsMatchFilters: "No products match these filters",
       noProductsYet: "No products yet",
       tryAdjustingFilters: "Try adjusting or clearing your filters.",
-      noProductsYetDescription: "Products you create will show up here once they have stock to track.",
+      noProductsYetDescription:
+        "Products you create will show up here once they have stock to track.",
       couldNotLoadInventory: "Could not load inventory"
     },
     customersPage: {
@@ -445,23 +497,27 @@ export const adminDictionaries = {
       couldNotLoadCustomer: "Could not load this customer",
       actionFailed: "Action failed",
       registeredAccountLabel: "Registered account",
-      guestNoticeText: "This person checked out as a guest and has no Clerk account yet - there is nothing to suspend or promote until they sign up.",
+      guestNoticeText:
+        "This person checked out as a guest and has no Clerk account yet - there is nothing to suspend or promote until they sign up.",
       orderHistorySection: "Order history",
       noOrdersYetTitle: "No orders yet",
       addressesSection: "Addresses",
       noSavedAddresses: "No saved addresses.",
       accountAccessSection: "Account access",
-      suspendingBlocksText: "Suspending blocks this person from signing in or making any authenticated request on their next request - not just future logins.",
+      suspendingBlocksText:
+        "Suspending blocks this person from signing in or making any authenticated request on their next request - not just future logins.",
       reactivateAccount: "Reactivate account",
       suspendAccount: "Suspend account",
       roleSection: "Role",
       current: "Current:",
       saveRole: "Save role",
-      onlySuperAdminsCanChangeRoles: "Only super admins can change roles - this action is rejected by the server otherwise.",
+      onlySuperAdminsCanChangeRoles:
+        "Only super admins can change roles - this action is rejected by the server otherwise.",
       reactivateThisAccountTitle: "Reactivate this account?",
       suspendThisAccountTitle: "Suspend this account?",
       changeRoleTitle: "Change this person's role?",
-      changeRoleDescription: 'Change this person\'s role to "{role}"? This calls Clerk directly and takes effect on their next request.',
+      changeRoleDescription:
+        'Change this person\'s role to "{role}"? This calls Clerk directly and takes effect on their next request.',
       customerNotFoundTitle: "Customer not found",
       customerNotFoundDescription: "It may have been deleted, or the link is incorrect.",
       actionCouldNotComplete: "The action could not be completed.",
@@ -482,7 +538,8 @@ export const adminDictionaries = {
     },
     platformPage: {
       title: "Platform",
-      description: "Deployed vs. latest version, and a button to trigger a real production redeploy."
+      description:
+        "Deployed vs. latest version, and a button to trigger a real production redeploy."
     },
     settingsPage: {
       title: "Settings",
@@ -493,7 +550,8 @@ export const adminDictionaries = {
       storeSection: "Store settings",
       storeDescription: "Choose the currency used for catalog prices, carts and new orders.",
       currencyLabel: "Currency",
-      currencyHint: "Changing currency does not convert existing cent values; it changes how future prices are presented.",
+      currencyHint:
+        "Changing currency does not convert existing cent values; it changes how future prices are presented.",
       storeName: "Store name",
       accentColor: "Accent color",
       accentColorPicker: "Accent color picker",
@@ -503,13 +561,15 @@ export const adminDictionaries = {
       replaceLogo: "Replace logo",
       uploadLogo: "Upload logo",
       showProductReviews: "Enable product reviews",
-      productReviewsHint: "Only customers with a paid order for the product can submit a review. Turning this off hides reviews and stops new submissions.",
+      productReviewsHint:
+        "Only customers with a paid order for the product can submit a review. Turning this off hides reviews and stops new submissions.",
       saving: "Saving...",
       save: "Save",
       saved: "Saved.",
       brandSaveError: "Could not save - check the color format and your permissions.",
       checkoutMethodSection: "Checkout method",
-      checkoutMethodDescription: "Stripe runs the normal sandbox checkout. WhatsApp sends shoppers to a chat with the sales number instead.",
+      checkoutMethodDescription:
+        "Stripe runs the normal sandbox checkout. WhatsApp sends shoppers to a chat with the sales number instead.",
       paymentMethod: "Payment method",
       salesWhatsappNumber: "Sales WhatsApp number",
       whatsappNumberHint: "Select the country, then type the local number - no spaces or dashes.",
@@ -522,7 +582,8 @@ export const adminDictionaries = {
       shippingAmountAriaLabel: "Shipping cost in dollars",
       genericSaveError: "Could not save - check your permissions.",
       cartReservationsSection: "Cart reservations",
-      cartReservationsDescription: "How long an item stays held for a shopper after being added to their cart, before it's released back to available stock.",
+      cartReservationsDescription:
+        "How long an item stays held for a shopper after being added to their cart, before it's released back to available stock.",
       reservationTtlLabel: "Reservation TTL (minutes)",
       reservationTtlAriaLabel: "Reservation TTL in minutes",
       imageUploadsNotConfigured: "Image uploads are not configured.",
@@ -566,7 +627,8 @@ export const adminDictionaries = {
       hide: "Hide",
       restore: "Restore",
       noReviews: "No reviews match this filter.",
-      noReviewsDescription: "Reviews shoppers submit on a product page will show up here for approval.",
+      noReviewsDescription:
+        "Reviews shoppers submit on a product page will show up here for approval.",
       actionFailed: "Could not update this review - check your permissions.",
       unknownProduct: "Unknown product",
       anonymousReviewer: "Anonymous"
@@ -627,7 +689,8 @@ export const adminDictionaries = {
       noEventsMatchFilters: "No events match these filters",
       noActivityYet: "No activity recorded yet",
       tryAdjustingFilters: "Try adjusting or clearing your filters.",
-      noActivityDescription: "Sensitive actions across the panel - product, order, customer and settings changes - will show up here.",
+      noActivityDescription:
+        "Sensitive actions across the panel - product, order, customer and settings changes - will show up here.",
       copyRequestId: "Copy request ID {id}",
       noFieldsChanged: "No fields changed",
       fieldsChangedOne: "{count} field changed: {fields}",
@@ -646,7 +709,8 @@ export const adminDictionaries = {
       inputPlaceholder: "Ask {brand} Chat...",
       messageLabel: "Message",
       send: "Send",
-      emptyState: "Ask about orders, products, inventory, or customers - e.g. “show me today’s pending orders”.",
+      emptyState:
+        "Ask about orders, products, inventory, or customers - e.g. “show me today’s pending orders”.",
       suggestionOrdersPending: "Show today's pending orders",
       suggestionWhatHappenedToday: "What happened today?",
       suggestionLowStock: "Show low-stock products",
@@ -738,7 +802,8 @@ export const adminDictionaries = {
     },
     systemHealthPage: {
       title: "System health",
-      description: "An operational summary - not a copy of Sentry. See below for a link to the full error tracker.",
+      description:
+        "An operational summary - not a copy of Sentry. See below for a link to the full error tracker.",
       couldNotLoad: "Could not load system health",
       updatedAt: "Updated {value}",
       openSentry: "Open Sentry",
@@ -753,18 +818,23 @@ export const adminDictionaries = {
       componentErrorsTooltip:
         "Unexpected application errors reported to Sentry, counted over the last 24h (an absolute count, not a rate - no request-volume baseline is tracked).",
       componentLatency: "Latency",
-      componentLatencyTooltip: "Approximate average response time for admin routes, sampled at a low rate over the last hour. Not a true p95 percentile.",
+      componentLatencyTooltip:
+        "Approximate average response time for admin routes, sampled at a low rate over the last hour. Not a true p95 percentile.",
       componentWebhooks: "Webhooks",
-      componentWebhooksTooltip: "Flags when recent Stripe/Clerk webhook deliveries have failed to process, most recent first.",
+      componentWebhooksTooltip:
+        "Flags when recent Stripe/Clerk webhook deliveries have failed to process, most recent first.",
       componentOrders: "Orders",
-      componentOrdersTooltip: "Flags a paid order stuck unfulfilled past the expected window, or (when detectable) a payment with no matching local order.",
+      componentOrdersTooltip:
+        "Flags a paid order stuck unfulfilled past the expected window, or (when detectable) a payment with no matching local order.",
       componentInventory: "Inventory",
-      componentInventoryTooltip: "Flags any product with negative stock - should never happen; always indicates a real bug if it does.",
+      componentInventoryTooltip:
+        "Flags any product with negative stock - should never happen; always indicates a real bug if it does.",
       componentSecurity: "Security",
       componentSecurityTooltip:
         "Flags a burst of failed admin permission checks in the last hour - could be a misconfigured integration or a real intrusion attempt.",
       componentScheduledTasks: "Scheduled tasks",
-      componentScheduledTasksTooltip: "Flags when a critical background task (e.g. expiring stale cart reservations) hasn't run within its expected window.",
+      componentScheduledTasksTooltip:
+        "Flags when a critical background task (e.g. expiring stale cart reservations) hasn't run within its expected window.",
       statErrors24h: "Errors (24h)",
       statWebhooksFailed24h: "Webhooks failed (24h)",
       statPaymentsFailed24h: "Payments failed (24h)",
@@ -879,7 +949,8 @@ export const adminDictionaries = {
       statusOfflineDemo: "Demo sin conexión",
       publicDemoAdmin: "Panel de demostración pública",
       home: "Inicio",
-      subtitle: "Estado del catálogo, operaciones de pedidos, soporte al cliente y eventos de auditoría de un vistazo.",
+      subtitle:
+        "Estado del catálogo, operaciones de pedidos, soporte al cliente y eventos de auditoría de un vistazo.",
       exportOrdersCsv: "Exportar pedidos CSV",
       metricRevenue: "Ingresos",
       metricOrders: "Pedidos",
@@ -901,7 +972,8 @@ export const adminDictionaries = {
       inventoryCountOne: "{count} producto en o por debajo de su umbral de poco stock.",
       inventoryCountOther: "{count} productos en o por debajo de su umbral de poco stock.",
       nothingRunningLowTitle: "Nada con poco stock",
-      nothingRunningLowDescription: "Todos los productos están por encima de su umbral de poco stock ahora mismo.",
+      nothingRunningLowDescription:
+        "Todos los productos están por encima de su umbral de poco stock ahora mismo.",
       leftThreshold: "Quedan {count} (umbral {threshold})",
       adjustStock: "Ajustar inventario",
       ordersHeading: "Pedidos",
@@ -910,7 +982,8 @@ export const adminDictionaries = {
       ordersSubtitleFallback: "Cumplimiento, pagos y reembolsos.",
       couldNotLoadOrders: "No se pudieron cargar los pedidos recientes.",
       noOrdersYetTitle: "Aún no hay pedidos",
-      noOrdersYetDescription: "Los pedidos hechos en la tienda o creados manualmente aparecerán aquí.",
+      noOrdersYetDescription:
+        "Los pedidos hechos en la tienda o creados manualmente aparecerán aquí.",
       openOrder: "Abrir pedido",
       customersHeading: "Clientes",
       customersCountOne: "{count} cliente registrado.",
@@ -918,21 +991,27 @@ export const adminDictionaries = {
       customersSubtitleFallback: "Cuentas, compras como invitado y acceso.",
       couldNotLoadCustomers: "No se pudieron cargar los clientes recientes.",
       noCustomersYetTitle: "Aún no hay clientes",
-      noCustomersYetDescription: "Las cuentas registradas y las compras como invitado aparecerán aquí.",
+      noCustomersYetDescription:
+        "Las cuentas registradas y las compras como invitado aparecerán aquí.",
       guestCheckout: "Compra como invitado",
       registered: "Registrado",
       openCustomer: "Abrir cliente",
       contactMessagesHeading: "Mensajes de contacto",
-      contactMessagesSubtitle: "Cada envío de los formularios de contacto del portafolio y la tienda llega aquí.",
-      demoHidesMessages: "El modo de demostración pública oculta los mensajes reales de visitantes.",
+      contactMessagesSubtitle:
+        "Cada envío de los formularios de contacto del portafolio y la tienda llega aquí.",
+      demoHidesMessages:
+        "El modo de demostración pública oculta los mensajes reales de visitantes.",
       noContactPermission: "Tu rol no tiene el permiso contacts.read.",
       couldNotLoadMessages: "No se pudieron cargar los mensajes de contacto.",
       noMessagesYetTitle: "Aún no hay mensajes",
-      noMessagesYetDescription: "Los envíos del formulario de contacto aparecerán aquí a medida que lleguen.",
+      noMessagesYetDescription:
+        "Los envíos del formulario de contacto aparecerán aquí a medida que lleguen.",
       couponsHeading: "Cupones",
-      couponsDescription: "Cupones sin distinción de mayúsculas con reglas de uso y subtotal, gestionados vía la API por ahora.",
+      couponsDescription:
+        "Cupones sin distinción de mayúsculas con reglas de uso y subtotal, gestionados vía la API por ahora.",
       reviewsHeading: "Reseñas",
-      reviewsDescription: "Cola de moderación de reseñas verificadas o de demostración, gestionada vía la API por ahora.",
+      reviewsDescription:
+        "Cola de moderación de reseñas verificadas o de demostración, gestionada vía la API por ahora.",
       activityHeading: "Actividad",
       activityDescription: "Cada acción privilegiada registra actor, entidad e ID de solicitud.",
       settingsHeading: "Configuración",
@@ -1032,10 +1111,12 @@ export const adminDictionaries = {
       noFurtherTransitions: "No hay más transiciones disponibles.",
       markAs: "Marcar como {status}",
       paymentSection: "Pago",
-      refundOnlyVia: "El estado de pago de este pedido solo puede cambiar mediante un reembolso real abajo.",
+      refundOnlyVia:
+        "El estado de pago de este pedido solo puede cambiar mediante un reembolso real abajo.",
       refundVia: "Reembolsar vía {provider}",
       refundViaTitle: "¿Reembolsar vía {provider}?",
-      refundDescription: "¿Reembolsar el monto total ({amount}) vía {provider}? Esto llama a la API real de {provider} y no se puede deshacer.",
+      refundDescription:
+        "¿Reembolsar el monto total ({amount}) vía {provider}? Esto llama a la API real de {provider} y no se puede deshacer.",
       confirmRefund: "Confirmar reembolso",
       actionCouldNotComplete: "La acción no se pudo completar.",
       orderNotFoundTitle: "Pedido no encontrado",
@@ -1080,7 +1161,8 @@ export const adminDictionaries = {
     },
     newProductPage: {
       title: "Nuevo producto",
-      description: "Empieza como borrador - publícalo cuando esté listo.",
+      description:
+        "Agrega lo esencial, deja que la IA prepare los detalles y revisa todo antes de guardar el borrador.",
       productsBreadcrumb: "Productos"
     },
     editProductPage: {
@@ -1091,7 +1173,8 @@ export const adminDictionaries = {
       couldNotLoadProduct: "No se pudo cargar este producto"
     },
     productForm: {
-      requiredFieldsMissing: "El nombre, categoría, descripción corta y descripción son obligatorios.",
+      requiredFieldsMissing:
+        "El nombre, categoría, descripción corta y descripción son obligatorios.",
       nameRequired: "Ingresa un nombre para el producto.",
       categoryRequired: "Elige una categoría.",
       shortDescriptionRequired: "Ingresa una descripción corta.",
@@ -1107,7 +1190,11 @@ export const adminDictionaries = {
       networkErrorProductNotDeleted: "Error de red - el producto no se eliminó.",
       networkErrorProductNotSaved: "Error de red - el producto no se guardó.",
       basicInfoSection: "Información básica",
+      essentialInfoSection: "Empieza por lo esencial",
+      essentialInfoDescription:
+        "Ponle un nombre claro al producto y describe qué es. Podrás revisar todos los demás detalles después.",
       nameLabel: "Nombre *",
+      nameHint: "Usa el nombre con el que tus clientes reconocerán el producto en el catálogo.",
       slugLabel: "Slug",
       slugPlaceholder: "generado automáticamente del nombre si se deja vacío",
       categoryLabel: "Categoría *",
@@ -1123,12 +1210,36 @@ export const adminDictionaries = {
       statusLabel: "Estado",
       shortDescriptionLabel: "Descripción corta *",
       descriptionLabel: "Descripción *",
+      descriptionHint:
+        "Incluye las características, materiales, usos o compatibilidad que conozcas. Evita información que no puedas verificar.",
+      nameRequiredForAi: "Ingresa el nombre del producto antes de usar la IA.",
+      descriptionRequiredForAi: "Ingresa una descripción antes de usar la IA.",
+      aiNeedsEssentials: "Agrega primero el nombre y la descripción.",
+      aiAssistantTitle: "Deja que la IA prepare los detalles",
+      aiAssistantDescription:
+        "Gemini puede sugerir la categoría, descripción corta, etiquetas, destacados y textos SEO. Podrás revisar y editar cada sugerencia.",
+      aiGenerateButton: "Completar detalles con IA",
+      aiGenerateAgain: "Generar de nuevo",
+      aiGeneratingButton: "Generando detalles...",
+      aiGenerating: "Gemini está preparando los detalles del producto.",
+      aiGenerationComplete:
+        "Detalles generados. Revísalos en las opciones avanzadas antes de guardar.",
+      aiGenerationFailed:
+        "No se pudieron generar los detalles. Intenta de nuevo o complétalos manualmente.",
+      aiNotConfigured:
+        "Gemini no está configurado. Completa las opciones avanzadas manualmente o configúralo en Integraciones.",
+      aiPrivacyHint:
+        "Solo se envían a Gemini el nombre y la descripción. Nada se guarda hasta que crees el producto.",
+      undoAiChanges: "Deshacer cambios de la IA",
+      aiChangesUndone:
+        "Se quitaron las sugerencias de la IA y se restauraron tus valores anteriores.",
       tagsLabel: "Etiquetas (separadas por coma)",
       highlightsLabel: "Destacados (uno por línea)",
       featured: "Destacado",
       featuredPositionLabel: "Posición en portada",
       featuredPositionAutomatic: "Automática",
-      featuredPositionHint: "Elige del 1 al 4 para colocar el producto en esa posición exacta. Automática usa la calificación después de los productos posicionados.",
+      featuredPositionHint:
+        "Elige del 1 al 4 para colocar el producto en esa posición exacta. Automática usa la calificación después de los productos posicionados.",
       newArrival: "Nuevo ingreso",
       onSale: "En oferta",
       priceSection: "Precio",
@@ -1136,6 +1247,7 @@ export const adminDictionaries = {
       compareAtPriceLabel: "Precio de comparación (opcional)",
       compareAtPriceHint: "Debe ser mayor que el precio - se muestra tachado.",
       inventorySection: "Inventario",
+      inventoryHint: "Puedes ajustar el SKU y la alerta de poco stock en las opciones avanzadas.",
       skuLabel: "SKU",
       skuPlaceholder: "generado automáticamente si se deja vacío",
       stockLabel: "Stock *",
@@ -1147,13 +1259,34 @@ export const adminDictionaries = {
       uploading: "Subiendo...",
       addImage: "Agregar imagen",
       seoSection: "SEO",
+      seoDescription:
+        "Estas sugerencias controlan cómo puede aparecer el producto en los resultados de búsqueda.",
       seoTitleLabel: "Título SEO",
       seoDescriptionLabel: "Descripción SEO",
       previewLabel: "Vista previa:",
+      storefrontSection: "Visibilidad en el catálogo",
+      storefrontDescription:
+        "Elige cómo aparecerá el producto en la tienda. Los productos nuevos empiezan como borrador.",
+      statusHint:
+        "Déjalo como borrador hasta que los textos, el precio y las imágenes estén listos.",
+      catalogBadgesLabel: "Insignias del catálogo",
+      advancedOptionsTitle: "Detalles generados y opciones avanzadas",
+      advancedOptionsDescription:
+        "Categoría, textos cortos, datos de búsqueda e identificadores técnicos. Ábrelo solo si quieres revisarlos o cambiarlos.",
+      organizationSection: "Organización",
+      organizationDescription:
+        "Gemini sugiere una categoría y subcategoría cuando puede relacionarlas con confianza a partir de la descripción.",
+      generatedCopySection: "Textos generados para el catálogo",
+      generatedCopyDescription:
+        "La descripción corta ayuda a explorar el catálogo. Las etiquetas y destacados mejoran la búsqueda y la ficha del producto.",
+      technicalSection: "Identificadores técnicos",
+      technicalDescription:
+        "El slug y el SKU se crean automáticamente si los dejas vacíos. Cámbialos solo si tu catálogo exige un formato específico.",
       saveChanges: "Guardar cambios",
       saved: "Guardado.",
       deleteThisProductTitle: "¿Eliminar este producto?",
-      deleteThisProductDescription: "Esto lo elimina del catálogo. Si tiene historial de pedidos, se archiva en vez de eliminarse por completo.",
+      deleteThisProductDescription:
+        "Esto lo elimina del catálogo. Si tiene historial de pedidos, se archiva en vez de eliminarse por completo.",
       confirmDelete: "Confirmar eliminación"
     },
     inventoryPage: {
@@ -1191,7 +1324,8 @@ export const adminDictionaries = {
       noProductsMatchFilters: "Ningún producto coincide con estos filtros",
       noProductsYet: "Aún no hay productos",
       tryAdjustingFilters: "Intenta ajustar o limpiar los filtros.",
-      noProductsYetDescription: "Los productos que crees aparecerán aquí una vez que tengan stock para seguir.",
+      noProductsYetDescription:
+        "Los productos que crees aparecerán aquí una vez que tengan stock para seguir.",
       couldNotLoadInventory: "No se pudo cargar el inventario"
     },
     customersPage: {
@@ -1216,14 +1350,16 @@ export const adminDictionaries = {
       noCustomersMatchFilters: "Ningún cliente coincide con estos filtros",
       noCustomersYet: "Aún no hay clientes",
       tryAdjustingFilters: "Intenta ajustar o limpiar los filtros.",
-      noCustomersYetDescription: "Las cuentas registradas y las compras como invitado aparecerán aquí."
+      noCustomersYetDescription:
+        "Las cuentas registradas y las compras como invitado aparecerán aquí."
     },
     customerDetailPage: {
       customersBreadcrumb: "Clientes",
       couldNotLoadCustomer: "No se pudo cargar este cliente",
       actionFailed: "La acción falló",
       registeredAccountLabel: "Cuenta registrada",
-      guestNoticeText: "Esta persona compró como invitado y aún no tiene cuenta de Clerk - no hay nada que suspender o promover hasta que se registre.",
+      guestNoticeText:
+        "Esta persona compró como invitado y aún no tiene cuenta de Clerk - no hay nada que suspender o promover hasta que se registre.",
       orderHistorySection: "Historial de pedidos",
       noOrdersYetTitle: "Aún no hay pedidos",
       addressesSection: "Direcciones",
@@ -1236,11 +1372,13 @@ export const adminDictionaries = {
       roleSection: "Rol",
       current: "Actual:",
       saveRole: "Guardar rol",
-      onlySuperAdminsCanChangeRoles: "Solo los super admins pueden cambiar roles - de lo contrario el servidor rechaza esta acción.",
+      onlySuperAdminsCanChangeRoles:
+        "Solo los super admins pueden cambiar roles - de lo contrario el servidor rechaza esta acción.",
       reactivateThisAccountTitle: "¿Reactivar esta cuenta?",
       suspendThisAccountTitle: "¿Suspender esta cuenta?",
       changeRoleTitle: "¿Cambiar el rol de esta persona?",
-      changeRoleDescription: '¿Cambiar el rol de esta persona a "{role}"? Esto llama a Clerk directamente y aplica desde su próxima solicitud.',
+      changeRoleDescription:
+        '¿Cambiar el rol de esta persona a "{role}"? Esto llama a Clerk directamente y aplica desde su próxima solicitud.',
       customerNotFoundTitle: "Cliente no encontrado",
       customerNotFoundDescription: "Puede que haya sido eliminado, o el enlace es incorrecto.",
       actionCouldNotComplete: "La acción no se pudo completar.",
@@ -1261,18 +1399,22 @@ export const adminDictionaries = {
     },
     platformPage: {
       title: "Plataforma",
-      description: "Versión desplegada frente a la última disponible, y un botón para disparar un redeploy real de producción."
+      description:
+        "Versión desplegada frente a la última disponible, y un botón para disparar un redeploy real de producción."
     },
     settingsPage: {
       title: "Configuración",
       description: "Marca, método de checkout, envío y tiempo de reserva del carrito.",
       couldNotLoadSettings: "No se pudo cargar la configuración actual",
       brandingSection: "Marca",
-      brandingDescription: "Nombre de la tienda, logo y color de acento usados en todo el storefront.",
+      brandingDescription:
+        "Nombre de la tienda, logo y color de acento usados en todo el storefront.",
       storeSection: "Configuración de la tienda",
-      storeDescription: "Elige la moneda usada en los precios del catálogo, carritos y pedidos nuevos.",
+      storeDescription:
+        "Elige la moneda usada en los precios del catálogo, carritos y pedidos nuevos.",
       currencyLabel: "Moneda",
-      currencyHint: "Cambiar la moneda no convierte los valores existentes en centavos; cambia cómo se presentan los precios futuros.",
+      currencyHint:
+        "Cambiar la moneda no convierte los valores existentes en centavos; cambia cómo se presentan los precios futuros.",
       storeName: "Nombre de la tienda",
       accentColor: "Color de acento",
       accentColorPicker: "Selector de color de acento",
@@ -1282,13 +1424,15 @@ export const adminDictionaries = {
       replaceLogo: "Reemplazar logo",
       uploadLogo: "Subir logo",
       showProductReviews: "Activar reseñas de productos",
-      productReviewsHint: "Solo los clientes con un pedido pagado de ese producto pueden enviar una reseña. Al desactivarlo se ocultan las reseñas y se detienen los nuevos envíos.",
+      productReviewsHint:
+        "Solo los clientes con un pedido pagado de ese producto pueden enviar una reseña. Al desactivarlo se ocultan las reseñas y se detienen los nuevos envíos.",
       saving: "Guardando...",
       save: "Guardar",
       saved: "Guardado.",
       brandSaveError: "No se pudo guardar - revisa el formato del color y tus permisos.",
       checkoutMethodSection: "Método de checkout",
-      checkoutMethodDescription: "Stripe usa el checkout sandbox normal. WhatsApp envía a los compradores a un chat con el número de ventas en su lugar.",
+      checkoutMethodDescription:
+        "Stripe usa el checkout sandbox normal. WhatsApp envía a los compradores a un chat con el número de ventas en su lugar.",
       paymentMethod: "Método de pago",
       salesWhatsappNumber: "Número de WhatsApp de ventas",
       whatsappNumberHint: "Selecciona el país y escribe el número local - sin espacios ni guiones.",
@@ -1346,14 +1490,16 @@ export const adminDictionaries = {
       hide: "Ocultar",
       restore: "Restaurar",
       noReviews: "Ninguna reseña coincide con este filtro.",
-      noReviewsDescription: "Las reseñas que los clientes envíen desde la página de un producto aparecerán aquí para su aprobación.",
+      noReviewsDescription:
+        "Las reseñas que los clientes envíen desde la página de un producto aparecerán aquí para su aprobación.",
       actionFailed: "No se pudo actualizar esta reseña - revisa tus permisos.",
       unknownProduct: "Producto desconocido",
       anonymousReviewer: "Anónimo"
     },
     couponsPage: {
       title: "Cupones",
-      description: "Crea y administra códigos de descuento que los clientes pueden aplicar al pagar.",
+      description:
+        "Crea y administra códigos de descuento que los clientes pueden aplicar al pagar.",
       newCoupon: "Nuevo cupón",
       colCode: "Código",
       colType: "Tipo",
@@ -1374,7 +1520,8 @@ export const adminDictionaries = {
       formFailed: "No se pudo guardar este cupón - verifica que el código no esté en uso.",
       couldNotLoad: "No se pudieron cargar los cupones",
       noCoupons: "Todavía no hay cupones",
-      noCouponsDescription: "Crea un código de cupón que los clientes puedan ingresar al pagar para obtener un descuento."
+      noCouponsDescription:
+        "Crea un código de cupón que los clientes puedan ingresar al pagar para obtener un descuento."
     },
     activityPage: {
       title: "Actividad",
@@ -1407,7 +1554,8 @@ export const adminDictionaries = {
       noEventsMatchFilters: "Ningún evento coincide con estos filtros",
       noActivityYet: "Aún no hay actividad registrada",
       tryAdjustingFilters: "Intenta ajustar o limpiar los filtros.",
-      noActivityDescription: "Las acciones sensibles en todo el panel - cambios de productos, pedidos, clientes y configuración - aparecerán aquí.",
+      noActivityDescription:
+        "Las acciones sensibles en todo el panel - cambios de productos, pedidos, clientes y configuración - aparecerán aquí.",
       copyRequestId: "Copiar ID de solicitud {id}",
       noFieldsChanged: "Ningún campo cambió",
       fieldsChangedOne: "{count} campo cambiado: {fields}",
@@ -1426,7 +1574,8 @@ export const adminDictionaries = {
       inputPlaceholder: "Pregúntale al chat de {brand}...",
       messageLabel: "Mensaje",
       send: "Enviar",
-      emptyState: "Pregunta sobre pedidos, productos, inventario o clientes - ej. “muéstrame los pedidos pendientes de hoy”.",
+      emptyState:
+        "Pregunta sobre pedidos, productos, inventario o clientes - ej. “muéstrame los pedidos pendientes de hoy”.",
       suggestionOrdersPending: "Mostrar pedidos pendientes de hoy",
       suggestionWhatHappenedToday: "¿Qué pasó hoy?",
       suggestionLowStock: "Mostrar productos con poco stock",
@@ -1518,7 +1667,8 @@ export const adminDictionaries = {
     },
     systemHealthPage: {
       title: "Salud del sistema",
-      description: "Un resumen operativo - no es una copia de Sentry. Ver abajo el enlace al rastreador de errores completo.",
+      description:
+        "Un resumen operativo - no es una copia de Sentry. Ver abajo el enlace al rastreador de errores completo.",
       couldNotLoad: "No se pudo cargar la salud del sistema",
       updatedAt: "Actualizado {value}",
       openSentry: "Abrir Sentry",
@@ -1536,12 +1686,14 @@ export const adminDictionaries = {
       componentLatencyTooltip:
         "Tiempo de respuesta promedio aproximado de las rutas de admin, muestreado a baja tasa durante la última hora. No es un percentil p95 real.",
       componentWebhooks: "Webhooks",
-      componentWebhooksTooltip: "Marca cuando entregas recientes de webhooks de Stripe/Clerk no se procesaron correctamente, la más reciente primero.",
+      componentWebhooksTooltip:
+        "Marca cuando entregas recientes de webhooks de Stripe/Clerk no se procesaron correctamente, la más reciente primero.",
       componentOrders: "Pedidos",
       componentOrdersTooltip:
         "Marca un pedido pagado atascado sin cumplir más allá de la ventana esperada, o (cuando es detectable) un pago sin pedido local correspondiente.",
       componentInventory: "Inventario",
-      componentInventoryTooltip: "Marca cualquier producto con stock negativo - nunca debería ocurrir; siempre indica un bug real si ocurre.",
+      componentInventoryTooltip:
+        "Marca cualquier producto con stock negativo - nunca debería ocurrir; siempre indica un bug real si ocurre.",
       componentSecurity: "Seguridad",
       componentSecurityTooltip:
         "Marca una ráfaga de verificaciones de permisos de admin fallidas en la última hora - podría ser una integración mal configurada o un intento de intrusión real.",
