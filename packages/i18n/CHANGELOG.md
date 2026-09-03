@@ -1,5 +1,11 @@
 # @aether-commerce/i18n
 
+## 0.3.0
+
+### Minor Changes
+
+- dda9e0f: Simplify product creation with progressive advanced options and server-side Gemini suggestions for editable catalog and SEO details.
+
 ## 0.2.4
 
 ### Patch Changes

@@ -1,5 +1,16 @@
 # @aether-commerce/admin-default
 
+## 0.4.0
+
+### Minor Changes
+
+- dda9e0f: Simplify product creation with progressive advanced options and server-side Gemini suggestions for editable catalog and SEO details.
+
+### Patch Changes
+
+- Updated dependencies [dda9e0f]
+  - @aether-commerce/i18n@0.3.0
+
 ## 0.3.8
 
 ### Patch Changes
