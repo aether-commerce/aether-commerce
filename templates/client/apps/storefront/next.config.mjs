@@ -3,15 +3,32 @@ import { fileURLToPath } from "node:url";
 
 const workspaceRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const basePath = process.env.NEXT_PUBLIC_AETHER_BASE_PATH?.replace(/\/$/, "") || "";
+const configuredStorefrontPattern = (() => {
+  try {
+    const url = new URL(process.env.NEXT_PUBLIC_AETHER_STOREFRONT_URL || "");
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+    return { protocol: url.protocol.slice(0, -1), hostname: url.hostname, ...(url.port ? { port: url.port } : {}) };
+  } catch {
+    return null;
+  }
+})();
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   basePath,
   images: {
-    unoptimized: true
+    formats: ["image/avif", "image/webp"],
+    deviceSizes: [640, 750, 828, 1080, 1200, 1440, 1920],
+    imageSizes: [32, 44, 64, 96, 128, 256, 384],
+    minimumCacheTTL: 3600,
+    remotePatterns: [
+      { protocol: "https", hostname: "images.unsplash.com" },
+      { protocol: "https", hostname: "res.cloudinary.com" },
+      { protocol: "http", hostname: "localhost" },
+      ...(configuredStorefrontPattern ? [configuredStorefrontPattern] : [])
+    ]
   },
-  // Client storefronts use unoptimized images; do not trace optional native
-  // image binaries into the Workers bundle.
+  // Do not trace optional native image binaries into the Workers bundle.
   outputFileTracingExcludes: {
     "*": ["node_modules/@img/sharp-wasm32/**/*", "node_modules/@emnapi/**/*"]
   },
