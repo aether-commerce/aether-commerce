@@ -503,7 +503,7 @@ export function ProductForm({
     <form
       noValidate
       onSubmit={(event) => void handleSubmit(event)}
-      className="product-form grid gap-6 pb-16 lg:grid-cols-2"
+      className="product-form grid gap-6 pb-28 lg:pb-16 lg:grid-cols-2"
     >
       {errorMessage ? (
         <div
