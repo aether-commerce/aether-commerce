@@ -352,6 +352,7 @@ export const adminDictionaries = {
       retryCategories: "Retry",
       subcategoryLabel: "Subcategory",
       brandLabel: "Brand",
+      brandHint: "Use the brand customers should see in the catalog.",
       statusLabel: "Status",
       shortDescriptionLabel: "Short description *",
       descriptionLabel: "Description *",
@@ -362,12 +363,12 @@ export const adminDictionaries = {
       aiNeedsEssentials: "Add the name and description first.",
       aiAssistantTitle: "Let AI prepare the product details",
       aiAssistantDescription:
-        "Gemini can suggest the category, short description, tags, highlights and SEO copy. You can review and edit every suggestion.",
+        "Gemini can suggest the category, subcategory, short description, tags, highlights and SEO copy. You can review and edit every suggestion below.",
       aiGenerateButton: "Complete details with AI",
       aiGenerateAgain: "Generate again",
       aiGeneratingButton: "Generating details...",
       aiGenerating: "Gemini is preparing the product details.",
-      aiGenerationComplete: "Details generated. Review them in advanced options before saving.",
+      aiGenerationComplete: "Details generated. Review the suggestions below before saving.",
       aiGenerationFailed: "Details could not be generated. Try again or complete them manually.",
       aiNotConfigured:
         "Gemini is not configured. Complete the advanced options manually or configure it in Integrations.",
@@ -412,10 +413,13 @@ export const adminDictionaries = {
       catalogBadgesLabel: "Catalog badges",
       advancedOptionsTitle: "Generated details and advanced options",
       advancedOptionsDescription:
-        "Category, short copy, search metadata and technical identifiers. Open only when you want to review or override them.",
+        "Subcategory, generated copy, search metadata and technical identifiers. Open only when you want to review or override them.",
       organizationSection: "Organization",
       organizationDescription:
-        "Gemini suggests a category and subcategory when it can match the description confidently.",
+        "Choose the category and brand customers will use to find and recognize this product.",
+      additionalOrganizationSection: "Additional organization",
+      additionalOrganizationDescription:
+        "Subcategory is optional and can be refined when your catalog needs another level of classification.",
       generatedCopySection: "Generated catalog copy",
       generatedCopyDescription:
         "Short copy helps customers scan the catalog. Tags and highlights improve discovery and product detail pages.",
@@ -1207,6 +1211,7 @@ export const adminDictionaries = {
       retryCategories: "Reintentar",
       subcategoryLabel: "Subcategoría",
       brandLabel: "Marca",
+      brandHint: "Usa la marca que tus clientes reconocerán en el catálogo.",
       statusLabel: "Estado",
       shortDescriptionLabel: "Descripción corta *",
       descriptionLabel: "Descripción *",
@@ -1217,13 +1222,12 @@ export const adminDictionaries = {
       aiNeedsEssentials: "Agrega primero el nombre y la descripción.",
       aiAssistantTitle: "Deja que la IA prepare los detalles",
       aiAssistantDescription:
-        "Gemini puede sugerir la categoría, descripción corta, etiquetas, destacados y textos SEO. Podrás revisar y editar cada sugerencia.",
+        "Gemini puede sugerir la categoría, subcategoría, descripción corta, etiquetas, destacados y textos SEO. Podrás revisar y editar cada sugerencia debajo.",
       aiGenerateButton: "Completar detalles con IA",
       aiGenerateAgain: "Generar de nuevo",
       aiGeneratingButton: "Generando detalles...",
       aiGenerating: "Gemini está preparando los detalles del producto.",
-      aiGenerationComplete:
-        "Detalles generados. Revísalos en las opciones avanzadas antes de guardar.",
+      aiGenerationComplete: "Detalles generados. Revisa las sugerencias debajo antes de guardar.",
       aiGenerationFailed:
         "No se pudieron generar los detalles. Intenta de nuevo o complétalos manualmente.",
       aiNotConfigured:
@@ -1272,10 +1276,13 @@ export const adminDictionaries = {
       catalogBadgesLabel: "Insignias del catálogo",
       advancedOptionsTitle: "Detalles generados y opciones avanzadas",
       advancedOptionsDescription:
-        "Categoría, textos cortos, datos de búsqueda e identificadores técnicos. Ábrelo solo si quieres revisarlos o cambiarlos.",
+        "Subcategoría, textos generados, datos de búsqueda e identificadores técnicos. Ábrelo solo si quieres revisarlos o cambiarlos.",
       organizationSection: "Organización",
       organizationDescription:
-        "Gemini sugiere una categoría y subcategoría cuando puede relacionarlas con confianza a partir de la descripción.",
+        "Elige la categoría y la marca con las que tus clientes encontrarán y reconocerán este producto.",
+      additionalOrganizationSection: "Organización adicional",
+      additionalOrganizationDescription:
+        "La subcategoría es opcional y puedes ajustarla cuando tu catálogo necesite un nivel más de clasificación.",
       generatedCopySection: "Textos generados para el catálogo",
       generatedCopyDescription:
         "La descripción corta ayuda a explorar el catálogo. Las etiquetas y destacados mejoran la búsqueda y la ficha del producto.",

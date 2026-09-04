@@ -598,10 +598,11 @@ describe("ADMIN_CHAT_SYSTEM_PROMPT", () => {
   });
 
   it("describes the current AI-assisted product creation flow", () => {
-    expect(ADMIN_CHAT_SYSTEM_PROMPT.version).toBe("2026-09-admin-chat-v10");
+    expect(ADMIN_CHAT_SYSTEM_PROMPT.version).toBe("2026-09-admin-chat-v11");
     expect(ADMIN_CHAT_SYSTEM_PROMPT.text).toMatch(
       /new-product screen begins with the product name and full description/i
     );
+    expect(ADMIN_CHAT_SYSTEM_PROMPT.text).toMatch(/visible category and brand fields/i);
     expect(ADMIN_CHAT_SYSTEM_PROMPT.text).toMatch(/Complete details with AI/i);
     expect(ADMIN_CHAT_SYSTEM_PROMPT.text).toMatch(/slug and SKU are generated/i);
     expect(ADMIN_CHAT_SYSTEM_PROMPT.text).toMatch(/Generated details and advanced options/i);

@@ -192,7 +192,6 @@ describe("ProductForm", () => {
     const user = userEvent.setup();
     render(<ProductForm mode="create" initialValues={emptyProductForm} />);
 
-    await user.click(screen.getByText(/generated details and advanced options/i));
     await user.click(screen.getByRole("button", { name: /category/i }));
     await user.click(await screen.findByRole("option", { name: /Audio audio/ }));
 
@@ -232,6 +231,8 @@ describe("ProductForm", () => {
     const user = userEvent.setup();
     render(<ProductForm mode="create" initialValues={emptyProductForm} />);
 
+    expect(screen.getByRole("button", { name: /category/i })).toBeVisible();
+    expect(screen.getByLabelText(/brand/i)).toBeVisible();
     expect(screen.getByLabelText(/short description/i)).not.toBeVisible();
     await user.type(screen.getByLabelText(/^name/i), "Wireless headphones");
     await user.type(
