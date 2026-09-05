@@ -1,5 +1,25 @@
 # @aether-commerce/admin-default
 
+## 0.4.3
+
+### Patch Changes
+
+- aa044bf: Fix illegible dark text on purple backgrounds in the admin panel: the legacy `hover:bg-zinc-100` repaint (used by light/bordered secondary buttons like the checkout provider toggle) was incorrectly bundled with `hover:bg-zinc-800` and repainted to the purple accent-hover color instead of the intended light gray, which is especially visible as a stuck `:hover` state after a tap on mobile. Also fix the page header's action buttons (e.g. "New WhatsApp order") overflowing past the viewport edge on mobile instead of wrapping.
+
+## 0.4.2
+
+### Patch Changes
+
+- e5081f0: Keep category and brand visible in product creation while retaining secondary fields behind advanced options.
+- Updated dependencies [e5081f0]
+  - @aether-commerce/i18n@0.3.1
+
+## 0.4.1
+
+### Patch Changes
+
+- 45716e7: Fix the product form's bottom action bar floating above other content and revealing it underneath while scrolling on mobile. The bar is now fixed to the viewport with an opaque background on small screens, and keeps its previous sticky-in-grid behavior on desktop.
+
 ## 0.4.0
 
 ### Minor Changes

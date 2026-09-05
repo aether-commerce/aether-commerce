@@ -503,7 +503,7 @@ export function ProductForm({
     <form
       noValidate
       onSubmit={(event) => void handleSubmit(event)}
-      className="product-form grid gap-6 pb-16 lg:grid-cols-2"
+      className="product-form grid gap-6 pb-28 lg:pb-16 lg:grid-cols-2"
     >
       {errorMessage ? (
         <div
@@ -632,6 +632,55 @@ export function ProductForm({
               </div>
             </div>
           </div>
+        </div>
+      </FormSection>
+
+      <FormSection
+        title={t.productForm.organizationSection}
+        description={t.productForm.organizationDescription}
+      >
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className={labelClass}>
+            <span className={labelTextClass}>{t.productForm.categoryLabel}</span>
+            <CategorySelect
+              value={values.category}
+              options={categories}
+              loading={categoryStatus === "loading"}
+              error={categoryStatus === "error"}
+              invalid={Boolean(fieldErrors.category)}
+              onOpen={() => void loadCategories()}
+              onRetry={() => {
+                setCategoryStatus("idle");
+                void loadCategories();
+              }}
+              onValueChange={(value) => {
+                set("category", value);
+                setFieldErrors((current) => ({ ...current, category: undefined }));
+              }}
+              ariaLabel={t.productForm.categoryLabel}
+              labels={{
+                placeholder: t.productForm.categoryPlaceholder,
+                search: t.productForm.searchCategories,
+                loading: t.productForm.loadingCategories,
+                error: t.productForm.categoriesLoadError,
+                empty: t.productForm.categoriesEmpty,
+                noResults: t.productForm.categoriesNoResults,
+                retry: t.productForm.retryCategories
+              }}
+            />
+            {fieldErrors.category ? (
+              <span className="text-xs text-danger">{fieldErrors.category}</span>
+            ) : null}
+          </div>
+          <label className={labelClass}>
+            <span className={labelTextClass}>{t.productForm.brandLabel}</span>
+            <input
+              className={inputClass}
+              value={values.brand}
+              onChange={(event) => set("brand", event.target.value)}
+            />
+            <span className="text-xs text-ink-subtle">{t.productForm.brandHint}</span>
+          </label>
         </div>
       </FormSection>
 
@@ -863,59 +912,19 @@ export function ProductForm({
           <div className="grid gap-4">
             <div>
               <h3 className="text-sm font-semibold text-ink">
-                {t.productForm.organizationSection}
+                {t.productForm.additionalOrganizationSection}
               </h3>
               <p className="mt-1 text-xs leading-5 text-ink-muted">
-                {t.productForm.organizationDescription}
+                {t.productForm.additionalOrganizationDescription}
               </p>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className={labelClass}>
-                <span className={labelTextClass}>{t.productForm.categoryLabel}</span>
-                <CategorySelect
-                  value={values.category}
-                  options={categories}
-                  loading={categoryStatus === "loading"}
-                  error={categoryStatus === "error"}
-                  invalid={Boolean(fieldErrors.category)}
-                  onOpen={() => void loadCategories()}
-                  onRetry={() => {
-                    setCategoryStatus("idle");
-                    void loadCategories();
-                  }}
-                  onValueChange={(value) => {
-                    set("category", value);
-                    setFieldErrors((current) => ({ ...current, category: undefined }));
-                  }}
-                  ariaLabel={t.productForm.categoryLabel}
-                  labels={{
-                    placeholder: t.productForm.categoryPlaceholder,
-                    search: t.productForm.searchCategories,
-                    loading: t.productForm.loadingCategories,
-                    error: t.productForm.categoriesLoadError,
-                    empty: t.productForm.categoriesEmpty,
-                    noResults: t.productForm.categoriesNoResults,
-                    retry: t.productForm.retryCategories
-                  }}
-                />
-                {fieldErrors.category ? (
-                  <span className="text-xs text-danger">{fieldErrors.category}</span>
-                ) : null}
-              </div>
+            <div className="grid gap-3 sm:max-w-xl">
               <label className={labelClass}>
                 <span className={labelTextClass}>{t.productForm.subcategoryLabel}</span>
                 <input
                   className={inputClass}
                   value={values.subcategory}
                   onChange={(event) => set("subcategory", event.target.value)}
-                />
-              </label>
-              <label className={`${labelClass} sm:col-span-2`}>
-                <span className={labelTextClass}>{t.productForm.brandLabel}</span>
-                <input
-                  className={inputClass}
-                  value={values.brand}
-                  onChange={(event) => set("brand", event.target.value)}
                 />
               </label>
             </div>

@@ -28,7 +28,7 @@ export function PageHeader({
           {description ? <p className="mt-1 text-sm text-ink-muted">{description}</p> : null}
         </div>
         {primaryAction || secondaryActions ? (
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:shrink-0">
             {secondaryActions}
             {primaryAction}
           </div>
