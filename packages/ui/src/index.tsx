@@ -183,15 +183,20 @@ export function Sheet({
   }
 
   const sheetWidth = width ?? "min(360px,90vw)";
+  // Dynamic viewport units (dvh), not vh: on mobile Safari, 100vh is the
+  // *largest* viewport size (address bar hidden), so a plain h-full/vh sheet
+  // can end up taller than what's actually visible once the address bar is
+  // shown, leaving its bottom edge (and whatever page content sits behind
+  // it) exposed below the fold.
   const positionClass =
     side === "bottom"
-      ? "inset-x-0 bottom-0 max-h-[85vh] w-full rounded-t-2xl"
+      ? "inset-x-0 bottom-0 max-h-[85dvh] w-full rounded-t-2xl"
       : side === "left"
-        ? "inset-y-0 left-0 h-full"
-        : "inset-y-0 right-0 h-full";
+        ? "inset-y-0 left-0 h-dvh"
+        : "inset-y-0 right-0 h-dvh";
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60" role="presentation" onClick={onClose}>
+    <div className="fixed inset-0 z-50 bg-black/60 overscroll-contain" role="presentation" onClick={onClose}>
       <div
         ref={panelRef}
         role="dialog"
@@ -199,8 +204,13 @@ export function Sheet({
         aria-label={title}
         tabIndex={-1}
         className={clsx(
-          "focus:outline-none fixed overflow-y-auto border border-border bg-surface shadow-xl",
-          padded && "p-5",
+          "focus:outline-none fixed overscroll-contain border border-border bg-surface shadow-xl",
+          // padded=false means the caller owns its own internal layout and
+          // scroll region (e.g. AdminChatPanel's header/messages/composer
+          // flex column) - scrolling this outer box too would let it drag
+          // that header/composer out of view independently of the caller's
+          // own scroll area, so it stays a fixed, non-scrolling frame instead.
+          padded ? "overflow-y-auto p-5" : "overflow-hidden",
           positionClass
         )}
         style={side === "bottom" ? undefined : { width: sheetWidth }}
