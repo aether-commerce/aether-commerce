@@ -154,8 +154,14 @@ body {
   font-family: var(--font-inter), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
+/* No color here: Tailwind's own preflight already sets `a { color: inherit }`
+   correctly inside @layer base. This file's @layer base blocks don't reliably
+   merge into that same layer at build time, so a color declared here stays
+   unlayered - which then wins over every text-* utility (e.g. text-white on
+   an accent button) regardless of specificity, since unlayered normal rules
+   always beat layered ones. Keep only what Tailwind's preflight doesn't
+   already provide. */
 a {
-  color: inherit;
   text-decoration: none;
 }
 
