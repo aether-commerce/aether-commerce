@@ -1,5 +1,13 @@
 # @aether-commerce/admin-default
 
+## 0.4.2
+
+### Patch Changes
+
+- e5081f0: Keep category and brand visible in product creation while retaining secondary fields behind advanced options.
+- Updated dependencies [e5081f0]
+  - @aether-commerce/i18n@0.3.1
+
 ## 0.4.1
 
 ### Patch Changes
