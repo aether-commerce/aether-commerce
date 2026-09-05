@@ -88,7 +88,7 @@ describe("useAdminChatStream", () => {
     });
 
     const error = result.current.messages.find((message) => message.role === "system-error");
-    expect(error).toMatchObject({ content: expect.stringContaining("could not respond") });
+    expect(error?.content).toContain("could not respond");
   });
 
   it("tells a signed-out operator to sign in instead of showing a generic error", async () => {
@@ -100,7 +100,7 @@ describe("useAdminChatStream", () => {
     });
 
     const error = result.current.messages.find((message) => message.role === "system-error");
-    expect(error).toMatchObject({ content: expect.stringContaining("Sign in") });
+    expect(error?.content).toContain("Sign in");
   });
 
   it("tells an operator without the admin-chat role instead of showing a generic error", async () => {
@@ -112,7 +112,7 @@ describe("useAdminChatStream", () => {
     });
 
     const error = result.current.messages.find((message) => message.role === "system-error");
-    expect(error).toMatchObject({ content: expect.stringContaining("permission") });
+    expect(error?.content).toContain("permission");
   });
 
   it("confirms a pending action and records it as resolved with a receipt message", async () => {
