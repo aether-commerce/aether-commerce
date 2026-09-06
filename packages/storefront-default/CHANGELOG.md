@@ -1,5 +1,12 @@
 # @aether-commerce/storefront-default
 
+## 0.3.1
+
+### Patch Changes
+
+- Updated dependencies [e122600]
+  - @aether-commerce/ui@0.2.3
+
 ## 0.3.0
 
 ### Minor Changes
