@@ -1,5 +1,11 @@
 # @aether-commerce/i18n
 
+## 0.3.2
+
+### Patch Changes
+
+- 7daef08: Show a specific message when the admin chat request fails because the operator is signed out (401) or lacks an admin-chat role (403), instead of the generic "could not respond right now" message that read like a server outage.
+
 ## 0.3.1
 
 ### Patch Changes
