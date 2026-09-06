@@ -87,7 +87,32 @@ describe("useAdminChatStream", () => {
       await result.current.sendMessage("Hello");
     });
 
-    expect(result.current.messages.some((message) => message.role === "system-error")).toBe(true);
+    const error = result.current.messages.find((message) => message.role === "system-error");
+    expect(error?.content).toContain("could not respond");
+  });
+
+  it("tells a signed-out operator to sign in instead of showing a generic error", async () => {
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 401 }));
+    const { result } = renderChatStream();
+
+    await act(async () => {
+      await result.current.sendMessage("Hello");
+    });
+
+    const error = result.current.messages.find((message) => message.role === "system-error");
+    expect(error?.content).toContain("Sign in");
+  });
+
+  it("tells an operator without the admin-chat role instead of showing a generic error", async () => {
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 403 }));
+    const { result } = renderChatStream();
+
+    await act(async () => {
+      await result.current.sendMessage("Hello");
+    });
+
+    const error = result.current.messages.find((message) => message.role === "system-error");
+    expect(error?.content).toContain("permission");
   });
 
   it("confirms a pending action and records it as resolved with a receipt message", async () => {

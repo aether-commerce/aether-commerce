@@ -86,7 +86,7 @@ export function AdminChatPanel() {
           </button>
         </div>
 
-        <div ref={listRef} className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 py-4">
+        <div ref={listRef} className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-4 py-4">
           <MessageList
             messages={messages}
             resolvedOperationIds={resolvedOperationIds}
