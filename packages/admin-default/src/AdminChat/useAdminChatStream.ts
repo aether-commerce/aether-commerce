@@ -6,9 +6,21 @@ import { useAdminConfig } from "../AetherAdminProvider";
 import { parseSseFrames } from "./parseSseFrames";
 import { buildChatRequestContext } from "./useAdminChatContext";
 import { useAdminLanguage } from "../AdminLanguageProvider";
+import type { AdminDictionary } from "@aether-commerce/i18n";
 import type { ChatArtifact, ChatMessage, ChatStatusPhase } from "./types";
 
 const conversationStorageKey = "aether.admin.chat.conversationId.v1";
+
+// The API already tells the client exactly why the request was rejected
+// (requireAdminChatAccess in routes/admin-chat.ts returns 401 for a signed-out
+// visitor and 403 for a signed-in operator without an admin-chat role) - show
+// that instead of the generic "could not respond" message, which reads like a
+// server outage even when the fix is just "sign in".
+function describeChatRequestFailure(status: number, t: AdminDictionary, brandName: string): string {
+  if (status === 401) return t.chat.signInRequired.replace("{brand}", brandName);
+  if (status === 403) return t.chat.permissionRequired.replace("{brand}", brandName);
+  return t.chat.couldNotRespond.replace("{brand}", brandName);
+}
 
 function readStoredConversationId(): string | null {
   try {
@@ -122,7 +134,7 @@ export function useAdminChatStream() {
             {
               id: crypto.randomUUID(),
               role: "system-error",
-              content: t.chat.couldNotRespond.replace("{brand}", config.brand.name)
+              content: describeChatRequestFailure(response.status, t, config.brand.name)
             }
           ]);
           setStatus("idle");
