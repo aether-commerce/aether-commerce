@@ -1,5 +1,11 @@
 # @aether-commerce/storefront-default
 
+## 0.3.2
+
+### Patch Changes
+
+- 0f6cc95: Update Next.js, Hono, sharp, Browserslist, and Wrangler to security-patched dependency versions.
+
 ## 0.3.1
 
 ### Patch Changes
