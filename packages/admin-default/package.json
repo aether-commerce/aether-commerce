@@ -1,6 +1,6 @@
 {
   "name": "@aether-commerce/admin-default",
-  "version": "0.4.4",
+  "version": "0.4.5",
   "private": false,
   "license": "SEE LICENSE IN LICENSE.md",
   "repository": {
@@ -50,7 +50,7 @@
   "devDependencies": {
     "@clerk/react": "^6.12.3",
     "@types/react": "^19.2.3",
-    "next": "^16.3.0",
+    "next": "^16.3.3",
     "react": "^19.2.3",
     "typescript": "^5.9.0"
   }

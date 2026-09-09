@@ -1,6 +1,6 @@
 {
   "name": "@aether-commerce/api-worker",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "private": false,
   "license": "SEE LICENSE IN LICENSE.md",
   "repository": {
@@ -39,7 +39,7 @@
     "@langchain/google-genai": "2.2.0",
     "@langchain/langgraph": "1.4.8",
     "@sentry/cloudflare": "10.70.0",
-    "hono": "^4.12.34",
+    "hono": "^4.13.5",
     "jose": "^6.1.0",
     "zod": "^4.2.0"
   },
