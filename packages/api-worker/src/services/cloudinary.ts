@@ -38,9 +38,11 @@ async function cloudinaryCredentials(env: Env): Promise<CloudinaryCredentials | 
   const { cloudinary } = await resolveIntegrationSecrets(env);
   if (!cloudinary.cloudName || !cloudinary.apiKey || !cloudinary.apiSecret) return null;
   return {
-    cloudName: cloudinary.cloudName,
-    apiKey: cloudinary.apiKey,
-    apiSecret: cloudinary.apiSecret
+    // Secrets may be provisioned through CI files with a trailing newline;
+    // Cloudinary rejects that invisible character as part of cloud_name/key.
+    cloudName: cloudinary.cloudName.trim(),
+    apiKey: cloudinary.apiKey.trim(),
+    apiSecret: cloudinary.apiSecret.trim()
   };
 }
 
