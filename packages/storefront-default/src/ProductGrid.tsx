@@ -73,7 +73,6 @@ export function ProductGrid({
   eyebrow,
   description,
   pageSize = 12,
-  fallbackProducts,
   onProductOpen,
   initialProducts,
   initialPagination,
@@ -88,8 +87,6 @@ export function ProductGrid({
   eyebrow?: string;
   description?: string;
   pageSize?: number;
-  /** Optional catalog to show if the live API is unreachable. A generic default skin ships no hardcoded products - pass your own (or omit for an empty offline state). */
-  fallbackProducts?: Product[];
   onProductOpen?: (event: MouseEvent<HTMLAnchorElement>, product: Product) => void;
   /** Products fetched by the route during SSR. The browser still refreshes them for filters and freshness. */
   initialProducts?: Product[] | undefined;
@@ -214,7 +211,8 @@ export function ProductGrid({
         setPagination(payload.pagination ?? { page, pageSize, total: data.length, pageCount: 1 });
       })
       .catch(() => {
-        if (!compact && fallbackProducts) setProducts(fallbackProducts);
+        // Keep any server-rendered products on a refresh failure. When no
+        // live data exists, the empty state is rendered instead of demo data.
       })
       .finally(() => setLoading(false));
 
@@ -239,7 +237,6 @@ export function ProductGrid({
     inStock,
     excludeSlug,
     apiBaseUrl,
-    fallbackProducts,
     initialProducts
   ]);
 
