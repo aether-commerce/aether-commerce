@@ -1,5 +1,16 @@
 # @aether-commerce/storefront-default
 
+## 0.3.3
+
+### Patch Changes
+
+- a2f3fb1: Unify product write validation with the canonical form, add a resumable legacy catalog migration endpoint, and remove obsolete product storage tables from the published schema.
+- Updated dependencies [a2f3fb1]
+  - @aether-commerce/schemas@0.3.0
+  - @aether-commerce/api-client@0.2.2
+  - @aether-commerce/core@0.2.3
+  - @aether-commerce/ui@0.2.4
+
 ## 0.3.2
 
 ### Patch Changes
