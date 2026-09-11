@@ -1577,7 +1577,9 @@ function extractExplicitBudgetCents(message: string): number | undefined {
     .replace(/(us\$|usd|d[oó]lares?|dollars?)/g, "$ ");
   const match = normalized.match(/(?:\$\s*|(?:hasta|menos de|under|below|up to|max(?:imo)?|maximum)\s+)(\d{1,3}(?:[,.]\d{3})*|\d+)(?:\.\d{1,2})?/i);
   if (!match) return undefined;
-  const value = Number(match[1].replace(/[,.]/g, ""));
+  const rawValue = match[1];
+  if (!rawValue) return undefined;
+  const value = Number(rawValue.replace(/[,.]/g, ""));
   return Number.isFinite(value) && value >= 0 ? Math.round(value * 100) : undefined;
 }
 
