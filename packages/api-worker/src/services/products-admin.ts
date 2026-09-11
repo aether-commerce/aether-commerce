@@ -1,4 +1,5 @@
 import type { Env } from "../types";
+import { normalizeProductWriteInput, type ProductWriteInput as CanonicalProductWriteInput } from "@aether-commerce/schemas";
 import { clearCatalogCache, type ProductDetails, type ProductRow } from "./catalog";
 import { deleteCloudinaryProductImages } from "./cloudinary";
 import { getStoreConfig } from "./store-config";
@@ -78,11 +79,8 @@ function rowToSummary(row: ProductRow, currency: "USD" | "COP"): AdminProductSum
   };
 }
 
-// Reads apps/api/src/data/products.json (200 hits) sit fine in memory client
-// side, but this admin list is meant to grow with real store inventory, so
-// filtering/sorting/pagination happen in SQL rather than loading every row -
-// unlike the public catalog.ts read path, which still caches the full
-// visible set in memory/D1 for storefront browsing.
+// The admin list is meant to grow with real store inventory, so
+// filtering/sorting/pagination happen in SQL rather than loading every row.
 export async function listProductsForAdmin(env: Env, query: AdminProductListQuery) {
   const where: string[] = [];
   const params: unknown[] = [];
@@ -187,32 +185,7 @@ async function uniqueSku(env: Env, category: string): Promise<string> {
   }
 }
 
-export type ProductWriteInput = {
-  name: string;
-  slug?: string | undefined;
-  sku?: string | undefined;
-  brand?: string | null | undefined;
-  category: string;
-  subcategory?: string | null | undefined;
-  shortDescription: string;
-  description: string;
-  highlights?: string[] | undefined;
-  specs?: Record<string, string> | undefined;
-  tags?: string[] | undefined;
-  variants?: Array<{ type: string; options: string[] }> | undefined;
-  images: { main: string; gallery: string[] };
-  seoTitle?: string | undefined;
-  seoDescription?: string | undefined;
-  priceCents: number;
-  compareAtPriceCents?: number | null | undefined;
-  stock: number;
-  lowStockThreshold?: number | undefined;
-  visibility?: ProductRow["visibility"] | undefined;
-  featured?: boolean | undefined;
-  featuredPosition?: number | null | undefined;
-  isNew?: boolean | undefined;
-  isDeal?: boolean | undefined;
-};
+export type ProductWriteInput = CanonicalProductWriteInput;
 
 function detailsFromInput(input: ProductWriteInput): ProductDetails {
   return {
@@ -229,6 +202,7 @@ function detailsFromInput(input: ProductWriteInput): ProductDetails {
 }
 
 export async function createProduct(env: Env, input: ProductWriteInput): Promise<ProductRow> {
+  input = normalizeProductWriteInput(input);
   const storeId = currentStoreId(env);
   const category = await categoryForProduct(env, input.category, storeId);
   if (!category) throw new StoreCategoryOwnershipError();

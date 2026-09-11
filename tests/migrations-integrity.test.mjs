@@ -24,6 +24,13 @@ test("all core D1 migrations apply with foreign keys enabled", () => {
   assert.deepEqual(database.prepare("PRAGMA foreign_key_check;").all(), []);
   assert.ok(database.prepare("SELECT count(*) AS count FROM products;").get().count > 0);
   assert.ok(database.prepare("SELECT count(*) AS count FROM store_categories;").get().count > 0);
+  for (const table of ["product_cache", "product_overrides", "category_overrides"]) {
+    assert.equal(
+      database.prepare("SELECT count(*) AS count FROM sqlite_master WHERE type = 'table' AND name = ?;").get(table).count,
+      0,
+      `${table} should be removed by the legacy catalog cleanup migration`
+    );
+  }
   assert.match(
     readFileSync(join(migrationsDirectory, "0026_store_category_scope.sql"), "utf8"),
     /PRAGMA defer_foreign_keys\s*=\s*ON/i

@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { absoluteStorefrontUrl, buildProductJsonLd, fetchProductBySlug, ProductDetailClient, StorefrontJsonLd } from "@aether-commerce/storefront-default";
-import { demoProducts } from "../../../components/demo-products";
 
 import { apiBaseUrl, storefrontBasePath } from "../../../components/config";
 import { storefrontSiteUrl } from "../../seo-config";
@@ -11,7 +10,7 @@ export const dynamic = "force-dynamic";
 async function productForRequest(slug: string) {
   const lookup = await fetchProductBySlug(apiBaseUrl, slug);
   if (lookup.status === "found") return lookup.product;
-  return demoProducts.find((candidate) => candidate.slug === slug) ?? null;
+  return null;
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
@@ -36,9 +35,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 export default async function ProductDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const lookup = await fetchProductBySlug(apiBaseUrl, slug);
-  const fallbackProduct = demoProducts.find((candidate) => candidate.slug === slug) ?? null;
-  if (lookup.status === "not-found" && !fallbackProduct) notFound();
-  const product = lookup.status === "found" ? lookup.product : fallbackProduct;
+  if (lookup.status !== "found") notFound();
+  const product = lookup.product;
 
   return (
     <>
@@ -46,7 +44,6 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
       <ProductDetailClient
         slug={slug}
         initialProduct={lookup.status === "found" ? lookup.product : null}
-        fallbackProduct={fallbackProduct}
       />
     </>
   );

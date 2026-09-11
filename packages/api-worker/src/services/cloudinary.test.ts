@@ -47,7 +47,7 @@ describe("cloudinary.createUploadSignature", () => {
     expect(result).not.toBeNull();
     expect(result?.cloudName).toBe("demo");
     expect(result?.apiKey).toBe("123456");
-    expect(result?.folder).toBe("aether/products");
+    expect(result?.folder).toBe("aether/products/store_default");
     expect(result?.signature).toMatch(/^[0-9a-f]{40}$/);
   });
 

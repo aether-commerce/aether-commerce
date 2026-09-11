@@ -2,11 +2,8 @@ import type { Metadata } from "next";
 import { humanizeCategorySlug } from "@aether-commerce/core";
 import { fetchCatalogProducts, ProductGrid } from "@aether-commerce/storefront-default";
 import { apiBaseUrl } from "../../../components/config";
-import { demoProducts } from "../../../components/demo-products";
 import { pageMetadata } from "../../seo-config";
 
-// The 10 real category slugs in the local catalog (see
-// apps/storefront/data/products.json and apps/api/src/services/catalog.ts).
 export function generateStaticParams() {
   return [
     "smartphones",
@@ -42,7 +39,6 @@ export default async function CategoryProductsPage({ params }: { params: Promise
       description="Products filtered by category through the Aether Catalog Adapter."
       initialProducts={catalog?.products}
       initialPagination={catalog?.pagination}
-      fallbackProducts={demoProducts}
       />
     </main>
   );
