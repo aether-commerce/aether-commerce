@@ -31,7 +31,7 @@ const MODULE_LABELS: Record<NavModule, { en: string; es: string }> = {
 export const navigateToTool = defineAdminChatTool({
   name: "navigate_to",
   description:
-    "Builds a link to an admin panel module, optionally with filters already applied (e.g. products filtered to out-of-stock). Use categories for creating, editing, hiding, reordering, or deleting catalog categories instead of products. Use this instead of explaining where to click.",
+    "Builds a link to an admin panel module, optionally with filters already applied (e.g. products filtered to out-of-stock). Use Products for all product creation, editing, and catalog maintenance. Use categories for creating, editing, hiding, reordering, or deleting catalog categories instead of products. Use this instead of explaining where to click.",
   schema: z.object({
     module: z.enum(["home", "orders", "products", "categories", "inventory", "customers", "settings", "activity"]),
     // An array of pairs, not z.record() - Gemini's function-calling schema

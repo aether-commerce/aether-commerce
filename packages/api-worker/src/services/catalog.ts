@@ -60,8 +60,8 @@ function storefrontOrigin(env: Env) {
 }
 
 // Cloudinary/external image URLs already resolve on their own; only bare
-// paths (the bundled demo catalog's /products/*.webp assets) need the
-// storefront origin prefixed onto them.
+// legacy paths need the storefront origin prefixed onto them during the
+// transition window before the catalog image migration is executed.
 function absoluteImageUrl(env: Env, imagePath: string) {
   if (/^https?:\/\//i.test(imagePath)) return imagePath;
   const basePath = (env.APP_STORE_BASE_PATH ?? "").replace(/\/$/, "");

@@ -14,7 +14,9 @@ import {
   categoryMerchandisingReorderSchema,
   categoryMerchandisingWriteSchema,
   categorySectionUpdateSchema,
-  orderStateSchema
+  orderStateSchema,
+  productPatchSchema,
+  productWriteSchemaValidated
 } from "@aether-commerce/schemas";
 import type { AppBindings } from "../types";
 import { collection, fail, ok } from "../http";
@@ -61,6 +63,7 @@ import {
 import { writeAuditLog } from "../services/audit";
 import { computeSystemHealth } from "../services/system-health";
 import { generateProductContent } from "../services/product-content-generator";
+import { migrateLegacyCatalog } from "../services/catalog-migration";
 import {
   adjustProductInventory,
   bulkSetVisibility,
@@ -90,66 +93,16 @@ import {
   updateStorefrontCategorySection
 } from "../services/storefront-category-merchandising";
 
-const productImageSchema = z.object({
-  main: z.string().min(1),
-  gallery: z.array(z.string().min(1)).default([])
-});
-
-const productWriteSchema = z.object({
-  name: z.string().min(1).max(200),
-  slug: z.string().min(1).max(80).optional(),
-  sku: z.string().min(1).max(40).optional(),
-  brand: z.string().max(80).nullable().optional(),
-  category: z.string().min(1).max(60),
-  subcategory: z.string().max(60).nullable().optional(),
-  shortDescription: z.string().min(1).max(300),
-  description: z.string().min(1).max(5000),
-  highlights: z.array(z.string().min(1)).max(10).optional(),
-  specs: z.record(z.string(), z.string()).optional(),
-  tags: z.array(z.string().min(1)).max(20).optional(),
-  variants: z
-    .array(z.object({ type: z.string().min(1), options: z.array(z.string().min(1)).min(1) }))
-    .optional(),
-  images: productImageSchema,
-  seoTitle: z.string().max(160).optional(),
-  seoDescription: z.string().max(300).optional(),
-  priceCents: z.number().int().min(0),
-  compareAtPriceCents: z.number().int().min(0).nullable().optional(),
-  stock: z.number().int().min(0),
-  lowStockThreshold: z.number().int().min(0).optional(),
-  visibility: z.enum(["draft", "visible", "hidden"]).optional(),
-  featured: z.boolean().optional(),
-  featuredPosition: z.number().int().min(1).max(4).nullable().optional(),
-  isNew: z.boolean().optional(),
-  isDeal: z.boolean().optional()
-});
-// compareAtPriceCents, when present, is the struck-through reference price -
-// it must be strictly higher than what the shopper actually pays, or the
-// "discount" shown on the storefront would be negative/nonsensical.
-const productWriteSchemaValidated = productWriteSchema.refine(
-  (value) => value.compareAtPriceCents == null || value.compareAtPriceCents > value.priceCents,
-  {
-    message: "compareAtPriceCents must be greater than priceCents",
-    path: ["compareAtPriceCents"]
-  }
-);
-const productPatchSchema = productWriteSchema
-  .partial()
-  .refine(
-    (value) =>
-      value.compareAtPriceCents == null ||
-      value.priceCents == null ||
-      value.compareAtPriceCents > value.priceCents,
-    {
-      message: "compareAtPriceCents must be greater than priceCents",
-      path: ["compareAtPriceCents"]
-    }
-  );
-
 const productContentGenerationSchema = z.object({
   name: z.string().trim().min(1).max(200),
   description: z.string().trim().min(1).max(5000),
   locale: z.enum(["en", "es"])
+});
+
+const productMigrationSchema = z.object({
+  dryRun: z.boolean().default(true),
+  limit: z.number().int().min(1).max(100).default(25),
+  afterId: z.string().min(1).optional()
 });
 
 const categoryWriteSchema = z.object({
@@ -599,6 +552,32 @@ adminRoutes.post(
       payload: { name: row.name, sku: row.sku }
     });
     return ok(c, row, 201);
+  }
+);
+
+// Operational endpoint for the resumable, per-store legacy catalog import.
+// It is deliberately separate from product creation and defaults to dry-run.
+adminRoutes.post(
+  "/products/migrate-legacy",
+  requirePermission("products.write"),
+  zValidator("json", productMigrationSchema),
+  async (c) => {
+    const report = await migrateLegacyCatalog(c.env, c.req.valid("json"));
+    await writeAuditLog(c.env, {
+      actorId: c.get("actor").userId ?? "admin",
+      action: "catalog.legacy_migration",
+      targetType: "catalog",
+      targetId: null,
+      payload: {
+        dryRun: c.req.valid("json").dryRun,
+        scanned: report.scanned,
+        migrated: report.migrated,
+        unchanged: report.unchanged,
+        errors: report.errors.length,
+        nextCursor: report.nextCursor
+      }
+    });
+    return ok(c, report);
   }
 );
 

@@ -44,12 +44,44 @@ async function cloudinaryCredentials(env: Env): Promise<CloudinaryCredentials | 
   };
 }
 
+/** Uploads a legacy product image with a deterministic public id. */
+export async function uploadCloudinaryProductImage(
+  env: Env,
+  image: Blob,
+  publicId: string,
+  folder: string
+): Promise<string> {
+  const cloudinary = await cloudinaryCredentials(env);
+  if (!cloudinary) throw new Error("Cloudinary is not configured for product image migration.");
+  const timestamp = Math.floor(Date.now() / 1000);
+  const params = { folder, public_id: publicId, timestamp };
+  const signature = await sha1Hex(`${signatureParams(params)}${cloudinary.apiSecret}`);
+  const body = new FormData();
+  body.set("file", image);
+  body.set("api_key", cloudinary.apiKey);
+  body.set("timestamp", String(timestamp));
+  body.set("folder", folder);
+  body.set("public_id", publicId);
+  body.set("signature", signature);
+
+  const response = await fetch(`https://api.cloudinary.com/v1_1/${encodeURIComponent(cloudinary.cloudName)}/image/upload`, {
+    method: "POST",
+    body
+  });
+  const payload = (await response.json().catch(() => null)) as { secure_url?: string; error?: { message?: string } } | null;
+  if (!response.ok || !payload?.secure_url) {
+    throw new Error(payload?.error?.message ?? "Cloudinary could not upload product image.");
+  }
+  return payload.secure_url;
+}
+
 export async function createUploadSignature(env: Env): Promise<CloudinaryUploadSignature | null> {
   const cloudinary = await cloudinaryCredentials(env);
   if (!cloudinary) return null;
 
   const timestamp = Math.floor(Date.now() / 1000);
-  const folder = "aether/products";
+  const storeId = env.STORE_ID?.trim() || "store_default";
+  const folder = `aether/products/${storeId}`;
   const signature = await sha1Hex(`${signatureParams({ folder, timestamp })}${cloudinary.apiSecret}`);
 
   return {

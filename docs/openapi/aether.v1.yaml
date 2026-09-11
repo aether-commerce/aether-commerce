@@ -411,6 +411,26 @@ paths:
         - bearerAuth: []
       responses:
         "200": { description: Products }
+  /admin/products/migrate-legacy:
+    post:
+      tags: [Admin]
+      summary: Audit or migrate legacy product records for the current store
+      description: Resumable, paginated operation. It defaults to dry-run and only uploads legacy images when dryRun is false.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                dryRun: { type: boolean, default: true }
+                limit: { type: integer, minimum: 1, maximum: 100, default: 25 }
+                afterId: { type: string }
+      responses:
+        "200": { description: Migration audit report }
+        "403": { $ref: "#/components/responses/Error" }
   /admin/products/generate-content:
     post:
       tags: [Admin]
@@ -449,22 +469,6 @@ paths:
       responses:
         "200":
           description: Private summary
-        "403":
-          $ref: "#/components/responses/Error"
-  /admin/products/{id}/override:
-    patch:
-      summary: Update product override
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Override saved
         "403":
           $ref: "#/components/responses/Error"
   /webhooks/stripe:
