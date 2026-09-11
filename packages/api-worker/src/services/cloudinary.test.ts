@@ -51,6 +51,19 @@ describe("cloudinary.createUploadSignature", () => {
     expect(result?.signature).toMatch(/^[0-9a-f]{40}$/);
   });
 
+  it("trims whitespace from CI-provisioned credentials", async () => {
+    const result = await createUploadSignature(
+      fakeEnv({
+        CLOUDINARY_CLOUD_NAME: " demo\r\n",
+        CLOUDINARY_API_KEY: " 123456\n",
+        CLOUDINARY_API_SECRET: " secret\r"
+      })
+    );
+    expect(result?.cloudName).toBe("demo");
+    expect(result?.apiKey).toBe("123456");
+    expect(result?.signature).toMatch(/^[0-9a-f]{40}$/);
+  });
+
   it("never lets the api_secret leak into the returned signature payload", async () => {
     const env = fakeEnv({
       CLOUDINARY_CLOUD_NAME: "demo",
