@@ -87,7 +87,7 @@ function withMockedGeminiTextReply<T>(text: string, run: () => Promise<T>): Prom
     ],
     usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1, totalTokenCount: 2 }
   };
-  const originalFetch = global.fetch;
+  const originalFetch = global.fetch.bind(global);
   global.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
     const url = input instanceof Request ? input.url : String(input);
     if (url.includes("generativelanguage.googleapis.com"))
@@ -412,7 +412,7 @@ describe("interview regressions", () => {
     // model to get wrong. Asserts on both ends: the right data comes back,
     // and Gemini's endpoint is never touched to get it.
     let geminiCalled = false;
-    const originalFetch = global.fetch;
+    const originalFetch = global.fetch.bind(global);
     global.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
       const url = input instanceof Request ? input.url : String(input);
       if (url.includes("generativelanguage.googleapis.com")) geminiCalled = true;
@@ -462,7 +462,7 @@ describe("interview regressions", () => {
     const encryptedApiKey = await encryptSecret(encryptionKey, "admin-configured-key");
     const db = dbWithIntegrationSettings(JSON.stringify({ gemini: { apiKey: encryptedApiKey } }));
     let geminiCalled = false;
-    const originalFetch = global.fetch;
+    const originalFetch = global.fetch.bind(global);
     global.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
       const url = input instanceof Request ? input.url : String(input);
       if (url.includes("generativelanguage.googleapis.com")) {
