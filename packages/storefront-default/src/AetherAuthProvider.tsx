@@ -1,6 +1,7 @@
 "use client";
 
 import { ClerkProvider, useAuth, useClerk, useUser } from "@clerk/react";
+import { enUS, esES } from "@clerk/localizations";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useStorefrontConfig } from "./AetherStorefrontProvider";
 
@@ -104,7 +105,13 @@ export function useAetherAuth() {
   return useContext(AetherAuthContext);
 }
 
-export function AetherAuthProvider({ children }: { children: React.ReactNode }) {
+export function AetherAuthProvider({
+  children,
+  locale = "en"
+}: {
+  children: React.ReactNode;
+  locale?: "en" | "es";
+}) {
   const { apiBaseUrl } = useStorefrontConfig();
   const [publishableKey, setPublishableKey] = useState(() =>
     isUsablePublishableKey(configuredClerkPublishableKey) ? configuredClerkPublishableKey : ""
@@ -158,7 +165,7 @@ export function AetherAuthProvider({ children }: { children: React.ReactNode }) 
   }
 
   return (
-    <ClerkProvider publishableKey={publishableKey}>
+    <ClerkProvider publishableKey={publishableKey} localization={locale === "es" ? esES : enUS}>
       <ClerkSessionBridge>{children}</ClerkSessionBridge>
     </ClerkProvider>
   );

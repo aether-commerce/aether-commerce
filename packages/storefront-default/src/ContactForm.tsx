@@ -31,6 +31,11 @@ export function ContactForm({ legalPolicyVersion, addressBlock, headingLevel = "
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!event.currentTarget.checkValidity()) {
+      setStatus(labels.incomplete);
+      event.currentTarget.querySelector<HTMLElement>("input:invalid, textarea:invalid")?.focus();
+      return;
+    }
     const form = new FormData(event.currentTarget);
     setStatus(labels.sending);
 
@@ -73,31 +78,40 @@ export function ContactForm({ legalPolicyVersion, addressBlock, headingLevel = "
           </Heading>
           <p className="mt-3 text-sm leading-6 text-zinc-600">{labels.description}</p>
           {addressBlock}
-          <p className="mt-4 rounded-md bg-zinc-100 px-3 py-2 text-sm font-medium text-zinc-700">
+          <p className="mt-4 rounded-md bg-zinc-100 px-3 py-2 text-sm font-medium text-zinc-700" role="status" aria-live="polite">
             {status || labels.ready}
           </p>
         </div>
-        <form onSubmit={(event) => void submit(event)} className="grid gap-3">
+        <form noValidate onSubmit={(event) => void submit(event)} className="grid gap-3">
           <div className="grid gap-3 sm:grid-cols-2">
+            <label className="sr-only" htmlFor="contact-name">{labels.name}</label>
             <input
+              id="contact-name"
               name="name"
               required
               minLength={2}
+              autoComplete="name"
               placeholder={labels.name}
-              className="min-h-11 rounded-md border border-zinc-300 px-3"
+              className="focus-ring min-h-11 rounded-md border border-zinc-300 px-3"
             />
+            <label className="sr-only" htmlFor="contact-email">{labels.email}</label>
             <input
+              id="contact-email"
               name="email"
               required
               type="email"
+              autoComplete="email"
               placeholder={labels.email}
-              className="min-h-11 rounded-md border border-zinc-300 px-3"
+              className="focus-ring min-h-11 rounded-md border border-zinc-300 px-3"
             />
           </div>
+          <label className="sr-only" htmlFor="contact-company">{labels.company}</label>
           <input
+            id="contact-company"
             name="company"
+            autoComplete="organization"
             placeholder={labels.company}
-            className="min-h-11 rounded-md border border-zinc-300 px-3"
+            className="focus-ring min-h-11 rounded-md border border-zinc-300 px-3"
           />
           <input
             name="website"
@@ -106,20 +120,24 @@ export function ContactForm({ legalPolicyVersion, addressBlock, headingLevel = "
             aria-hidden="true"
             className="hidden"
           />
+          <label className="sr-only" htmlFor="contact-subject">{labels.subject}</label>
           <input
+            id="contact-subject"
             name="subject"
             required
             minLength={3}
             placeholder={labels.subject}
-            className="min-h-11 rounded-md border border-zinc-300 px-3"
+            className="focus-ring min-h-11 rounded-md border border-zinc-300 px-3"
           />
+          <label className="sr-only" htmlFor="contact-message">{labels.message}</label>
           <textarea
+            id="contact-message"
             name="message"
             required
             minLength={10}
             placeholder={labels.message}
             rows={4}
-            className="rounded-md border border-zinc-300 px-3 py-3"
+            className="focus-ring resize-none rounded-md border border-zinc-300 px-3 py-3"
           />
           <label className="flex items-start gap-3 text-sm leading-6 text-zinc-600">
             <input name="consent" type="checkbox" required className="mt-1" />
