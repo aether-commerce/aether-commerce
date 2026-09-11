@@ -1,5 +1,11 @@
 # @aether-commerce/ui
 
+## 0.2.4
+
+### Patch Changes
+
+- @aether-commerce/core@0.2.3
+
 ## 0.2.3
 
 ### Patch Changes

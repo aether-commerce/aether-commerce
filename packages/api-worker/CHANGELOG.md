@@ -1,5 +1,19 @@
 # @aether-commerce/api-worker
 
+## 0.5.0
+
+### Minor Changes
+
+- a2f3fb1: Unify product write validation with the canonical form, add a resumable legacy catalog migration endpoint, and remove obsolete product storage tables from the published schema.
+
+### Patch Changes
+
+- 3a71dbb: Trim whitespace from Cloudinary credentials before signing uploads so CI-provisioned secrets remain usable.
+- Updated dependencies [a2f3fb1]
+  - @aether-commerce/schemas@0.3.0
+  - @aether-commerce/api-core@0.2.3
+  - @aether-commerce/core@0.2.3
+
 ## 0.4.2
 
 ### Patch Changes

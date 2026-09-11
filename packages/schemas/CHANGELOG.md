@@ -1,5 +1,11 @@
 # @aether-commerce/schemas
 
+## 0.3.0
+
+### Minor Changes
+
+- a2f3fb1: Unify product write validation with the canonical form, add a resumable legacy catalog migration endpoint, and remove obsolete product storage tables from the published schema.
+
 ## 0.2.1
 
 ### Patch Changes
