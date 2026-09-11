@@ -21,12 +21,9 @@ import { ReviewsSection } from "./ReviewsSection";
 
 export function ProductDetailClient({
   slug,
-  fallbackProduct,
   initialProduct
 }: {
   slug: string;
-  /** Optional catalog seed to show if the live API is unreachable or doesn't have this product. A generic default skin ships no hardcoded products - pass your own (or omit for a "not found" state). */
-  fallbackProduct?: Product | null;
   /** Product loaded by a server-rendered route. The client revalidates it after hydration. */
   initialProduct?: Product | null;
 }) {
@@ -36,9 +33,8 @@ export function ProductDetailClient({
   const { isFavorite: checkIsFavorite, toggleFavorite: toggleFavoriteHook } = useFavorites();
   const { isComparing, toggle: toggleCompareHook } = useCompare();
   const productWindowRef = useRef<HTMLDivElement | null>(null);
-  const fallback = fallbackProduct ?? null;
   const [product, setProduct] = useState<Product | null>(initialProduct ?? null);
-  const [status, setStatus] = useState<"loading" | "demo" | "live" | "offline" | "not-found">(initialProduct ? "live" : "loading");
+  const [status, setStatus] = useState<"loading" | "live" | "offline" | "not-found">(initialProduct ? "live" : "loading");
   const [isAdding, setIsAdding] = useState(false);
   const [compareNotice, setCompareNotice] = useState<string | null>(null);
   const [activeImage, setActiveImage] = useState(0);
@@ -88,18 +84,16 @@ export function ProductDetailClient({
           setStatus("live");
           return;
         }
-        const nextProduct = initialProduct ?? fallback;
-        setProduct(nextProduct);
-        setStatus(nextProduct ? (initialProduct ? "offline" : "demo") : "not-found");
+        setProduct(initialProduct ?? null);
+        setStatus(initialProduct ? "offline" : "not-found");
       })
       .catch(() => {
         if (controller.signal.aborted) return;
-        const nextProduct = initialProduct ?? fallback;
-        setProduct(nextProduct);
-        setStatus(nextProduct ? "offline" : "not-found");
+        setProduct(initialProduct ?? null);
+        setStatus(initialProduct ? "offline" : "not-found");
       });
     return () => controller.abort();
-  }, [fallback, initialProduct, slug, apiBaseUrl]);
+  }, [initialProduct, slug, apiBaseUrl]);
 
   useEffect(() => {
     if (!product) return;

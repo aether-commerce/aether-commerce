@@ -42,7 +42,6 @@ export default async function ProductDetailPage({ params }: Readonly<{ params: P
       <ProductDetailClient
         slug={slug}
         initialProduct={lookup.status === "found" ? lookup.product : null}
-        fallbackProduct={null}
       />
     </>
   );

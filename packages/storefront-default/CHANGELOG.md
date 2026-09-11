@@ -1,5 +1,11 @@
 # @aether-commerce/storefront-default
 
+## 0.3.4
+
+### Patch Changes
+
+- 3be1cd1: Remove legacy catalog seed and static-image fallback paths so storefront catalog data comes exclusively from the live product API.
+
 ## 0.3.3
 
 ### Patch Changes

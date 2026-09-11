@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { test } from "node:test";
 import { resolve } from "node:path";
 
@@ -498,6 +498,26 @@ test("storefront resolves product slugs and metadata at request time", () => {
   assert.match(serverLoader, /cache\(async/);
   assert.match(serverLoader, /products\/slug/);
   assert.match(serverLoader, /cache: "no-store"/);
+});
+
+test("storefront catalog has no bundled product seed or demo fallback", () => {
+  for (const path of [
+    "apps/api/src/data/products.json",
+    "apps/storefront/data/products.json",
+    "apps/storefront/data/gallery-angles.json",
+    "apps/storefront/scripts/check-images.mjs",
+    "apps/storefront/scripts/generate-catalog.mjs",
+    "apps/storefront/scripts/generate-images.mjs",
+    "apps/storefront/scripts/validate-catalog.mjs",
+    "apps/storefront/public/products"
+  ]) {
+    assert.equal(existsSync(resolve(root, path)), false, `${path} must not be shipped`);
+  }
+
+  const grid = read("packages/storefront-default/src/ProductGrid.tsx");
+  const detail = read("packages/storefront-default/src/ProductDetailClient.tsx");
+  assert.doesNotMatch(grid, /fallbackProducts/);
+  assert.doesNotMatch(detail, /fallbackProduct|demo/);
 });
 
 test("storefront deploys the dynamic Next server through OpenNext", () => {
