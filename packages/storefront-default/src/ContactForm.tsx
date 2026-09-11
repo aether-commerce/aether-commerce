@@ -78,7 +78,7 @@ export function ContactForm({ legalPolicyVersion, addressBlock, headingLevel = "
           </Heading>
           <p className="mt-3 text-sm leading-6 text-zinc-600">{labels.description}</p>
           {addressBlock}
-          <p className="mt-4 rounded-md bg-zinc-100 px-3 py-2 text-sm font-medium text-zinc-700" role="status" aria-live="polite">
+          <p className="mt-4 rounded-md bg-zinc-100 px-3 py-2 text-sm font-medium text-zinc-700" role={status ? "status" : undefined} aria-live="polite">
             {status || labels.ready}
           </p>
         </div>
