@@ -1,7 +1,6 @@
 import type { MetadataRoute } from "next";
 import { absoluteStorefrontUrl, fetchAllCatalogProducts, fetchCatalogCategories } from "@aether-commerce/storefront-default";
 import { apiBaseUrl } from "../components/config";
-import { demoProducts } from "../components/demo-products";
 import { storefrontSiteUrl } from "./seo-config";
 
 const staticPaths: Array<{ path: string; priority: number }> = [
@@ -21,7 +20,7 @@ const staticPaths: Array<{ path: string; priority: number }> = [
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const [liveProducts, categories] = await Promise.all([fetchAllCatalogProducts(apiBaseUrl), fetchCatalogCategories(apiBaseUrl)]);
-  const products = liveProducts ?? demoProducts;
+  const products = liveProducts ?? [];
 
   const staticEntries = staticPaths.map(({ path, priority }) => ({
     url: absoluteStorefrontUrl(storefrontSiteUrl, path),

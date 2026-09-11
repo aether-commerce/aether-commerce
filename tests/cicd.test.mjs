@@ -49,6 +49,17 @@ test("deployments wait for a successful CI run and deploy its exact SHA", () => 
   }
 });
 
+test("development deployment never defaults its D1 binding to production", () => {
+  const workflow = read(".github/workflows/deploy-development.yml");
+  const apiConfig = read("scripts/write-api-wrangler-config.mjs");
+  const assistantConfig = read("scripts/write-ai-wrangler-config.mjs");
+
+  assert.match(workflow, /AETHER_D1_DATABASE_NAME: \$\{\{ vars\.AETHER_D1_DATABASE_NAME \|\| 'aether-development' \}\}/);
+  assert.match(apiConfig, /deployEnvironment === "production" \? "aether-production-live" : "aether-development"/);
+  assert.match(assistantConfig, /deployEnvironment === "production" \? "aether-production-live" : "aether-development"/);
+  assert.doesNotMatch(workflow, /AETHER_D1_DATABASE_NAME:.*aether-production['\"]?\s*\}\}/);
+});
+
 test("CI enforces the single develop to main release path", () => {
   const workflow = read(".github/workflows/ci.yml");
   const policy = read("scripts/check-release-policy.mjs");

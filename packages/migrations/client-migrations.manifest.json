@@ -22,6 +22,7 @@
     "0025_category_ownership.sql",
     "0026_store_category_scope.sql",
     "0027_featured_product_order.sql",
-    "0028_storefront_category_merchandising.sql"
+    "0028_storefront_category_merchandising.sql",
+    "0029_remove_legacy_product_tables.sql"
   ]
 }

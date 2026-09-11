@@ -22,22 +22,6 @@ export const addresses = sqliteTable("addresses", {
   ...timestamps
 });
 
-export const productCache = sqliteTable("product_cache", {
-  id: text("id").primaryKey(),
-  sourceId: text("source_id").notNull(),
-  slug: text("slug").notNull(),
-  payloadJson: text("payload_json").notNull(),
-  expiresAt: text("expires_at").notNull(),
-  ...timestamps
-});
-
-export const productOverrides = sqliteTable("product_overrides", {
-  id: text("id").primaryKey(),
-  productId: text("product_id").notNull(),
-  payloadJson: text("payload_json").notNull(),
-  ...timestamps
-});
-
 export const inventory = sqliteTable("inventory", {
   sku: text("sku").primaryKey(),
   productId: text("product_id").notNull(),
