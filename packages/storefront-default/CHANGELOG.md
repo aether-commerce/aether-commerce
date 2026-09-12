@@ -1,5 +1,11 @@
 # @aether-commerce/storefront-default
 
+## 0.3.6
+
+### Patch Changes
+
+- f7897b9: Show grounded reasons for assistant product recommendations.
+
 ## 0.3.5
 
 ### Patch Changes

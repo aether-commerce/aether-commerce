@@ -188,6 +188,57 @@ describe("interview regressions", () => {
     expect(payload.products).toEqual([expect.objectContaining({ price: "999.99" })]);
   });
 
+  it("ranks a birthday gift by stated interests, preferred color, and budget without embeddings", async () => {
+    const requests: URL[] = [];
+    const response = await worker.fetch(
+      assistantRequest("Mi novia está de cumpleaños, le gustan correr y la música y le encanta el color azul. Recomiéndame un regalo por menos de $50."),
+      env((request) => {
+        const url = new URL(request instanceof Request ? request.url : request instanceof URL ? request.href : request);
+        requests.push(url);
+        const query = url.searchParams.get("q");
+        if (query === "correr") {
+          return Promise.resolve(Response.json({
+            success: true,
+            data: [{
+              id: "runner_1",
+              slug: "runner_1",
+              name: "Runner gift",
+              shortDescription: "Para correr cada día",
+              tags: ["correr", "deportivo"],
+              finalPrice: 4500,
+              availableStock: 3,
+              rating: { average: 4.8 },
+              images: [],
+              variants: [{ id: "runner_blue", attributes: { color: "Azul" } }]
+            }]
+          }));
+        }
+        return Promise.resolve(Response.json({
+          success: true,
+          data: [{
+            id: "music_1",
+            slug: "music_1",
+            name: "Music gift",
+            shortDescription: "Para escuchar música",
+            tags: ["musica"],
+            finalPrice: 3000,
+            availableStock: 8,
+            rating: { average: 4.9 },
+            images: [],
+            variants: [{ id: "music_black", attributes: { color: "Negro" } }]
+          }]
+        }));
+      })
+    );
+    const payload = await response.json<{ intent: string; products: Array<{ product_id: string; variant_id: string | null; recommendation_reason: string | null }> }>();
+    expect(payload.intent).toBe("RECOMMEND_PRODUCTS");
+    expect(requests).toHaveLength(2);
+    expect(requests.every((url) => url.searchParams.get("maxPrice") === "5000")).toBe(true);
+    expect(payload.products[0]?.product_id).toBe("runner_1");
+    expect(payload.products[0]?.variant_id).toBe("runner_blue");
+    expect(payload.products[0]?.recommendation_reason).toMatch(/color Azul/);
+  });
+
   it("executes the suggested deals search as a discount filter", async () => {
     const response = await worker.fetch(
       assistantRequest("Buscar ofertas"),

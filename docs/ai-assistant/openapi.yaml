@@ -277,6 +277,11 @@ components:
           type:
             - number
             - "null"
+        recommendation_reason:
+          description: Grounded explanation shown only for recommendation results.
+          type:
+            - string
+            - "null"
     ProductVariant:
       type: object
       required:
