@@ -25,6 +25,7 @@ type AssistantProduct = {
   color?: string | null;
   size?: string | null;
   rating: number | null;
+  recommendation_reason?: string | null;
 };
 
 type AssistantResponse = {
@@ -726,6 +727,9 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
                           <p className="text-[15px] font-bold text-chat-success">
                             {formatUsd(Math.round(Number(product.price) * 100), locale === "es" ? "es-CO" : "en-US")}
                           </p>
+                          {product.recommendation_reason ? (
+                            <p className="text-xs leading-5 text-chat-text-muted">{product.recommendation_reason}</p>
+                          ) : null}
                           <div className="flex flex-wrap gap-1">
                             <span
                               className={`inline-flex w-fit items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
