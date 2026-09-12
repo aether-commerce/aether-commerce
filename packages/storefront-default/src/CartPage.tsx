@@ -41,6 +41,7 @@ export function CartPage() {
   const [pendingItemId, setPendingItemId] = useState<string | null>(null);
   const [couponCode, setCouponCode] = useState("");
   const [couponStatus, setCouponStatus] = useState<"idle" | "applying" | "error">("idle");
+  const [quantityLimitNotice, setQuantityLimitNotice] = useState<string | null>(null);
   const checkoutOptions = useCheckoutOptions();
   const shippingSettings = useShippingSettings();
 
@@ -209,7 +210,12 @@ export function CartPage() {
     const capped = stock !== undefined ? Math.min(nextQuantity, Math.max(1, stock)) : nextQuantity;
     setPendingItemId(itemId);
     try {
-      await updateCartItemQuantity(itemId, capped);
+      const result = await updateCartItemQuantity(itemId, capped);
+      if (result.status === "limited") {
+        setQuantityLimitNotice(t.cartQuantityLimited.replace("{count}", String(result.available)));
+        return;
+      }
+      setQuantityLimitNotice(null);
       setCart(readLocalCart());
     } finally {
       setPendingItemId(null);
@@ -312,6 +318,11 @@ export function CartPage() {
                       <Badge tone="warning" className="mt-2">
                         {t.cartQuantityExceedsStock.replace("{count}", String(stock))}
                       </Badge>
+                    ) : null}
+                    {quantityLimitNotice ? (
+                      <p className="mt-2 text-xs leading-5 text-warning" role="status">
+                        {quantityLimitNotice}
+                      </p>
                     ) : null}
                     <div className="mt-2 inline-flex items-center gap-2 rounded-md border border-zinc-300">
                       <button

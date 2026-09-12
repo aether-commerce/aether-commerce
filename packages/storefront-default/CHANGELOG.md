@@ -1,5 +1,11 @@
 # @aether-commerce/storefront-default
 
+## 0.3.5
+
+### Patch Changes
+
+- 06d5f0c: Correct Spanish authentication localization, cart availability feedback, accessible storefront controls, and review-source messaging.
+
 ## 0.3.4
 
 ### Patch Changes

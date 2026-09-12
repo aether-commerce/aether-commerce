@@ -3,15 +3,15 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import type { Cart, Product } from "@aether-commerce/schemas";
-import { createCartClient } from "./cart-client";
+import { createCartClient, type CartMutationResult } from "./cart-client";
 import { useStorefrontConfig } from "./AetherStorefrontProvider";
 
 export type CartContextValue = {
   cart: Cart | null;
   itemCount: number;
   isSyncing: boolean;
-  addItem: (product: Product, variantId?: string) => Promise<"synced" | "local">;
-  updateQuantity: (itemId: string, quantity: number) => Promise<"synced" | "local">;
+  addItem: (product: Product, variantId?: string) => Promise<CartMutationResult>;
+  updateQuantity: (itemId: string, quantity: number) => Promise<CartMutationResult>;
   removeItem: (itemId: string) => Promise<"synced" | "local">;
   applyCoupon: (code: string) => Promise<void>;
   refresh: () => void;

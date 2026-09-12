@@ -17,6 +17,10 @@ const cartTokenKey = "aether.cartToken.dummyjson.v2";
 const localCartKey = "aether.localCartItems.dummyjson.v1";
 const cartApiTimeoutMs = 5000;
 
+export type CartMutationResult =
+  | { status: "synced" | "local" }
+  | { status: "limited"; available: number };
+
 // Bound to a single apiBaseUrl so the reference app and every generated
 // client's own apps/storefront/components/cart-client.ts shim can each pin
 // their own resolved API URL, while CartProvider (which doesn't know
@@ -170,9 +174,7 @@ export function createCartClient(apiBaseUrl: string) {
     );
   }
 
-  async function updateCartItemQuantity(itemId: string, quantity: number) {
-    updateLocalItemQuantity(itemId, quantity);
-
+  async function updateCartItemQuantity(itemId: string, quantity: number): Promise<CartMutationResult> {
     try {
       const { cartId, token } = await getCartCredentials();
       const response = await fetchCartApi(`${apiBaseUrl}/api/v1/cart/${cartId}/items/${encodeURIComponent(itemId)}`, {
@@ -180,13 +182,23 @@ export function createCartClient(apiBaseUrl: string) {
         headers: cartMutationHeaders(token),
         body: JSON.stringify({ quantity: Math.min(25, Math.max(1, Math.round(quantity))) })
       });
-      const payload = (await response.json()) as { success?: boolean };
+      const payload = (await response.json()) as {
+        success?: boolean;
+        data?: Cart;
+        error?: { code?: string; details?: { available?: number } };
+      };
+      if (response.status === 409 && payload.error?.code === "INSUFFICIENT_STOCK") {
+        return { status: "limited", available: Math.max(0, Number(payload.error.details?.available ?? 0)) };
+      }
       if (!response.ok || !payload.success) {
         throw new Error("Cart API rejected quantity update.");
       }
-      return "synced" as const;
+      if (payload.data?.items) replaceLocalCartItems(payload.data.items);
+      else updateLocalItemQuantity(itemId, quantity);
+      return { status: "synced" };
     } catch {
-      return "local" as const;
+      updateLocalItemQuantity(itemId, quantity);
+      return { status: "local" };
     }
   }
 
@@ -209,9 +221,8 @@ export function createCartClient(apiBaseUrl: string) {
     }
   }
 
-  async function addProductToCart(product: Product, variantId?: string) {
+  async function addProductToCart(product: Product, variantId?: string): Promise<CartMutationResult> {
     const item = productToCartItem(product, variantId);
-    saveLocalCartItem(product, variantId);
 
     try {
       const { cartId, token } = await getCartCredentials();
@@ -224,13 +235,23 @@ export function createCartClient(apiBaseUrl: string) {
           quantity: 1
         })
       });
-      const payload = (await response.json()) as { success?: boolean };
+      const payload = (await response.json()) as {
+        success?: boolean;
+        data?: Cart;
+        error?: { code?: string; details?: { available?: number } };
+      };
+      if (response.status === 409 && payload.error?.code === "INSUFFICIENT_STOCK") {
+        return { status: "limited", available: Math.max(0, Number(payload.error.details?.available ?? 0)) };
+      }
       if (!response.ok || !payload.success) {
         throw new Error("Cart API rejected item");
       }
-      return "synced" as const;
+      if (payload.data?.items) replaceLocalCartItems(payload.data.items);
+      else saveLocalCartItem(product, variantId);
+      return { status: "synced" };
     } catch {
-      return "local" as const;
+      saveLocalCartItem(product, variantId);
+      return { status: "local" };
     }
   }
 
