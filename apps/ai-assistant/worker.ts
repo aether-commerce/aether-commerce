@@ -98,6 +98,24 @@ type AssistantProduct = {
   color?: string | null;
   size?: string | null;
   rating: number | null;
+  recommendation_reason?: string | null;
+};
+
+type RecommendationCriteria = {
+  query?: string | undefined;
+  interests: string[];
+  preferredColor?: string | undefined;
+  category?: string | undefined;
+  dealsOnly?: boolean | undefined;
+  maximumPriceCents?: number | undefined;
+};
+
+type RecommendationCandidate = {
+  product: AssistantProduct;
+  searchableText: string;
+  tags: string[];
+  featured: boolean;
+  deal: boolean;
 };
 
 type AssistantResponse = {
@@ -1639,6 +1657,184 @@ async function fetchAssistantProducts(env: Env, apiUrl: URL): Promise<AssistantP
     .slice(0, 5);
 }
 
+const COLOR_ALIASES: Record<string, string[]> = {
+  black: ["black", "negro", "negra"],
+  white: ["white", "blanco", "blanca"],
+  blue: ["blue", "azul"],
+  red: ["red", "rojo", "roja"],
+  green: ["green", "verde"],
+  yellow: ["yellow", "amarillo", "amarilla"],
+  pink: ["pink", "rosa", "rosado", "rosada"],
+  purple: ["purple", "morado", "morada", "violeta"],
+  orange: ["orange", "naranja"],
+  brown: ["brown", "cafe", "marron"],
+  gray: ["gray", "grey", "gris"],
+  beige: ["beige", "crema"],
+  gold: ["gold", "dorado", "dorada"],
+  silver: ["silver", "plateado", "plateada"]
+};
+
+function normalizedColor(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const folded = foldText(value).trim();
+  return Object.entries(COLOR_ALIASES).find(([, aliases]) => aliases.some((alias) => folded === alias || folded.includes(alias)))?.[0];
+}
+
+function colorsMatch(left: string | undefined, right: string | undefined): boolean {
+  const leftColor = normalizedColor(left);
+  const rightColor = normalizedColor(right);
+  return Boolean(leftColor && rightColor && leftColor === rightColor);
+}
+
+function stringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0).map((entry) => entry.trim())
+    : [];
+}
+
+function recommendationCandidate(input: unknown, preferredColor?: string): RecommendationCandidate | null {
+  const raw = recordValue(input);
+  const baseProduct = toAssistantProduct(input);
+  if (!raw || !baseProduct) return null;
+  const variants = Array.isArray(raw.variants) ? raw.variants.map(recordValue).filter(Boolean) as Record<string, unknown>[] : [];
+  const matchingVariant = variants.find((variant) => colorsMatch(primitiveString(recordValue(variant?.attributes)?.color), preferredColor));
+  const attributes = recordValue(matchingVariant?.attributes);
+  const matchedColor = primitiveString(attributes?.color) || null;
+  const product = matchingVariant
+    ? { ...baseProduct, variant_id: primitiveString(matchingVariant.id) || baseProduct.variant_id, color: matchedColor }
+    : baseProduct;
+  const tags = stringArray(raw.tags);
+  const category = recordValue(raw.category);
+  const searchableText = foldText(
+    [
+      primitiveString(raw.name),
+      primitiveString(raw.brand),
+      primitiveString(raw.shortDescription),
+      primitiveString(raw.description),
+      primitiveString(category?.name),
+      primitiveString(category?.slug),
+      ...tags,
+      ...variants.flatMap((variant) => Object.values(recordValue(variant?.attributes) || {}).map((value) => primitiveString(value)))
+    ].join(" ")
+  );
+  return {
+    product,
+    searchableText,
+    tags: tags.map(foldText),
+    featured: raw.featured === true,
+    deal: raw.deal === true
+  };
+}
+
+function matchedInterestTerms(candidate: RecommendationCandidate, interests: string[]): string[] {
+  return interests.filter((interest) => {
+    const term = foldText(interest).trim();
+    return term.length > 1 && candidate.searchableText.includes(term);
+  });
+}
+
+function localizedRecommendationReason(
+  language: AssistantLanguage,
+  candidate: RecommendationCandidate,
+  criteria: RecommendationCriteria,
+  interestMatches: string[]
+): string {
+  const facts: string[] = [];
+  if (criteria.preferredColor && colorsMatch(candidate.product.color || undefined, criteria.preferredColor)) {
+    facts.push(
+      localize(language, {
+        es: `color ${candidate.product.color}`,
+        en: `${candidate.product.color} color`,
+        fr: `couleur ${candidate.product.color}`,
+        it: `colore ${candidate.product.color}`
+      })
+    );
+  }
+  if (interestMatches.length > 0) {
+    const terms = interestMatches.slice(0, 2).join(", ");
+    facts.push(
+      localize(language, {
+        es: `coincide con ${terms}`,
+        en: `matches ${terms}`,
+        fr: `correspond a ${terms}`,
+        it: `corrisponde a ${terms}`
+      })
+    );
+  }
+  if (criteria.maximumPriceCents !== undefined) {
+    facts.push(
+      localize(language, {
+        es: "dentro de tu presupuesto",
+        en: "within your budget",
+        fr: "dans votre budget",
+        it: "nel tuo budget"
+      })
+    );
+  }
+  if (candidate.product.rating !== null && candidate.product.rating >= 4) {
+    facts.push(`${candidate.product.rating.toFixed(1)}/5`);
+  }
+  return facts.slice(0, 3).join(" · ");
+}
+
+function scoreRecommendationCandidate(
+  candidate: RecommendationCandidate,
+  criteria: RecommendationCriteria,
+  interestMatches: string[]
+): number {
+  const colorScore = colorsMatch(candidate.product.color || undefined, criteria.preferredColor) ? 18 : 0;
+  const interestScore = interestMatches.reduce((score, interest) => score + (candidate.tags.some((tag) => tag.includes(foldText(interest))) ? 14 : 8), 0);
+  const qualityScore = (candidate.product.rating || 0) * 1.5;
+  const merchandisingScore = (candidate.featured ? 3 : 0) + (candidate.deal ? 2 : 0) + (criteria.dealsOnly && candidate.deal ? 5 : 0);
+  return colorScore + interestScore + qualityScore + merchandisingScore;
+}
+
+async function fetchRecommendationCandidates(
+  env: Env,
+  criteria: RecommendationCriteria
+): Promise<RecommendationCandidate[]> {
+  const searches = [...new Set([criteria.query, ...criteria.interests].map((value) => value?.trim()).filter((value): value is string => Boolean(value)))].slice(0, 5);
+  const buildUrl = (search?: string) => {
+    const url = new URL("/api/v1/catalog/products", env.AETHER_API_BASE_URL);
+    url.searchParams.set("page", "1");
+    url.searchParams.set("pageSize", "20");
+    url.searchParams.set("inStock", "true");
+    url.searchParams.set("sort", "rating");
+    if (criteria.category) url.searchParams.set("category", criteria.category);
+    if (criteria.maximumPriceCents !== undefined) url.searchParams.set("maxPrice", String(criteria.maximumPriceCents));
+    if (criteria.dealsOnly) url.searchParams.set("hasDiscount", "true");
+    if (search) url.searchParams.set("q", search);
+    return url;
+  };
+  const urls = searches.length > 0 ? searches.map(buildUrl) : [buildUrl()];
+  const responses = await Promise.all(urls.map((url) => apiFetch(env, url, undefined, 5000).catch(() => null)));
+  const products = await Promise.all(
+    responses.map(async (response) => {
+      if (!response?.ok) return [] as unknown[];
+      const payload = await response.json<{ data?: unknown[] }>();
+      return payload.data || [];
+    })
+  );
+  const candidates = new Map<string, RecommendationCandidate>();
+  products.flat().forEach((item) => {
+    const candidate = recommendationCandidate(item, criteria.preferredColor);
+    if (candidate) candidates.set(candidate.product.product_id, candidate);
+  });
+  // A gift request commonly has no literal catalog term. In that case surface
+  // well-rated, live products rather than reporting a false empty catalog.
+  if (candidates.size === 0 && searches.length > 0) {
+    const fallback = await apiFetch(env, buildUrl(), undefined, 5000).catch(() => null);
+    if (fallback?.ok) {
+      const payload = await fallback.json<{ data?: unknown[] }>();
+      (payload.data || []).forEach((item) => {
+        const candidate = recommendationCandidate(item, criteria.preferredColor);
+        if (candidate) candidates.set(candidate.product.product_id, candidate);
+      });
+    }
+  }
+  return [...candidates.values()];
+}
+
 type OrderLookupResult = {
   status: "ok" | "auth_required" | "unavailable";
   orders: Record<string, unknown>[];
@@ -2652,6 +2848,42 @@ const productSearchSchema = z.object({
     .describe("An explicit shopper budget in integer cents. Omit when no budget was given; never return an item above it.")
 });
 
+const recommendationSchema = z.object({
+  query: z
+    .string()
+    .trim()
+    .max(80)
+    .optional()
+    .describe("One concise product need. Do not put occasion or gift wording here."),
+  interests: z
+    .array(z.string().trim().min(1).max(40))
+    .max(6)
+    .default([])
+    .describe("Concrete interests, activities, styles, or product traits explicitly named by the shopper."),
+  preferred_color: z
+    .string()
+    .trim()
+    .max(30)
+    .optional()
+    .describe("A color explicitly preferred by the shopper. Omit if none was stated."),
+  category: z
+    .string()
+    .trim()
+    .max(60)
+    .optional()
+    .describe("A known Aether category slug only when it is clear from the request."),
+  deals_only: z
+    .boolean()
+    .optional()
+    .describe("True only if the shopper explicitly asks for deals or discounts."),
+  maximum_price_cents: z
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .describe("An explicit shopper budget in integer cents. Omit when no budget was given; never return an item above it.")
+});
+
 async function runProductSearchTool(
   ctx: AgentGraphData,
   args: z.infer<typeof productSearchSchema>,
@@ -2684,6 +2916,79 @@ async function runProductSearchTool(
   );
 }
 
+function heuristicRecommendationCriteria(message: string): RecommendationCriteria {
+  const preferredColor = normalizedColor(
+    message.match(/(?:color|colou?r)\s+(?:favorito|preferido|preferida|favorite|preferred)?\s*(?:es|is)?\s*([a-záéíóúñ]+)/i)?.[1]
+  );
+  const likes = message.match(/(?:le\s+gustan?|likes?)\s+(.+?)(?=(?:\s*(?:,|y|and)\s*)?(?:le\s+)?(?:encanta|loves?)\s+(?:el\s+)?(?:color|colou?r)|[.!?]|$)/i)?.[1] || "";
+  const interests = likes
+    .split(/,|\by\b|\band\b/i)
+    .map((value) => value.trim().replace(/^(?:las?|los?|the)\s+/i, ""))
+    .filter((value) => value.length > 1)
+    .slice(0, 6);
+  const categoryMatch = matchCategorySynonym(message);
+  return {
+    interests,
+    preferredColor,
+    category: categoryMatch?.slugs.length === 1 ? categoryMatch.slugs[0] : undefined,
+    dealsOnly: isDealsQuery(message),
+    maximumPriceCents: extractExplicitBudgetCents(message)
+  };
+}
+
+async function runRecommendationTool(
+  ctx: AgentGraphData,
+  args: z.infer<typeof recommendationSchema>
+): Promise<[string, ToolArtifact]> {
+  const fallback = heuristicRecommendationCriteria(String(ctx.body.message || ""));
+  const criteria: RecommendationCriteria = {
+    query: args.query || undefined,
+    interests: [...new Set([...args.interests, ...fallback.interests])].slice(0, 6),
+    preferredColor: normalizedColor(args.preferred_color) || fallback.preferredColor,
+    category: args.category || fallback.category,
+    dealsOnly: args.deals_only || fallback.dealsOnly,
+    maximumPriceCents: extractExplicitBudgetCents(String(ctx.body.message || "")) ?? args.maximum_price_cents ?? fallback.maximumPriceCents
+  };
+  const candidates = await fetchRecommendationCandidates(ctx.env, criteria);
+  const products = candidates
+    .map((candidate) => {
+      const interestMatches = matchedInterestTerms(candidate, criteria.interests);
+      return {
+        score: scoreRecommendationCandidate(candidate, criteria, interestMatches),
+        product: {
+          ...candidate.product,
+          recommendation_reason: localizedRecommendationReason(ctx.language, candidate, criteria, interestMatches) || null
+        }
+      };
+    })
+    .sort((left, right) => right.score - left.score || (right.product.rating || 0) - (left.product.rating || 0))
+    .slice(0, 3)
+    .map(({ product }) => product);
+  if (products.length === 0) {
+    const emptyMessage = await composeEmptyResultReply(
+      ctx.env,
+      String(ctx.body.message || args.query || ""),
+      ctx.language,
+      ctx.sessionHash
+    );
+    return toolOutcome(emptyMessage, "RECOMMEND_PRODUCTS", "NONE", "NOT_REQUESTED");
+  }
+  const message = localize(ctx.language, {
+    es: "Estas opciones están ordenadas según los gustos, color y presupuesto que indicaste.",
+    en: "These options are ranked using the interests, color, and budget you shared.",
+    fr: "Ces options sont classees selon les gouts, la couleur et le budget indiques.",
+    it: "Queste opzioni sono ordinate in base a gusti, colore e budget indicati."
+  });
+  return toolOutcome(
+    message,
+    "RECOMMEND_PRODUCTS",
+    "PRODUCTS_LISTED",
+    "SUCCEEDED",
+    { products },
+    `Recommended ${products.length} product(s): ${products.map((product) => `${product.name} (${product.recommendation_reason || "catalog match"})`).join("; ")}`
+  );
+}
+
 const searchProductsTool = defineAssistantTool({
   name: "search_products",
   description:
@@ -2696,10 +3001,10 @@ const searchProductsTool = defineAssistantTool({
 const recommendProductsTool = defineAssistantTool({
   name: "recommend_products",
   description:
-    "Suggests products from the real Aether catalog only when the shopper explicitly asks for a recommendation, suggestion, or opinion (e.g. 'recomiendame', 'recomienda', 'sugiere', 'recommend', 'suggest', 'what do you recommend') or describes a gift/occasion they want matched to a product. Use the occasion/use-case as the query keywords. When a budget is stated, maximum_price_cents is mandatory and every recommendation must be at or below it. Do not use this for plain browsing or filter requests without that explicit ask - those are search_products, even when the criteria are vague. Never invent products.",
-  schema: productSearchSchema,
+    "Suggests real Aether products only when the shopper explicitly asks for a recommendation, suggestion, opinion, or gift. Extract concrete interests, color preference, a known category slug when certain, and budget into the structured fields. Do not use occasion or gift wording as the query: it is context, not a catalog search term. When a budget is stated, maximum_price_cents is mandatory and every recommendation must be at or below it. Never invent products or product traits.",
+  schema: recommendationSchema,
   intent: "RECOMMEND_PRODUCTS",
-  run: (args, ctx) => runProductSearchTool(ctx, args, "RECOMMEND_PRODUCTS")
+  run: (args, ctx) => runRecommendationTool(ctx, args)
 });
 
 async function runGetMyOrders(ctx: AgentGraphData): Promise<[string, ToolArtifact]> {
@@ -5020,8 +5325,17 @@ async function handleAssistantHeuristicFallback(
           artifact = (await runRemoveFavorite(ctx, { product_query: message }))[1];
           break;
         case "SEARCH_PRODUCTS":
-        case "RECOMMEND_PRODUCTS":
           artifact = (await runProductSearchTool(ctx, { query: message }, intent))[1];
+          break;
+        case "RECOMMEND_PRODUCTS":
+          artifact = (await runRecommendationTool(ctx, {
+            query: undefined,
+            interests: [],
+            preferred_color: undefined,
+            category: undefined,
+            deals_only: undefined,
+            maximum_price_cents: undefined
+          }))[1];
           break;
         case "UNSUPPORTED":
           artifact = {
