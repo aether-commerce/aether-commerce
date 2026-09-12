@@ -173,6 +173,52 @@ describe("interview regressions", () => {
     expect(heuristicIntent(message)).toMatchObject({ intent, language });
   });
 
+  it("treats an explicit recommendation budget as a catalog ceiling", async () => {
+    const response = await worker.fetch(
+      assistantRequest("Recomiéndame una laptop por menos de US$1,000"),
+      env((request) => {
+        const url = new URL(request instanceof Request ? request.url : request instanceof URL ? request.href : request);
+        expect(url.pathname).toBe("/api/v1/catalog/products");
+        expect(url.searchParams.get("maxPrice")).toBe("100000");
+        return Promise.resolve(Response.json({ success: true, data: [{ id: "laptop_1", slug: "laptop_1", name: "Laptop under budget", finalPrice: 99999, availableStock: 3, images: [] }] }));
+      })
+    );
+    const payload = await response.json<{ intent: string; products: Array<{ price: string }> }>();
+    expect(payload.intent).toBe("RECOMMEND_PRODUCTS");
+    expect(payload.products).toEqual([expect.objectContaining({ price: "999.99" })]);
+  });
+
+  it("executes the suggested deals search as a discount filter", async () => {
+    const response = await worker.fetch(
+      assistantRequest("Buscar ofertas"),
+      env((request) => {
+        const url = new URL(request instanceof Request ? request.url : request instanceof URL ? request.href : request);
+        expect(url.searchParams.get("hasDiscount")).toBe("true");
+        expect(url.searchParams.get("sort")).toBe("discount");
+        return Promise.resolve(Response.json({ success: true, data: [] }));
+      })
+    );
+    const payload = await response.json<{ intent: string; message: string }>();
+    expect(payload.intent).toBe("SEARCH_PRODUCTS");
+    expect(payload.message).not.toMatch(/no puedo ayudar con esa solicitud/i);
+  });
+
+  it("reads an existing cart directly instead of asking the shopper to reopen the store", async () => {
+    const response = await worker.fetch(
+      assistantRequest("Ver carrito", { "x-aether-cart-id": "cart_1", "x-aether-cart-token": "tok_1" }),
+      env((request, init) => {
+        const url = new URL(request instanceof Request ? request.url : request instanceof URL ? request.href : request);
+        expect(url.pathname).toBe("/api/v1/cart/cart_1");
+        expect(new Headers(init?.headers).get("x-aether-cart-token")).toBe("tok_1");
+        return Promise.resolve(Response.json({ success: true, data: { items: [{ quantity: 2 }], totals: { subtotal: 3200, currency: "USD" } } }));
+      })
+    );
+    const payload = await response.json<{ intent: string; cart: { item_count: number }; message: string }>();
+    expect(payload.intent).toBe("GET_CART");
+    expect(payload.cart.item_count).toBe(2);
+    expect(payload.message).not.toMatch(/vuelve a abrir la tienda/i);
+  });
+
   it("applies a real coupon code to the cart", async () => {
     const response = await worker.fetch(
       assistantRequest("Aplica el cupon WELCOME10", { "x-aether-cart-id": "cart_1", "x-aether-cart-token": "tok_1" }),

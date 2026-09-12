@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { AetherAuthProvider, AetherStorefrontProvider, Analytics, AssistantWidget, CookieNotice, StorefrontJsonLd } from "@aether-commerce/storefront-default";
+import { AetherStorefrontProvider, Analytics, AssistantWidget, CookieNotice, StorefrontJsonLd } from "@aether-commerce/storefront-default";
 import { AppProviders } from "../components/AppProviders";
 import { LanguageProvider } from "../components/LanguageProvider";
+import { LocalizedAuthProvider } from "../components/LocalizedAuthProvider";
 import { FloatingCart } from "../components/FloatingCart";
 import { SiteHeader } from "../components/SiteHeader";
 import { themeTokensToCssVariables } from "@aether-commerce/ui/theme";
@@ -68,9 +69,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             aiAssistantUrl={aiAssistantUrl}
             basePath={storefrontBasePath}
           >
-            <AetherAuthProvider>
-              <AppProviders>
-                <LanguageProvider>
+            <LanguageProvider>
+              <LocalizedAuthProvider>
+                <AppProviders>
                   <SiteHeader />
                   {children}
                   <SiteFooter />
@@ -78,9 +79,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   <AssistantWidget legalPolicyVersion={legalPolicyVersion} />
                   <WhatsappBubble />
                   <FloatingCart />
-                </LanguageProvider>
-              </AppProviders>
-            </AetherAuthProvider>
+                </AppProviders>
+              </LocalizedAuthProvider>
+            </LanguageProvider>
           </AetherStorefrontProvider>
         </SentryProvider>
       </body>
