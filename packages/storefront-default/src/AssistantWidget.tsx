@@ -372,6 +372,36 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
     }
   }
 
+  function showLocalCart() {
+    const cart = cartClient.readLocalCart();
+    const summary: AssistantCartSummary = {
+      item_count: cart.items.reduce((total, item) => total + item.quantity, 0),
+      subtotal: String(cart.totals.subtotal / 100),
+      currency: cart.totals.currency,
+      items: cart.items as unknown as Array<Record<string, unknown>>
+    };
+    const content = locale === "es" ? "Este es tu carrito actual." : "Here is your current cart.";
+    setMessages((current) => [
+      ...current,
+      { role: "user", content: locale === "es" ? "Ver carrito" : "View cart" },
+      {
+        role: "assistant",
+        content,
+        cart: summary,
+        action: { type: "OPEN_CART", status: "SUCCEEDED", entity_id: null, message: null }
+      }
+    ]);
+  }
+
+  function handleSuggestedReply(reply: string) {
+    const normalized = reply.trim().toLocaleLowerCase();
+    if (normalized === "ver carrito" || normalized === "view cart") {
+      showLocalCart();
+      return;
+    }
+    void sendMessage(reply);
+  }
+
   // Rate limits and budget caps return a normal JSON body with a specific,
   // already-translated message (e.g. "too many messages this minute") - that
   // is a very different situation from the assistant being unreachable, so
@@ -826,7 +856,7 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
                       <button
                         key={reply}
                         type="button"
-                        onClick={() => void sendMessage(reply)}
+                        onClick={() => handleSuggestedReply(reply)}
                         disabled={!privacyAccepted}
                         className="focus-ring rounded-full border border-chat-border px-3.5 py-2 text-[13px] font-medium text-chat-text-muted hover:border-chat-accent hover:text-chat-text disabled:cursor-not-allowed disabled:opacity-50"
                       >

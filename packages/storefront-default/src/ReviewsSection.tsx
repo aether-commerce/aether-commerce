@@ -54,7 +54,13 @@ function RatingInput({ value, onChange }: { value: number; onChange: (next: numb
 // (apps/admin/app/reviews/page.tsx) - separate from the top-of-page rating
 // summary in ProductDetailClient.tsx, which reads the catalog's own
 // imported rating_average/rating_count, not this table.
-export function ReviewsSection({ productId }: { productId: string }) {
+export function ReviewsSection({
+  productId,
+  catalogReviewCount
+}: {
+  productId: string;
+  catalogReviewCount: number;
+}) {
   const { locale, t } = useLanguage();
   const { apiBaseUrl } = useStorefrontConfig();
   const { customer, getToken } = useAetherAuth();
@@ -166,7 +172,11 @@ export function ReviewsSection({ productId }: { productId: string }) {
       <h2 className="text-lg font-semibold text-zinc-950">{t.reviewsHeading}</h2>
 
       {!loaded ? null : reviews.length === 0 ? (
-        <p className="mt-3 text-sm text-zinc-600">{t.noReviewsYet}</p>
+        <p className="mt-3 text-sm text-zinc-600">
+          {catalogReviewCount > 0
+            ? t.noVerifiedReviewsYet.replace("{count}", String(catalogReviewCount))
+            : t.noReviewsYet}
+        </p>
       ) : (
         <ul className="mt-4 grid gap-4">
           {reviews.map((review) => (
@@ -190,7 +200,7 @@ export function ReviewsSection({ productId }: { productId: string }) {
           {submitted ? (
             <p className="mt-2 text-sm text-zinc-600">{t.reviewSubmitted}</p>
           ) : (
-          <form onSubmit={(event) => void submitReview(event)} className="mt-3 grid gap-3">
+          <form noValidate onSubmit={(event) => void submitReview(event)} className="mt-3 grid gap-3">
             <label className="grid gap-1 text-sm">
               <span className="font-medium text-zinc-700">{t.yourRating}</span>
               <RatingInput value={rating} onChange={setRating} />
@@ -213,7 +223,7 @@ export function ReviewsSection({ productId }: { productId: string }) {
                 placeholder={t.reviewBodyPlaceholder}
                 maxLength={1200}
                 rows={3}
-                className="focus-ring rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-950"
+                className="focus-ring resize-none rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-950"
               />
             </label>
             {message ? <p className="text-sm text-danger">{message}</p> : null}

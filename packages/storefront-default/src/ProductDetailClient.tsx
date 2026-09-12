@@ -40,6 +40,7 @@ export function ProductDetailClient({
   const [activeImage, setActiveImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
+  const [cartLimitNotice, setCartLimitNotice] = useState<string | null>(null);
   const checkoutOptions = useCheckoutOptions();
   const localized = product ? getLocalizedProduct(product, locale) : null;
   const isFavorite = product ? checkIsFavorite(product.id) : false;
@@ -104,9 +105,14 @@ export function ProductDetailClient({
   async function addToCart() {
     if (!product) return;
     setIsAdding(true);
+    setCartLimitNotice(null);
     try {
       for (let i = 0; i < quantity; i += 1) {
-        await cartClient.addProductToCart(product, selectedVariantId ?? undefined);
+        const result = await cartClient.addProductToCart(product, selectedVariantId ?? undefined);
+        if (result.status === "limited") {
+          setCartLimitNotice(t.cartQuantityLimited.replace("{count}", String(result.available)));
+          break;
+        }
       }
       // Open the quick-view drawer instead of navigating to /cart - confirms
       // the add without pulling the shopper off the product page they're
@@ -340,6 +346,8 @@ export function ProductDetailClient({
                     variant="outline"
                     onClick={toggleFavorite}
                     aria-pressed={isFavorite}
+                    aria-label={isFavorite ? t.removeFavorite.replace("{name}", product.name) : `${locale === "es" ? "Guardar" : "Save"} ${product.name} ${locale === "es" ? "en favoritos" : "to favorites"}`}
+                    title={isFavorite ? t.removeFavorite.replace("{name}", product.name) : `${locale === "es" ? "Guardar" : "Save"} ${product.name} ${locale === "es" ? "en favoritos" : "to favorites"}`}
                     className={isFavorite ? "!border-rose-300 !bg-rose-50 !text-rose-700" : undefined}
                   >
                     <Heart size={17} fill={isFavorite ? "currentColor" : "none"} aria-hidden />
@@ -358,6 +366,7 @@ export function ProductDetailClient({
                 </Button>
               </div>
               {compareNotice ? <p className="mt-2 text-sm text-danger">{compareNotice}</p> : null}
+              {cartLimitNotice ? <p className="mt-2 text-sm text-warning" role="status">{cartLimitNotice}</p> : null}
 
               {product.shippingInformation || product.warrantyInformation || product.returnPolicy ? (
                 <dl className="mt-6 grid gap-2 border-t border-zinc-200 pt-5 text-sm">
@@ -397,7 +406,7 @@ export function ProductDetailClient({
               </div>
             ) : null}
 
-            {reviewsEnabled ? <ReviewsSection productId={product.id} /> : null}
+            {reviewsEnabled ? <ReviewsSection productId={product.id} catalogReviewCount={product.reviewCount} /> : null}
           </section>
         )}
       </div>
