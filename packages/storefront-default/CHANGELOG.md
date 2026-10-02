@@ -1,5 +1,17 @@
 # @aether-commerce/storefront-default
 
+## 0.4.0
+
+### Minor Changes
+
+- 8ad69d8: Deliver bounded Cloudinary product images with automatic quality and format in public catalog responses while preserving administrative originals. Add a responsive ProductImage component that works when client applications disable the Next.js optimizer, and use it throughout shared product surfaces.
+
+### Patch Changes
+
+- Updated dependencies [8ad69d8]
+  - @aether-commerce/core@0.3.0
+  - @aether-commerce/ui@0.2.5
+
 ## 0.3.6
 
 ### Patch Changes

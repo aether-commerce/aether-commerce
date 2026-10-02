@@ -1,5 +1,13 @@
 # @aether-commerce/admin-default
 
+## 0.4.7
+
+### Patch Changes
+
+- Updated dependencies [8ad69d8]
+  - @aether-commerce/core@0.3.0
+  - @aether-commerce/ui@0.2.5
+
 ## 0.4.6
 
 ### Patch Changes
