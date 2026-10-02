@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import { ProductImage } from "./ProductImage";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CreditCard, MessageCircle, Minus, Plus, RotateCcw, ShoppingBag, Ticket, Trash2 } from "lucide-react";
@@ -292,7 +292,7 @@ export function CartPage() {
                     href={`/products/${encodeURIComponent(item.slug)}`}
                     className="shrink-0"
                   >
-                    <Image
+                    <ProductImage
                       src={item.imageUrl}
                       alt={item.name}
                       width={80}

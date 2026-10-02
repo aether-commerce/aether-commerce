@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import { ProductImage } from "./ProductImage";
 import { useEffect, useMemo, useState } from "react";
 import { Scale, ShoppingBag, Star, Trash2 } from "lucide-react";
 import { formatMoney } from "@aether-commerce/core";
@@ -91,7 +91,7 @@ export function ComparePage() {
                         <Trash2 size={15} aria-hidden />
                       </button>
                       <StorefrontLink href={`/products/${encodeURIComponent(product.slug)}`} className="relative mx-auto block aspect-square w-24 bg-zinc-50">
-                        <Image src={product.images[0]?.url ?? product.thumbnail} alt={product.name} fill sizes="96px" className="object-contain" />
+                        <ProductImage src={product.images[0]?.url ?? product.thumbnail} alt={product.name} fill sizes="96px" className="object-contain" />
                       </StorefrontLink>
                       <StorefrontLink href={`/products/${encodeURIComponent(product.slug)}`} className="mt-2 block font-semibold text-zinc-950 hover:text-accent">
                         {product.name}

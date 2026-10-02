@@ -3,6 +3,7 @@ import type { Context } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { productQuerySchema } from "@aether-commerce/schemas";
+import { withStorefrontProductImages } from "@aether-commerce/core";
 import type { AppBindings } from "../types";
 import { collection, fail, ok } from "../http";
 import { getBrands, getCatalogProducts, getCategories, getCategoryCounts, getProductBySlug } from "../services/catalog";
@@ -19,7 +20,7 @@ catalogRoutes.get("/products", zValidator("query", productQuerySchema), async (c
   const query = c.req.valid("query");
   const result = await getCatalogProducts(c.env, query);
   cachePublicCatalog(c);
-  return collection(c, result.data, result.pagination);
+  return collection(c, result.data.map(withStorefrontProductImages), result.pagination);
 });
 
 catalogRoutes.get("/products/:slug", async (c) => {
@@ -28,7 +29,7 @@ catalogRoutes.get("/products/:slug", async (c) => {
     return fail(c, 404, "PRODUCT_NOT_FOUND", "Product not found.");
   }
   cachePublicCatalog(c);
-  return ok(c, product);
+  return ok(c, withStorefrontProductImages(product));
 });
 
 catalogRoutes.post(

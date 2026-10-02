@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import { ProductImage } from "./ProductImage";
 import { useState } from "react";
 import { Heart, ShoppingBag, Trash2 } from "lucide-react";
 import { formatMoney } from "@aether-commerce/core";
@@ -70,7 +70,7 @@ export function FavoritesPage() {
             return (
               <article key={product.id} className="overflow-hidden rounded-lg border border-zinc-200 bg-white">
                 <StorefrontLink href={`/products/${encodeURIComponent(product.slug)}`} className="relative block aspect-square bg-zinc-50">
-                  <Image src={product.images[0]?.url ?? product.thumbnail} alt={product.name} fill sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw" className="object-contain p-4" />
+                  <ProductImage src={product.images[0]?.url ?? product.thumbnail} alt={product.name} fill sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw" className="object-contain p-4" />
                   {outOfStock ? (
                     <Badge tone="danger" className="absolute right-2 top-2">
                       {t.availability.out_of_stock}

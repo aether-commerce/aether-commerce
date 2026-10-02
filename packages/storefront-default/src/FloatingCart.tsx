@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import { ProductImage } from "./ProductImage";
 import { useEffect, useState } from "react";
 import { ChevronRight, Trash2, X } from "lucide-react";
 import { formatMoney } from "@aether-commerce/core";
@@ -59,7 +59,7 @@ export function FloatingCart() {
         <div className="max-h-80 overflow-y-auto p-3">
           {cart.items.map((item) => (
             <div key={`${item.productId}-${item.variantId ?? "default"}`} className="flex gap-3 border-b border-chat-border py-3 last:border-b-0">
-              <Image src={item.imageUrl} alt={item.name} width={56} height={56} className="h-14 w-14 rounded-xl bg-chat-surface-alt object-cover" />
+              <ProductImage src={item.imageUrl} alt={item.name} width={56} height={56} className="h-14 w-14 rounded-xl bg-chat-surface-alt object-cover" />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold text-chat-text">{item.name}</p>
                 <p className="text-xs text-chat-text-muted">
