@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import { ProductImage } from "./ProductImage";
 import { useEffect, useState } from "react";
 import { ArrowRight, MessageCircle } from "lucide-react";
 import type { Product } from "@aether-commerce/schemas";
@@ -61,12 +61,12 @@ export function Hero({ initialProducts }: { initialProducts?: Product[] | undefi
                   index === 0 ? "col-span-2 aspect-[7/3] sm:aspect-[2/1]" : "aspect-square"
                 }`}
               >
-                <Image
+                <ProductImage
                   src={product.thumbnail}
                   alt={product.name}
                   fill
                   priority={index === 0}
-                  sizes="(min-width: 1024px) 22vw, 50vw"
+                  sizes={index === 0 ? "(min-width: 1280px) 520px, (min-width: 1024px) 45vw, 100vw" : "(min-width: 1280px) 260px, (min-width: 1024px) 22vw, 50vw"}
                   className="object-contain p-3"
                 />
               </StorefrontLink>

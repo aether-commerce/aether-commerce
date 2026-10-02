@@ -114,6 +114,17 @@ test("package publishing builds with deterministic public application configurat
   assert.match(workflow, /git push origin --tags/);
 });
 
+test("client package distribution waits for successful main push CI and uses its SHA", () => {
+  const workflow = read(".github/workflows/publish-packages.yml");
+  assert.match(workflow, /workflow_run:/);
+  assert.match(workflow, /workflows: \["Aether CI"\]/);
+  assert.match(workflow, /workflow_run\.event == 'push'/);
+  assert.match(workflow, /workflow_run\.conclusion == 'success'/);
+  assert.match(workflow, /ref: \$\{\{ github\.event\.workflow_run\.head_sha \|\| github\.sha \}\}/);
+  assert.match(workflow, /RELEASE_SHA: \$\{\{ github\.event\.workflow_run\.head_sha \|\| github\.sha \}\}/);
+  assert.doesNotMatch(workflow, /^\s{2}push:/m);
+});
+
 test("main package publishing consumes only releases prepared on develop", () => {
   const workflow = read(".github/workflows/publish-packages.yml");
 

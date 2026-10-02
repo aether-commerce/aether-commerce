@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import { ProductImage } from "./ProductImage";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Bot, Check, Loader2, PackageCheck, Send, ShoppingBag, Trash2, X } from "lucide-react";
 import { formatMoney } from "@aether-commerce/core";
@@ -712,7 +712,7 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
                     {message.products.map((product) => (
                       <div key={product.product_id} className="flex gap-3 rounded-2xl border border-chat-border bg-chat-surface p-3">
                         {product.image_url ? (
-                          <Image
+                          <ProductImage
                             src={product.image_url}
                             alt={product.name}
                             width={64}
@@ -821,7 +821,7 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
                           return (
                             <li key={index} className="flex items-center gap-2 py-1.5 text-xs text-chat-text-muted">
                               {imageUrl ? (
-                                <Image
+                                <ProductImage
                                   src={imageUrl}
                                   alt={name}
                                   width={36}

@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { productQuerySchema } from "@aether-commerce/schemas";
-import { defaultCheckoutSettings } from "@aether-commerce/core";
+import { defaultCheckoutSettings, withStorefrontProductImages } from "@aether-commerce/core";
 import { defaultShippingSettings } from "../defaults";
 import type { AppBindings } from "../types";
 import { collection, fail, ok } from "../http";
@@ -48,7 +48,7 @@ publicRoutes.get("/runtime-config", async (c) => {
 publicRoutes.get("/products", zValidator("query", productQuerySchema), async (c) => {
   const result = await getCatalogProducts(c.env, c.req.valid("query"));
   cachePublicCatalog(c);
-  return collection(c, result.data, result.pagination);
+  return collection(c, result.data.map(withStorefrontProductImages), result.pagination);
 });
 
 publicRoutes.get("/products/:id", async (c) => {
@@ -56,7 +56,7 @@ publicRoutes.get("/products/:id", async (c) => {
   if (product) {
     cachePublicCatalog(c);
   }
-  return product ? ok(c, product) : fail(c, 404, "PRODUCT_NOT_FOUND", "Product not found.");
+  return product ? ok(c, withStorefrontProductImages(product)) : fail(c, 404, "PRODUCT_NOT_FOUND", "Product not found.");
 });
 
 publicRoutes.get("/products/slug/:slug", async (c) => {
@@ -64,7 +64,7 @@ publicRoutes.get("/products/slug/:slug", async (c) => {
   if (product) {
     cachePublicCatalog(c);
   }
-  return product ? ok(c, product) : fail(c, 404, "PRODUCT_NOT_FOUND", "Product not found.");
+  return product ? ok(c, withStorefrontProductImages(product)) : fail(c, 404, "PRODUCT_NOT_FOUND", "Product not found.");
 });
 
 publicRoutes.get("/categories", async (c) => {
@@ -85,7 +85,7 @@ publicRoutes.get("/categories/:slug/products", async (c) => {
     sort: "featured"
   });
   cachePublicCatalog(c);
-  return collection(c, result.data, result.pagination);
+  return collection(c, result.data.map(withStorefrontProductImages), result.pagination);
 });
 
 publicRoutes.get("/search", async (c) => {
@@ -96,25 +96,25 @@ publicRoutes.get("/search", async (c) => {
     sort: "featured"
   });
   cachePublicCatalog(c);
-  return collection(c, result.data, result.pagination);
+  return collection(c, result.data.map(withStorefrontProductImages), result.pagination);
 });
 
 publicRoutes.get("/featured-products", async (c) => {
   const result = await getCatalogProducts(c.env, { page: 1, pageSize: 12, featured: true, sort: "featured" });
   cachePublicCatalog(c);
-  return collection(c, result.data, result.pagination);
+  return collection(c, result.data.map(withStorefrontProductImages), result.pagination);
 });
 
 publicRoutes.get("/deals", async (c) => {
   const result = await getCatalogProducts(c.env, { page: 1, pageSize: 12, deal: true, sort: "discount" });
   cachePublicCatalog(c);
-  return collection(c, result.data, result.pagination);
+  return collection(c, result.data.map(withStorefrontProductImages), result.pagination);
 });
 
 publicRoutes.get("/new-arrivals", async (c) => {
   const result = await getCatalogProducts(c.env, { page: 1, pageSize: 12, newArrival: true, sort: "newest" });
   cachePublicCatalog(c);
-  return collection(c, result.data, result.pagination);
+  return collection(c, result.data.map(withStorefrontProductImages), result.pagination);
 });
 
 publicRoutes.get("/products/:id/reviews", async (c) => {

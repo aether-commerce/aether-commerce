@@ -489,10 +489,11 @@ export function ProductGrid({
             </div>
           ) : (
             <div className={`grid gap-4 sm:grid-cols-2 ${compact ? "lg:grid-cols-4" : "lg:grid-cols-3 xl:grid-cols-4"}`}>
-              {products.map((product) => (
+              {products.map((product, index) => (
                 <ProductCard
                   key={product.id}
                   product={product}
+                  prioritizeImage={!compact && index === 0}
                   isFavorite={favoriteIds.includes(product.id)}
                   isAdding={addingIds.includes(product.id)}
                   isAdded={addedProduct?.id === product.id}

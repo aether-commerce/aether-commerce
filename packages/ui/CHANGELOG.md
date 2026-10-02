@@ -1,5 +1,12 @@
 # @aether-commerce/ui
 
+## 0.2.5
+
+### Patch Changes
+
+- Updated dependencies [8ad69d8]
+  - @aether-commerce/core@0.3.0
+
 ## 0.2.4
 
 ### Patch Changes

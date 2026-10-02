@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import { ProductImage } from "./ProductImage";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent } from "react";
 import { Heart, MessageCircle, Minus, Plus, Scale, ShoppingBag, Star } from "lucide-react";
@@ -181,7 +181,7 @@ export function ProductDetailClient({
           <section className="grid animate-[fadeIn_0.22s_ease-out] gap-8 lg:grid-cols-[1.05fr_0.95fr]">
             <div>
               <div className="relative aspect-square w-full overflow-hidden rounded-lg border border-zinc-200 bg-zinc-50">
-                <Image
+                <ProductImage
                   src={product.images[activeImage]?.url ?? product.thumbnail}
                   alt={product.images[activeImage]?.alt || product.name}
                   fill
@@ -212,7 +212,7 @@ export function ProductDetailClient({
                         activeImage === index ? "border-accent" : "border-zinc-200"
                       }`}
                     >
-                      <Image src={image.url} alt="" fill sizes="64px" className="object-contain p-1" />
+                      <ProductImage src={image.url} alt="" fill sizes="64px" className="object-contain p-1" />
                     </button>
                   ))}
                 </div>
