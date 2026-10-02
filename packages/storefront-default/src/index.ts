@@ -43,6 +43,8 @@ export {
 } from "./product-badge-logic";
 export { ProductBadge } from "./ProductBadge";
 export { ProductCard, ProductCardSkeleton } from "./ProductCard";
+export { ProductImage, type ProductImageProps } from "./ProductImage";
+export { getProductImageUrl } from "@aether-commerce/core";
 export {
   CategoryGrid,
   CategorySection,

@@ -1,0 +1,10 @@
+import { describe, expect, it } from "vitest";
+import { ADMIN_CHAT_SYSTEM_PROMPT } from "./admin-chat-system-prompt";
+
+describe("admin product image guidance", () => {
+  it("keeps image management in Products and explains public delivery without promising custom page changes", () => {
+    expect(ADMIN_CHAT_SYSTEM_PROMPT.text).toContain("Product image uploads and replacements belong to the Products module");
+    expect(ADMIN_CHAT_SYSTEM_PROMPT.text).toContain("administration retains the original URLs");
+    expect(ADMIN_CHAT_SYSTEM_PROMPT.text).toContain("do not claim an Aether package update changes a client's custom introduction animation");
+  });
+});

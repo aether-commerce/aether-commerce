@@ -10,6 +10,7 @@ export * from "./logger";
 export * from "./money";
 export * from "./order-state";
 export * from "./orders";
+export * from "./product-images";
 export * from "./rbac";
 export * from "./redact";
 export * from "./settings-crypto";
