@@ -401,6 +401,8 @@ export const adminDictionaries = {
       removeImage: "Remove image",
       uploading: "Uploading...",
       addImage: "Add image",
+      mainImageBadge: "Main",
+      imageFormatsHint: "PNG, JPG or WebP. Drop a file here or click to browse.",
       seoSection: "SEO",
       seoDescription: "These suggestions control how the product may appear in search results.",
       seoTitleLabel: "SEO title",
@@ -1264,6 +1266,8 @@ export const adminDictionaries = {
       removeImage: "Eliminar imagen",
       uploading: "Subiendo...",
       addImage: "Agregar imagen",
+      mainImageBadge: "Principal",
+      imageFormatsHint: "PNG, JPG o WebP. Arrastra un archivo aquí o haz clic para elegirlo.",
       seoSection: "SEO",
       seoDescription:
         "Estas sugerencias controlan cómo puede aparecer el producto en los resultados de búsqueda.",

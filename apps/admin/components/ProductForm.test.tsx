@@ -91,6 +91,36 @@ describe("ProductForm", () => {
     expect(await screen.findByText(/add at least a main image/i)).toBeInTheDocument();
   });
 
+  it("shows the main image as a large preview and promotes a gallery image", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <ProductForm
+        mode="edit"
+        productId="p1"
+        initialValues={filledValues({
+          images: { main: "/products/qa-1.webp", gallery: ["/products/qa-2.webp"] }
+        })}
+      />
+    );
+
+    const mainPreview = () => container.querySelector("figure img");
+    expect(mainPreview()).toHaveAttribute("src", "/products/qa-1.webp");
+    expect(screen.getByText("Main")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /make main image/i }));
+
+    expect(mainPreview()).toHaveAttribute("src", "/products/qa-2.webp");
+  });
+
+  it("keeps paired field labels top-aligned when only one column has a hint", () => {
+    render(<ProductForm mode="create" initialValues={emptyProductForm} />);
+
+    // Without content-start the grid stretches the shorter field's rows and
+    // pushes its control below the neighbouring input.
+    const brandField = screen.getByText("Brand").closest("label");
+    expect(brandField?.className).toContain("content-start");
+  });
+
   it("submits a POST with the built payload and redirects to the edit page on success", async () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,
