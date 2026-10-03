@@ -7,7 +7,6 @@ import {
   AlertTriangle,
   CheckCircle2,
   ChevronDown,
-  GripVertical,
   ImagePlus,
   Loader2,
   Sparkles,
@@ -99,8 +98,16 @@ type GeneratedFieldsSnapshot = Pick<
 
 const inputClass =
   "focus-ring min-h-11 w-full rounded-md border border-border bg-surface px-3 text-base text-ink disabled:cursor-not-allowed disabled:opacity-50 lg:text-sm";
-const labelClass = "grid gap-1 text-sm";
+// content-start: inside a two-column row the shorter field is stretched to
+// match its neighbour's hint text; without it the grid spreads that extra
+// height across the label and control rows and the inputs drift out of line.
+const labelClass = "grid content-start gap-1 text-sm";
 const labelTextClass = "font-medium text-ink-muted";
+const acceptedImageTypes = ["image/png", "image/jpeg", "image/webp"];
+// Hover-revealed on pointer devices, but always visible on touch and whenever
+// keyboard focus is inside the tile.
+const imageActionClass =
+  "focus-ring inline-flex h-9 w-9 items-center justify-center rounded-md bg-ink/75 text-surface hover:bg-ink sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100";
 
 export function ProductForm({
   mode,
@@ -121,6 +128,7 @@ export function ProductForm({
   const [status, setStatus] = useState<SaveStatus>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [draggingImage, setDraggingImage] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [categories, setCategories] = useState<CategoryOption[]>([]);
@@ -497,8 +505,6 @@ export function ProductForm({
     }
   }
 
-  const allImages = [values.images.main, ...values.images.gallery].filter(Boolean);
-
   return (
     <form
       noValidate
@@ -740,61 +746,94 @@ export function ProductForm({
         title={t.productForm.imagesSection}
         description={t.productForm.imagesDescription}
       >
-        <div className="flex flex-wrap gap-3">
-          {allImages.map((url) => (
-            <div
-              key={url}
-              className="group relative h-24 w-24 overflow-hidden rounded-md border border-border"
-            >
+        <div className="grid gap-3">
+          {values.images.main ? (
+            <figure className="group relative h-64 overflow-hidden rounded-lg border border-border bg-bg sm:h-72">
               {/* Plain <img>, not next/image - admin-managed, arbitrary remote URLs */}
-              <img src={url} alt="" className="h-full w-full object-cover" />
-              {url === values.images.main ? (
-                <span className="absolute left-1 top-1 rounded bg-ink/80 p-1 text-surface">
-                  <Star size={11} aria-hidden />
-                </span>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => makeMainImage(url)}
-                  className="focus-ring absolute left-1 top-1 min-h-9 min-w-9 rounded bg-ink/70 p-2 text-surface sm:opacity-0 sm:group-hover:opacity-100"
-                  aria-label={t.productForm.makeMainImage}
-                >
-                  <Star size={11} aria-hidden />
-                </button>
-              )}
+              <img src={values.images.main} alt="" className="h-full w-full object-contain" />
+              <span className="absolute left-2 top-2 inline-flex items-center gap-1.5 rounded-md bg-ink/80 px-2 py-1 text-xs font-semibold text-surface">
+                <Star size={12} className="fill-current" aria-hidden />
+                {t.productForm.mainImageBadge}
+              </span>
               <button
                 type="button"
-                onClick={() => removeImage(url)}
-                className="focus-ring absolute right-1 top-1 min-h-9 min-w-9 rounded bg-ink/70 p-2 text-surface sm:opacity-0 sm:group-hover:opacity-100"
+                onClick={() => removeImage(values.images.main)}
+                className={`${imageActionClass} absolute right-2 top-2`}
                 aria-label={t.productForm.removeImage}
               >
-                <X size={11} aria-hidden />
+                <X size={15} aria-hidden />
               </button>
-              <span
-                className="absolute bottom-1 right-1 text-ink-subtle opacity-0 group-hover:opacity-100"
-                aria-hidden
+            </figure>
+          ) : null}
+
+          <div className={values.images.main ? "grid grid-cols-3 gap-3 sm:grid-cols-5" : "grid"}>
+            {values.images.gallery.map((url) => (
+              <div
+                key={url}
+                className="group relative aspect-square overflow-hidden rounded-md border border-border bg-bg"
               >
-                <GripVertical size={12} />
-              </span>
-            </div>
-          ))}
-          <button
-            type="button"
-            disabled={uploading}
-            onClick={() => fileInputRef.current?.click()}
-            className="focus-ring grid h-24 w-24 place-items-center gap-1 rounded-md border-2 border-dashed border-border-strong text-xs font-medium text-ink-muted hover:border-accent disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {uploading ? (
-              <Loader2 size={18} className="animate-spin" aria-hidden />
-            ) : (
-              <ImagePlus size={18} aria-hidden />
-            )}
-            {uploading ? t.productForm.uploading : t.productForm.addImage}
-          </button>
+                <img src={url} alt="" className="h-full w-full object-cover" />
+                <div className="absolute inset-x-1.5 top-1.5 flex justify-between">
+                  <button
+                    type="button"
+                    onClick={() => makeMainImage(url)}
+                    className={imageActionClass}
+                    aria-label={t.productForm.makeMainImage}
+                    title={t.productForm.makeMainImage}
+                  >
+                    <Star size={15} aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => removeImage(url)}
+                    className={imageActionClass}
+                    aria-label={t.productForm.removeImage}
+                    title={t.productForm.removeImage}
+                  >
+                    <X size={15} aria-hidden />
+                  </button>
+                </div>
+              </div>
+            ))}
+            <button
+              type="button"
+              disabled={uploading}
+              onClick={() => fileInputRef.current?.click()}
+              onDragOver={(event) => {
+                if (uploading) return;
+                event.preventDefault();
+                setDraggingImage(true);
+              }}
+              onDragLeave={() => setDraggingImage(false)}
+              onDrop={(event) => {
+                event.preventDefault();
+                setDraggingImage(false);
+                const file = event.dataTransfer.files[0];
+                if (!uploading && file && acceptedImageTypes.includes(file.type)) {
+                  void handleFileSelected(file);
+                }
+              }}
+              className={`focus-ring flex flex-col items-center justify-center gap-1.5 rounded-md border-2 border-dashed px-3 text-center text-xs font-medium text-ink-muted transition-colors hover:border-accent hover:text-ink disabled:cursor-not-allowed disabled:opacity-50 ${
+                draggingImage ? "border-accent bg-accent-soft/60 text-ink" : "border-border-strong"
+              } ${values.images.main ? "aspect-square" : "min-h-44 text-sm"}`}
+            >
+              {uploading ? (
+                <Loader2 size={values.images.main ? 18 : 24} className="animate-spin" aria-hidden />
+              ) : (
+                <ImagePlus size={values.images.main ? 18 : 24} aria-hidden />
+              )}
+              <span>{uploading ? t.productForm.uploading : t.productForm.addImage}</span>
+              {values.images.main ? null : (
+                <span className="text-xs font-normal text-ink-subtle">
+                  {t.productForm.imageFormatsHint}
+                </span>
+              )}
+            </button>
+          </div>
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/png,image/jpeg,image/webp"
+            accept={acceptedImageTypes.join(",")}
             className="hidden"
             onChange={(event) => {
               const file = event.target.files?.[0];
