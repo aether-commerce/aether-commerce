@@ -1,5 +1,11 @@
 # @aether-commerce/i18n
 
+## 0.3.3
+
+### Patch Changes
+
+- e02bac3: Align paired product-form fields when only one column has a hint, and redesign the product images section with a large main-image preview, bigger gallery thumbnails, keyboard-visible image actions and drag-and-drop upload.
+
 ## 0.3.2
 
 ### Patch Changes
