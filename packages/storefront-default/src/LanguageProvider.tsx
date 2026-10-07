@@ -4,66 +4,66 @@ import { createContext, useContext, useLayoutEffect, useMemo, useState } from "r
 import type { ReactNode } from "react";
 import { dictionaries, type Locale } from "./dictionaries";
 
-type Dictionary = (typeof dictionaries)[Locale];
-
 type LanguageContextValue = {
   locale: Locale;
   setLocale: (locale: Locale) => void;
-  t: Dictionary;
+  t: (typeof dictionaries)[Locale];
 };
-
 const LanguageContext = createContext<LanguageContextValue | null>(null);
 
-function detectLocale(): Locale {
-  if (typeof window === "undefined") return "en";
-  const stored = window.localStorage.getItem("aether.locale");
-  if (stored === "en" || stored === "es") return stored;
+function detectLocale(initialLocale?: Locale): Locale {
+  try {
+    const stored = window.localStorage.getItem("aether.locale");
+    if (stored === "en" || stored === "es") return stored;
+  } catch {
+    // Browsing and language changes remain available when storage is blocked.
+  }
+  if (initialLocale) return initialLocale;
   return navigator.language.toLowerCase().startsWith("es") ? "es" : "en";
 }
 
-export function LanguageProvider({ children }: { children: ReactNode }) {
-  // Starts at "en" unconditionally so the client's first render matches the
-  // server-rendered HTML exactly (the server always resolves detectLocale()
-  // to "en" since window is undefined there). Detecting the real locale
-  // inside the useState initializer instead causes a text hydration
-  // mismatch (React error #418) for any client whose stored/browser locale
-  // is "es". The real locale is applied right after mount instead.
-  const [locale, setLocaleState] = useState<Locale>("en");
+export function LanguageProvider({
+  children,
+  initialLocale
+}: {
+  children: ReactNode;
+  initialLocale?: Locale;
+}) {
+  // The first client render must match SSR. A configured storefront language
+  // wins over browser detection; an explicit saved selection still wins later.
+  const [locale, setLocaleState] = useState<Locale>(initialLocale ?? "en");
 
-  // useLayoutEffect (not useEffect) so this correction lands before the
-  // browser paints - combined with the data-locale-pending attribute a
-  // consuming app's own layout can set via a blocking inline script (see
-  // apps/storefront/app/layout.tsx) to hide <body> until this runs, that
-  // avoids ever painting the "en" default for clients whose real locale is
-  // "es".
   useLayoutEffect(() => {
-    setLocaleState(detectLocale());
+    setLocaleState(detectLocale(initialLocale));
     document.documentElement.removeAttribute("data-locale-pending");
-  }, []);
+  }, [initialLocale]);
 
   useLayoutEffect(() => {
     document.documentElement.lang = locale;
   }, [locale]);
 
-  const value = useMemo<LanguageContextValue>(() => {
-    return {
+  const value = useMemo<LanguageContextValue>(
+    () => ({
       locale,
       setLocale(nextLocale) {
-        window.localStorage.setItem("aether.locale", nextLocale);
+        try {
+          window.localStorage.setItem("aether.locale", nextLocale);
+        } catch {
+          // Keep the selection for this visit even if it cannot be persisted.
+        }
         document.documentElement.lang = nextLocale;
         setLocaleState(nextLocale);
       },
       t: dictionaries[locale]
-    };
-  }, [locale]);
+    }),
+    [locale]
+  );
 
   return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
 }
 
 export function useLanguage() {
   const context = useContext(LanguageContext);
-  if (!context) {
-    throw new Error("useLanguage must be used within LanguageProvider");
-  }
+  if (!context) throw new Error("useLanguage must be used within LanguageProvider");
   return context;
 }

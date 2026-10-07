@@ -53,8 +53,23 @@ export {
   type StorefrontCategorySectionData
 } from "./CategoryGrid";
 export { ProductGrid } from "./ProductGrid";
-export { fetchCatalogCategories, fetchCatalogCategorySection, fetchCatalogProducts, fetchAllCatalogProducts, type CatalogCategory, type CatalogPagination, type CatalogProductsResult, type CatalogQuery } from "./catalog-server";
-export { absoluteStorefrontUrl, buildProductJsonLd, normalizeStorefrontPath, resolveStorefrontUrl, StorefrontJsonLd } from "./seo";
+export {
+  fetchCatalogCategories,
+  fetchCatalogCategorySection,
+  fetchCatalogProducts,
+  fetchAllCatalogProducts,
+  type CatalogCategory,
+  type CatalogPagination,
+  type CatalogProductsResult,
+  type CatalogQuery
+} from "./catalog-server";
+export {
+  absoluteStorefrontUrl,
+  buildProductJsonLd,
+  normalizeStorefrontPath,
+  resolveStorefrontUrl,
+  StorefrontJsonLd
+} from "./seo";
 export { FloatingCart } from "./FloatingCart";
 
 export { AetherAuthProvider, useAetherAuth, type AuthCustomer } from "./AetherAuthProvider";
@@ -106,3 +121,9 @@ export {
   type LegalDocumentSection,
   type LegalDocuments
 } from "./LegalDocument";
+
+export { fetchCatalogCategoryBySlug, type CategoryLookup } from "./catalog-server";
+export { buildBreadcrumbJsonLd, isIndexableProduct } from "./seo";
+export { buildStorefrontSitemap, type StorefrontSitemapOptions } from "./sitemap-server";
+
+export { CatalogUnavailablePage } from "./CatalogUnavailablePage";

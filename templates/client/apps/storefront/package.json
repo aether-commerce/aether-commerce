@@ -10,7 +10,7 @@
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "deploy": "wrangler deploy --config ./wrangler.jsonc",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "eslint app"
+    "lint": "eslint app middleware.ts"
   },
   "dependencies": {
     "@aether-commerce/api-client": "^0.1.0",
