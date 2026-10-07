@@ -5,7 +5,9 @@ export function normalizeStorefrontPath(path: string) {
   const queryIndex = normalized.search(/[?#]/);
   const pathname = queryIndex === -1 ? normalized : normalized.slice(0, queryIndex);
   const suffix = queryIndex === -1 ? "" : normalized.slice(queryIndex);
-  const isFilePath = /\.[^/]+$/.test(pathname);
+  const lastSegment = pathname.slice(pathname.lastIndexOf("/") + 1);
+  const dotIndex = lastSegment.indexOf(".");
+  const isFilePath = dotIndex !== -1 && dotIndex < lastSegment.length - 1;
   const withSlash = pathname.endsWith("/") || isFilePath ? pathname : `${pathname}/`;
   return `${withSlash}${suffix}`;
 }

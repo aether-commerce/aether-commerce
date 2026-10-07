@@ -210,7 +210,9 @@ test("assistant widget sends current product context from detail pages", async (
     });
   });
 
-  await page.goto("/products/funda-slim-grip/");
+  const productResponse = await page.goto("/products/funda-slim-grip/");
+  expect(productResponse?.status()).toBe(200);
+  await expect(page.getByRole("heading", { level: 1, name: "Funda Slim Grip" })).toBeVisible();
   const assistant = await openAssistant(page);
   await assistant.getByPlaceholder(/buscar|search/i).fill("Muestrame alternativas similares");
   await assistant.getByRole("button", { name: /enviar|send/i }).click();
@@ -546,7 +548,9 @@ test("assistant widget sends current category context from category pages", asyn
     });
   });
 
-  await page.goto("/categories/smartphones");
+  const categoryResponse = await page.goto("/categories/smartphones");
+  expect(categoryResponse?.status()).toBe(200);
+  await expect(page.getByRole("heading", { level: 1, name: "Smartphones" })).toBeVisible();
   const assistant = await openAssistant(page);
   await assistant.getByPlaceholder(/buscar|search/i).fill("Muestrame productos similares");
   await assistant.getByRole("button", { name: /enviar|send/i }).click();

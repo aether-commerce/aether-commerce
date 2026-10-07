@@ -6,6 +6,7 @@ import {
   buildProductJsonLd,
   buildBreadcrumbJsonLd,
   resolveStorefrontUrl,
+  normalizeStorefrontPath,
   StorefrontJsonLd
 } from "./seo";
 
@@ -24,6 +25,13 @@ describe("storefront search markup", () => {
     expect(resolveStorefrontUrl("javascript:alert(1)", "https://shop.example").origin).toBe(
       "https://shop.example"
     );
+  });
+  it("normalizes long dotted segments without regex backtracking", () => {
+    const dottedPath = "/products/" + ".".repeat(100_000) + "/details";
+    expect(normalizeStorefrontPath(dottedPath)).toBe(dottedPath + "/");
+    expect(normalizeStorefrontPath("/sitemap.xml?lang=es")).toBe("/sitemap.xml?lang=es");
+    expect(normalizeStorefrontPath("/products/.")).toBe("/products/./");
+    expect(normalizeStorefrontPath("/products/..")).toBe("/products/..");
   });
   it("emits a real COP offer and absolute breadcrumbs", () => {
     const product = {
