@@ -495,7 +495,7 @@ test("storefront resolves product slugs and metadata at request time", () => {
   }
 
   const serverLoader = read("packages/storefront-default/src/product-detail-server.ts");
-  assert.match(serverLoader, /cache\(async/);
+  assert.match(serverLoader, /cache\(\s*async/);
   assert.match(serverLoader, /products\/slug/);
   assert.match(serverLoader, /cache: "no-store"/);
 });

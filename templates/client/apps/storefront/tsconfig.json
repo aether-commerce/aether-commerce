@@ -8,8 +8,12 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "noEmit": true,
-    "plugins": [{ "name": "next" }]
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ]
   },
-  "include": ["next-env.d.ts", "app/**/*.ts", "app/**/*.tsx"],
+  "include": ["next-env.d.ts", "app/**/*.ts", "app/**/*.tsx", "middleware.ts"],
   "exclude": ["node_modules"]
 }

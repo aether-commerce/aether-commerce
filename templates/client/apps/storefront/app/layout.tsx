@@ -17,7 +17,14 @@ import { themeTokensToCssVariables } from "@aether-commerce/ui/theme";
 import { clientConfiguration } from "../../../src/configuration";
 import { legalPolicyVersion } from "../../../config/legal";
 import { AppProviders } from "../components/AppProviders";
-import { analyticsMeasurementId, googleSiteVerification, storefrontMetadataBase, storefrontSiteName, storefrontSiteUrl } from "./seo-config";
+import {
+  analyticsMeasurementId,
+  googleSiteVerification,
+  storefrontLocale,
+  storefrontMetadataBase,
+  storefrontSiteName,
+  storefrontSiteUrl
+} from "./seo-config";
 
 export const metadata: Metadata = {
   title: { default: `${storefrontSiteName} | Storefront`, template: `%s | ${storefrontSiteName}` },
@@ -39,13 +46,6 @@ const themeInitScript = `
       document.documentElement.setAttribute("data-theme", "dark");
     }
 
-    var storedLocale = window.localStorage.getItem("locale.v1");
-    var locale = storedLocale === "en" || storedLocale === "es"
-      ? storedLocale
-      : (navigator.language || "").toLowerCase().indexOf("es") === 0 ? "es" : "en";
-    if (locale !== "en") {
-      document.documentElement.setAttribute("data-locale-pending", "1");
-    }
   } catch (e) {}
 })();
 `;
@@ -60,18 +60,27 @@ const themeInitScript = `
  */
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang={storefrontLocale} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
         <style>{themeTokensToCssVariables(clientConfiguration.theme)}</style>
-        <style>{`html[data-locale-pending] body { visibility: hidden; }`}</style>
       </head>
       <body>
         <Analytics measurementId={analyticsMeasurementId} />
         <StorefrontJsonLd
           data={[
-            { "@context": "https://schema.org", "@type": "WebSite", name: storefrontSiteName, url: storefrontSiteUrl.toString() },
-            { "@context": "https://schema.org", "@type": "Organization", name: storefrontSiteName, url: storefrontSiteUrl.toString() }
+            {
+              "@context": "https://schema.org",
+              "@type": "WebSite",
+              name: storefrontSiteName,
+              url: storefrontSiteUrl.toString()
+            },
+            {
+              "@context": "https://schema.org",
+              "@type": "Organization",
+              name: storefrontSiteName,
+              url: storefrontSiteUrl.toString()
+            }
           ]}
         />
         {/* AI assistant Worker URL isn't part of clientConfiguration (it's a
@@ -85,9 +94,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           apiBaseUrl={clientConfiguration.integrations.api.productionBaseUrl}
           aiAssistantUrl={process.env.NEXT_PUBLIC_AETHER_AI_URL}
         >
-          <AetherAuthProvider>
+          <AetherAuthProvider locale={storefrontLocale}>
             <AppProviders>
-              <LanguageProvider>
+              <LanguageProvider initialLocale={storefrontLocale}>
                 <SiteHeader />
                 {children}
                 <SiteFooter />

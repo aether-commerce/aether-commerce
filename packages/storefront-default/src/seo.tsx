@@ -12,7 +12,8 @@ export function normalizeStorefrontPath(path: string) {
 
 export function resolveStorefrontUrl(value: string | undefined, fallback: string) {
   try {
-    return new URL(value?.trim() || fallback);
+    const url = new URL(value?.trim() || fallback);
+    return url.protocol === "http:" || url.protocol === "https:" ? url : new URL(fallback);
   } catch {
     return new URL(fallback);
   }
@@ -22,7 +23,10 @@ export function absoluteStorefrontUrl(siteUrl: string | URL, path: string, baseP
   const url = new URL(siteUrl.toString());
   const originPath = url.pathname.replace(/\/+$/, "");
   const prefix = basePath ? `/${basePath.replace(/^\/+|\/+$/g, "")}` : "";
-  url.pathname = `${originPath}${prefix}${normalizeStorefrontPath(path)}`.replace(/\/\/+/g, "/");
+  const localPath = new URL(normalizeStorefrontPath(path), "https://storefront.invalid");
+  url.pathname = `${originPath}${prefix}${localPath.pathname}`.replace(/\/\/+/g, "/");
+  url.search = localPath.search;
+  url.hash = localPath.hash;
   return url.toString();
 }
 
@@ -35,7 +39,8 @@ function absoluteAssetUrl(siteUrl: string | URL, value: string) {
 }
 
 function availabilityForProduct(product: Product) {
-  return product.availabilityStatus === "out_of_stock" || product.availabilityStatus === "discontinued"
+  return product.availabilityStatus === "out_of_stock" ||
+    product.availabilityStatus === "discontinued"
     ? "https://schema.org/OutOfStock"
     : "https://schema.org/InStock";
 }
@@ -63,5 +68,31 @@ export function buildProductJsonLd(product: Product, siteUrl: string | URL, base
 }
 
 export function StorefrontJsonLd({ data }: { data: unknown }) {
-  return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(data) }} />;
+  return (
+    <script
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(data).replace(/</g, "\\u003c") }}
+    />
+  );
+}
+
+export function buildBreadcrumbJsonLd(
+  items: Array<{ name: string; path: string }>,
+  siteUrl: string | URL,
+  basePath = ""
+) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: items.map((item, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      name: item.name,
+      item: absoluteStorefrontUrl(siteUrl, item.path, basePath)
+    }))
+  };
+}
+
+export function isIndexableProduct(product: Product) {
+  return product.visible && product.visibility === "visible" && !product.flags.includes("hidden");
 }
