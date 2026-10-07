@@ -1,34 +1,65 @@
 import type { Metadata } from "next";
-import { humanizeCategorySlug } from "@aether-commerce/core";
-import { fetchCatalogProducts, ProductGrid } from "@aether-commerce/storefront-default";
+import { notFound } from "next/navigation";
+import {
+  fetchCatalogCategoryBySlug,
+  fetchCatalogProducts,
+  ProductGrid
+} from "@aether-commerce/storefront-default";
 import { clientConfiguration } from "../../../../../src/configuration";
+import { storefrontLocale } from "../../seo-config";
+const apiBaseUrl =
+  process.env.NEXT_PUBLIC_AETHER_API_URL ??
+  (process.env.NODE_ENV === "development"
+    ? clientConfiguration.integrations.api.localBaseUrl
+    : clientConfiguration.integrations.api.productionBaseUrl);
 import { pageMetadata } from "../../seo-config";
 
-// Static export needs generateStaticParams to know which category pages to
-// pre-render at build time, and "output: export" refuses to emit zero pages
-// for a dynamic segment - a fresh client has no catalog yet, so this ships
-// one placeholder slug purely to keep the build valid. Replace with your own
-// real category slugs once you have a catalog (see the Aether reference
-// repo's apps/storefront/app/categories/[slug]/page.tsx for an example wired
-// to a real catalog service).
-export function generateStaticParams() {
-  return [{ slug: "example" }] as Array<{ slug: string }>;
+export const dynamic = "force-dynamic";
+
+async function categoryForSlug(slug: string) {
+  const lookup = await fetchCatalogCategoryBySlug(apiBaseUrl, slug);
+  if (lookup.status === "not-found") notFound();
+  if (lookup.status === "unavailable") throw new Error("Catalog unavailable.");
+  return lookup.category;
 }
 
-export async function generateMetadata({ params }: Readonly<{ params: Promise<{ slug: string }> }>): Promise<Metadata> {
+export async function generateMetadata({
+  params
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
   const { slug } = await params;
-  const categoryName = humanizeCategorySlug(slug);
-  return pageMetadata(`${categoryName} products`, `Browse products in the ${categoryName} category.`, false, `/categories/${slug}`);
+  const category = await categoryForSlug(slug);
+  const description =
+    storefrontLocale === "es"
+      ? "Explora nuestra selección de " + category.name + "."
+      : "Browse our " + category.name + " collection.";
+  return pageMetadata(category.name, description, false, "/categories/" + encodeURIComponent(slug));
 }
 
-export default async function CategoryProductsPage({ params }: Readonly<{ params: Promise<{ slug: string }> }>) {
+export default async function CategoryProductsPage({
+  params
+}: {
+  params: Promise<{ slug: string }>;
+}) {
   const { slug } = await params;
-  const categoryName = humanizeCategorySlug(slug);
-  const catalog = await fetchCatalogProducts(clientConfiguration.integrations.api.productionBaseUrl, { page: 1, pageSize: 12, sort: "featured", category: slug });
-
+  const category = await categoryForSlug(slug);
+  const catalog = await fetchCatalogProducts(apiBaseUrl, {
+    page: 1,
+    pageSize: 12,
+    sort: "featured",
+    category: slug
+  });
+  if (!catalog) throw new Error("Catalog unavailable.");
   return (
     <main>
-      <ProductGrid headingLevel="h1" fixedCategory={slug} heading={categoryName} description="Products filtered by category." initialProducts={catalog?.products} initialPagination={catalog?.pagination} />
+      <ProductGrid
+        fixedCategory={slug}
+        headingLevel="h1"
+        heading={category.name}
+        initialProducts={catalog.products}
+        initialPagination={catalog.pagination}
+      />
     </main>
   );
 }

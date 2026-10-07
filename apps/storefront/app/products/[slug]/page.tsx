@@ -1,6 +1,12 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { absoluteStorefrontUrl, buildProductJsonLd, fetchProductBySlug, ProductDetailClient, StorefrontJsonLd } from "@aether-commerce/storefront-default";
+import {
+  absoluteStorefrontUrl,
+  buildProductJsonLd,
+  fetchProductBySlug,
+  ProductDetailClient,
+  StorefrontJsonLd
+} from "@aether-commerce/storefront-default";
 
 import { apiBaseUrl, storefrontBasePath } from "../../../components/config";
 import { storefrontSiteUrl } from "../../seo-config";
@@ -9,11 +15,16 @@ export const dynamic = "force-dynamic";
 
 async function productForRequest(slug: string) {
   const lookup = await fetchProductBySlug(apiBaseUrl, slug);
-  if (lookup.status === "found") return lookup.product;
-  return null;
+  if (lookup.status === "not-found") notFound();
+  if (lookup.status === "unavailable") throw new Error("Product unavailable.");
+  return lookup.product;
 }
 
-export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+export async function generateMetadata({
+  params
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
   const { slug } = await params;
   const product = await productForRequest(slug);
   if (!product) return { robots: { index: false, follow: false } };
@@ -21,13 +32,24 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   return {
     title: product.seo.title,
     description: product.seo.description,
-    alternates: { canonical: absoluteStorefrontUrl(storefrontSiteUrl, product.seo.canonicalPath, storefrontBasePath) },
+    alternates: {
+      canonical: absoluteStorefrontUrl(
+        storefrontSiteUrl,
+        product.seo.canonicalPath,
+        storefrontBasePath
+      )
+    },
     openGraph: {
       title: product.seo.title,
       description: product.seo.description,
       type: "website",
       url: absoluteStorefrontUrl(storefrontSiteUrl, product.seo.canonicalPath, storefrontBasePath),
-      images: [{ url: product.images[0]?.url ?? product.thumbnail, alt: product.images[0]?.alt ?? product.name }]
+      images: [
+        {
+          url: product.images[0]?.url ?? product.thumbnail,
+          alt: product.images[0]?.alt ?? product.name
+        }
+      ]
     }
   };
 }
@@ -35,12 +57,17 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 export default async function ProductDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const lookup = await fetchProductBySlug(apiBaseUrl, slug);
-  if (lookup.status !== "found") notFound();
+  if (lookup.status === "not-found") notFound();
+  if (lookup.status === "unavailable") throw new Error("Product unavailable.");
   const product = lookup.product;
 
   return (
     <>
-      {product ? <StorefrontJsonLd data={buildProductJsonLd(product, storefrontSiteUrl, storefrontBasePath)} /> : null}
+      {product ? (
+        <StorefrontJsonLd
+          data={buildProductJsonLd(product, storefrontSiteUrl, storefrontBasePath)}
+        />
+      ) : null}
       <ProductDetailClient
         slug={slug}
         initialProduct={lookup.status === "found" ? lookup.product : null}

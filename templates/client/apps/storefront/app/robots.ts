@@ -1,14 +1,13 @@
 import type { MetadataRoute } from "next";
 import { absoluteStorefrontUrl } from "@aether-commerce/storefront-default";
-import { storefrontSiteUrl } from "./seo-config";
+import { storefrontBasePath, storefrontSiteUrl } from "./seo-config";
 
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: {
       userAgent: "*",
-      allow: "/",
-      disallow: ["/account/", "/checkout/", "/cart/", "/login/", "/register/"]
+      allow: "/"
     },
-    sitemap: absoluteStorefrontUrl(storefrontSiteUrl, "/sitemap.xml")
+    sitemap: absoluteStorefrontUrl(storefrontSiteUrl, "/sitemap.xml", storefrontBasePath)
   };
 }

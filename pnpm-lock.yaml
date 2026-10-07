@@ -526,12 +526,18 @@ importers:
       '@types/react':
         specifier: ^19.2.3
         version: 19.2.3
+      '@types/react-dom':
+        specifier: ^19.2.3
+        version: 19.2.3(@types/react@19.2.3)
       next:
         specifier: ^16.3.3
         version: 16.3.3(@babel/core@7.29.7)(@playwright/test@1.57.0)(@types/node@22.19.0)(react-dom@19.2.3)(react@19.2.3)
       react:
         specifier: ^19.2.3
         version: 19.2.3
+      react-dom:
+        specifier: 19.2.3
+        version: 19.2.3(react@19.2.3)
       typescript:
         specifier: ^5.9.0
         version: 5.9.2

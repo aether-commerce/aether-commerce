@@ -16,26 +16,29 @@ function apiUrl(apiBaseUrl: string, slug: string) {
  * Network failures stay distinct from a missing product so the route does not
  * turn a temporary API outage into a false 404.
  */
-export const fetchProductBySlug = cache(async (apiBaseUrl: string, slug: string): Promise<ProductLookup> => {
-  if (!apiBaseUrl) return { status: "unavailable" };
+export const fetchProductBySlug = cache(
+  async (apiBaseUrl: string, slug: string): Promise<ProductLookup> => {
+    if (!apiBaseUrl) return { status: "unavailable" };
 
-  try {
-    const response = await fetch(apiUrl(apiBaseUrl, slug), {
-      cache: "no-store",
-      headers: { accept: "application/json" }
-    });
-    const payload = (await response.json()) as { success?: boolean; data?: Product };
+    try {
+      const response = await fetch(apiUrl(apiBaseUrl, slug), {
+        cache: "no-store",
+        headers: { accept: "application/json" },
+        signal: AbortSignal.timeout(12000)
+      });
+      if (response.status === 404) {
+        return { status: "not-found" };
+      }
 
-    if (response.status === 404) {
-      return { status: "not-found" };
-    }
+      if (!response.ok) return { status: "unavailable" };
+      const payload = (await response.json()) as { success?: boolean; data?: Product };
+      if (!payload.success || !payload.data) {
+        return { status: "unavailable" };
+      }
 
-    if (!response.ok || !payload.success || !payload.data) {
+      return { status: "found", product: payload.data };
+    } catch {
       return { status: "unavailable" };
     }
-
-    return { status: "found", product: payload.data };
-  } catch {
-    return { status: "unavailable" };
   }
-});
+);

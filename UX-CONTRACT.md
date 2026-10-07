@@ -62,3 +62,10 @@
 - Required static checks: package typechecks, lint, contract tests, changeset validation and generated-client validation.
 - Required UI matrix for changed surfaces: storefront/admin, desktop/mobile, English/Spanish, light/dark, loading/success/error.
 - Failure-path evidence: authenticated summary tests must prove demo values and notices never appear on private routes.
+
+## Public catalog SEO
+
+- storefront-default owns SSR catalog reads, canonical helpers, Product/Offer serialization and sitemap generation; merchant content remains client-owned.
+- LanguageProvider accepts a configured initialLocale that matches server and first client render. A saved visitor selection overrides it after hydration; storage failures never hide the shop.
+- Missing product/category entities render not-found; API outages remain unavailable. A sitemap is complete or fails, never a truncated successful response.
+- Reference: docs/platform/storefront-seo.md. Verify initial HTML, missing-resource HTTP responses, canonical paths and sitemap output in addition to browser interactions.

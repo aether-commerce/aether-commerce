@@ -12,9 +12,17 @@ export default defineConfig({
     { name: "desktop", use: { ...devices["Desktop Chrome"] } },
     { name: "mobile", use: { ...devices["Pixel 7"] } }
   ],
-  webServer: {
-    command: "pnpm dev:storefront:e2e",
-    url: "http://localhost:3010",
-    reuseExistingServer: false
-  }
+  webServer: [
+    {
+      command: "node tests/e2e/catalog-api.mjs",
+      url: "http://127.0.0.1:8091/health",
+      reuseExistingServer: false
+    },
+    {
+      command: "pnpm dev:storefront:e2e",
+      env: { NEXT_PUBLIC_AETHER_API_URL: "http://127.0.0.1:8091" },
+      url: "http://localhost:3010",
+      reuseExistingServer: false
+    }
+  ]
 });
