@@ -21,7 +21,7 @@ function availabilityTone(outOfStock: boolean, status: string): "danger" | "warn
 
 export function ComparePage() {
   const { locale, t } = useLanguage();
-  const { apiBaseUrl } = useStorefrontConfig();
+  const { apiBaseUrl, reviewsEnabled } = useStorefrontConfig();
   const cartClient = useMemo(() => createCartClient(apiBaseUrl), [apiBaseUrl]);
   const [products, setProducts] = useState<Product[]>([]);
   const [addingId, setAddingId] = useState<string | null>(null);
@@ -122,17 +122,19 @@ export function ComparePage() {
                   </td>
                 ))}
               </tr>
-              <tr>
-                <th className="border-b border-zinc-100 p-4 font-medium text-zinc-500">{t.rating}</th>
-                {products.map((product) => (
-                  <td key={product.id} className="border-b border-zinc-100 p-4">
-                    <span className="inline-flex items-center gap-1 text-zinc-950">
-                      <Star size={14} className="fill-amber-400 text-amber-400" aria-hidden />
-                      {product.rating.average.toFixed(1)}
-                    </span>
-                  </td>
-                ))}
-              </tr>
+              {reviewsEnabled ? (
+                <tr>
+                  <th className="border-b border-zinc-100 p-4 font-medium text-zinc-500">{t.rating}</th>
+                  {products.map((product) => (
+                    <td key={product.id} className="border-b border-zinc-100 p-4">
+                      <span className="inline-flex items-center gap-1 text-zinc-950">
+                        <Star size={14} className="fill-amber-400 text-amber-400" aria-hidden />
+                        {product.rating.average.toFixed(1)}
+                      </span>
+                    </td>
+                  ))}
+                </tr>
+              ) : null}
               <tr>
                 <th className="border-b border-zinc-100 p-4 font-medium text-zinc-500">{t.availabilityLabel}</th>
                 {products.map((product) => {
