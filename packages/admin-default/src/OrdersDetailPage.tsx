@@ -50,6 +50,7 @@ type OrderDetail = {
   state: string;
   channel: "stripe" | "whatsapp";
   paymentStatus: PaymentStatus;
+  refundedAmount: number;
   fulfillmentStatus: FulfillmentStatus;
   items: OrderItem[];
   totals: { subtotal: number; discount: number; shipping: number; tax: number; total: number; currency: string };
@@ -423,7 +424,7 @@ export function OrdersDetailPage() {
     try {
       const response = await fetch(`${apiBaseUrl}/api/v1/admin/orders/${order.id}${path}`, {
         method,
-        headers: { "content-type": "application/json", ...(await authHeader()) },
+        headers: { "content-type": "application/json", ...(path === "/refund" ? { "x-idempotency-key": crypto.randomUUID() } : {}), ...(await authHeader()) },
         body: JSON.stringify(body)
       });
       const payload = (await response.json()) as { success: boolean; error?: { message?: string } };
@@ -473,7 +474,7 @@ export function OrdersDetailPage() {
             open={refundConfirming}
             title={t.orderDetailPage.refundViaTitle.replace("{provider}", refundProviderLabel(order.channel))}
             description={t.orderDetailPage.refundDescription
-              .replace("{amount}", money(order.totals.total, order.totals.currency, locale))
+              .replace("{amount}", money(order.totals.total - (order.refundedAmount ?? 0), order.totals.currency, locale))
               .replaceAll("{provider}", refundProviderLabel(order.channel))}
             confirmLabel={t.orderDetailPage.confirmRefund}
             tone="danger"

@@ -2,7 +2,7 @@ import { z } from "zod";
 import { defineAdminChatTool, notFoundResult } from "../define-tool";
 import { createPendingAction } from "../pending-actions";
 import { pick } from "../language";
-import { applyRefundLocally, createProviderRefund, isRefundableChannel } from "../../refunds";
+import { applyRefundLocally, createProviderRefund, getRefundedAmount, hasPendingRefund, isRefundableChannel, recordPendingRefund, refundIdempotencyKey } from "../../refunds";
 import type { ActionDiff } from "../artifacts";
 import type { PendingActionExecutor } from "../executors";
 import type { AdminChatContext } from "../context";
@@ -71,8 +71,17 @@ export const prepareRefundOrderTool = defineAdminChatTool({
     const precondition = refundPrecondition(ctx, found.row);
     if (precondition) return { message: precondition.message, artifact: { type: "error", code: precondition.code, message: precondition.message } };
 
-    const amount = args.amountCents ?? found.row.total;
-    const isPartial = args.amountCents !== undefined && args.amountCents < found.row.total;
+    const remaining = found.row.total - await getRefundedAmount(ctx.env, found.id);
+    if (remaining <= 0 || (args.amountCents !== undefined && args.amountCents > remaining)) {
+      const message = pick(ctx.language, "Refund exceeds the remaining payment balance.", "El reembolso supera el saldo restante.");
+      return { message, artifact: { type: "error", code: "REFUND_AMOUNT_INVALID", message } };
+    }
+    if (await hasPendingRefund(ctx.env, found.id)) {
+      const message = pick(ctx.language, "A previous refund is still processing.", "Un reembolso anterior sigue en proceso.");
+      return { message, artifact: { type: "error", code: "REFUND_PENDING", message } };
+    }
+    const amount = args.amountCents ?? remaining;
+    const isPartial = amount < remaining;
     const diff: ActionDiff = {
       summary: pick(
         ctx.language,
@@ -84,9 +93,7 @@ export const prepareRefundOrderTool = defineAdminChatTool({
         { field: "amountCents", before: null, after: amount },
         { field: "paymentStatus", before: found.row.payment_status, after: isPartial ? "partially_refunded" : "refunded" }
       ],
-      consequences: isPartial
-        ? []
-        : [pick(ctx.language, "A full refund restores stock for every item on this order.", "Un reembolso total restaura el stock de todos los artículos de este pedido.")]
+      consequences: [pick(ctx.language, "Inventory is not restocked automatically. Verify returned items before updating stock.", "El inventario no se repone automáticamente. Verifica los artículos devueltos antes de actualizar el stock.")]
     };
     const { operationId, expiresAt } = await createPendingAction(ctx.env, {
       conversationId: ctx.conversationId,
@@ -120,10 +127,23 @@ export const executeRefundOrder: PendingActionExecutor = async (ctx, params) => 
 
   const precondition = refundPrecondition(ctx, current);
   if (precondition) return { success: false, code: precondition.code, message: precondition.message };
+  const remaining = current.total - await getRefundedAmount(ctx.env, orderId);
+  if (remaining <= 0 || (amountCents !== undefined && amountCents > remaining)) {
+    return { success: false, code: "REFUND_AMOUNT_INVALID", message: pick(ctx.language, "Refund exceeds the remaining payment balance.", "El reembolso supera el saldo restante.") };
+  }
+  if (await hasPendingRefund(ctx.env, orderId)) {
+    return { success: false, code: "REFUND_PENDING", message: pick(ctx.language, "A previous refund is still processing.", "Un reembolso anterior sigue en proceso.") };
+  }
   const paymentIntentId = extractPaymentIntentId(current.payload_json)!;
 
   try {
-    const refund = await createProviderRefund(ctx.env, current.channel, paymentIntentId, amountCents, current.total);
+    const refund = await createProviderRefund(ctx.env, current.channel, paymentIntentId, amountCents, current.total,
+      refundIdempotencyKey(orderId, remaining, amountCents ?? remaining));
+    if (current.channel === "stripe" && refund.status !== "succeeded") {
+      if (refund.status !== "pending" && refund.status !== "requires_action") throw new Error("Stripe did not complete the refund");
+      await recordPendingRefund(ctx.env, orderId, refund.id, refund.amount ?? amountCents ?? remaining, reason ?? "stripe_pending_refund");
+      return { success: true, result: { orderId, paymentStatus: current.payment_status, providerRefundId: refund.id, pending: true } };
+    }
     const { paymentStatus } = await applyRefundLocally(ctx.env, {
       orderId,
       channel: current.channel,
@@ -132,7 +152,7 @@ export const executeRefundOrder: PendingActionExecutor = async (ctx, params) => 
       stockRestoredAt: current.stock_restored_at,
       email: current.email,
       number: current.number,
-      amountCents,
+      amountCents: refund.amount ?? amountCents,
       providerRefundId: refund.id,
       ...(reason !== undefined ? { reason } : {}),
       actorId: ctx.actor.userId ?? "admin",

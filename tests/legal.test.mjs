@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
-const root = process.cwd().endsWith("aether-commerce") ? process.cwd() : resolve("aether-commerce");
+const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (path) => readFileSync(resolve(root, path), "utf8");
 
 test("storefront publishes complete legal routes and controller channels", () => {

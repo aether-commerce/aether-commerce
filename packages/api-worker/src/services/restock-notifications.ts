@@ -43,21 +43,36 @@ export async function sendDueRestockNotifications(env: Env): Promise<{ sent: num
     `select rn.id, rn.email, rn.product_id, p.name, p.slug
      from restock_notifications rn
      join products p on p.id = rn.product_id
-     where rn.notified_at is null and p.stock > 0`
+     where rn.notified_at is null and rn.attempts < 5
+       and (rn.next_attempt_at is null or rn.next_attempt_at <= CURRENT_TIMESTAMP)
+       and p.stock > 0`
   ).all<PendingNotificationRow>();
 
   const origin = env.APP_ORIGIN_STORE ?? "http://localhost:3000";
   const basePath = env.APP_STORE_BASE_PATH?.trim().replace(/^\/?/, "/").replace(/\/$/, "") ?? "";
   let sent = 0;
   for (const row of rows.results ?? []) {
+    const claim = await env.DB.prepare(
+      `update restock_notifications set attempts = attempts + 1,
+       next_attempt_at = datetime('now', '+2 minutes')
+       where id = ? and notified_at is null and attempts < 5
+       and (next_attempt_at is null or next_attempt_at <= CURRENT_TIMESTAMP)`
+    ).bind(row.id).run();
+    if ((claim.meta.changes ?? 0) !== 1) continue;
     const productUrl = `${origin.replace(/\/$/, "")}${basePath === "/" ? "" : basePath}/products/${encodeURIComponent(row.slug)}`;
-    // Best-effort, same as every other transactional email in this codebase
-    // (sendOrderEmail's own call sites) - a Resend outage stamps notified_at
-    // anyway rather than retrying forever, since the next cron tick would
-    // otherwise re-email every prior success too (no per-row failure state).
-    await sendRestockNotificationEmail(env, { email: row.email, productName: row.name, productUrl }).catch(() => {});
-    await env.DB.prepare("update restock_notifications set notified_at = CURRENT_TIMESTAMP where id = ?").bind(row.id).run();
-    sent += 1;
+    try {
+      const result = await sendRestockNotificationEmail(env, { email: row.email, productName: row.name, productUrl }, `restock/${row.id}`);
+      if (!result.queued) throw new Error("Email provider did not accept the message");
+      await env.DB.prepare("update restock_notifications set notified_at = CURRENT_TIMESTAMP, last_error = null where id = ? and notified_at is null")
+        .bind(row.id).run();
+      sent += 1;
+    } catch (error) {
+      await env.DB.prepare(
+        `update restock_notifications set
+         next_attempt_at = datetime('now', '+' || min(60, attempts * 10) || ' minutes'),
+         last_error = ? where id = ? and notified_at is null`
+      ).bind(error instanceof Error ? error.message.slice(0, 200) : "Email delivery failed", row.id).run();
+    }
   }
   return { sent };
 }

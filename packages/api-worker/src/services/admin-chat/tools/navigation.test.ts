@@ -18,6 +18,18 @@ describe("navigateToTool", () => {
     expect(result.artifact).toMatchObject({ type: "navigate", href: "/products/" });
   });
 
+  it.each([
+    ["reviews", "/reviews/"],
+    ["coupons", "/coupons/"],
+    ["integrations", "/settings/integrations/"],
+    ["platform", "/settings/platform/"],
+    ["system_health", "/system-health/"]
+  ] as const)("opens the dedicated %s module", async (module, href) => {
+    const { env } = fakeEnv();
+    const result = await navigateToTool.run({ module }, fakeContext(env));
+    expect(result.artifact).toMatchObject({ type: "navigate", href });
+  });
+
   // filters is an array of {key, value} pairs, not a record - Gemini's
   // function-calling schema (via LangChain's bindTools) rejects the
   // "propertyNames" keyword zod emits for record types (confirmed live: a

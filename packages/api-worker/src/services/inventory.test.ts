@@ -98,19 +98,19 @@ describe("getReservationTtlMinutes", () => {
 
 describe("upsertActiveReservation", () => {
   it("inserts a new reservation when none exists for this cart+product", async () => {
-    // response[0] is the reservations TTL setting lookup (no row -> default), response[1] is the existing-reservation check
-    const { env, db } = fakeEnv([{ first: null }, { first: null }]);
+    const { env, db } = fakeEnv([{ first: null }]);
     await upsertActiveReservation(env, { cartId: "cart_a", productId: "prd_1", sku: "SKU-1", quantity: 2 });
-    expect(db.prepare).toHaveBeenCalledTimes(3);
-    const insertCall = (db.prepare as ReturnType<typeof vi.fn>).mock.calls[2]![0] as string;
+    expect(db.prepare).toHaveBeenCalledTimes(2);
+    const insertCall = (db.prepare as ReturnType<typeof vi.fn>).mock.calls[1]![0] as string;
     expect(insertCall).toContain("insert into inventory_reservations");
+    expect(insertCall).toContain("on conflict(cart_id, product_id)");
   });
 
   it("updates the existing active reservation instead of inserting a duplicate", async () => {
-    const { env, db } = fakeEnv([{ first: null }, { first: { id: "res_1" } }]);
+    const { env, db } = fakeEnv([{ first: null }]);
     await upsertActiveReservation(env, { cartId: "cart_a", productId: "prd_1", sku: "SKU-1", quantity: 4 });
-    const updateCall = (db.prepare as ReturnType<typeof vi.fn>).mock.calls[2]![0] as string;
-    expect(updateCall).toContain("update inventory_reservations set quantity");
+    const updateCall = (db.prepare as ReturnType<typeof vi.fn>).mock.calls[1]![0] as string;
+    expect(updateCall).toContain("do update set quantity");
   });
 });
 
@@ -145,7 +145,7 @@ describe("buildStockDecrementStatements", () => {
     );
     const typed = statements as unknown as Array<{ sql: string; args: unknown[] }>;
     expect(typed).toHaveLength(4);
-    expect(typed[0]!.sql).toContain("max(0, stock - ?)");
+    expect(typed[0]!.sql).toContain("stock = stock - ?");
     expect(typed[1]!.sql).toContain("type, quantity");
     expect(typed[1]!.sql).toContain("'sale'");
   });

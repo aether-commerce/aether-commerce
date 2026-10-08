@@ -8,7 +8,7 @@ type EmailPayload = {
   html: string;
 };
 
-async function send(env: Env, payload: EmailPayload) {
+async function send(env: Env, payload: EmailPayload, idempotencyKey?: string) {
   const { resend } = await resolveIntegrationSecrets(env);
   if (!resend.apiKey) {
     return { queued: false, provider: "resend", reason: "RESEND_API_KEY missing" };
@@ -18,7 +18,8 @@ async function send(env: Env, payload: EmailPayload) {
     method: "POST",
     headers: {
       authorization: `Bearer ${resend.apiKey}`,
-      "content-type": "application/json"
+      "content-type": "application/json",
+      ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {})
     },
     body: JSON.stringify({
       from: env.EMAIL_FROM ?? "Aether Demo <onboarding@resend.dev>",
@@ -58,12 +59,12 @@ export async function sendOrderEmail(env: Env, order: Pick<Order, "email" | "num
   });
 }
 
-export async function sendRestockNotificationEmail(env: Env, notification: { email: string; productName: string; productUrl: string }) {
+export async function sendRestockNotificationEmail(env: Env, notification: { email: string; productName: string; productUrl: string }, idempotencyKey?: string) {
   return send(env, {
     to: notification.email,
     subject: `${notification.productName} is back in stock`,
     html: `<p><strong>${notification.productName}</strong> is back in stock.</p><p><a href="${notification.productUrl}">View product</a></p>`
-  });
+  }, idempotencyKey);
 }
 
 export async function sendDisputeAlertEmail(env: Env, dispute: { disputeId: string; orderNumber: string | null; reason?: string }) {
@@ -75,6 +76,17 @@ export async function sendDisputeAlertEmail(env: Env, dispute: { disputeId: stri
     to: env.CONTACT_RECIPIENT_EMAIL,
     subject: `Payment dispute opened${dispute.orderNumber ? ` for order ${dispute.orderNumber}` : ""}`,
     html: `<p>Stripe reported a new dispute (${dispute.disputeId})${dispute.orderNumber ? ` on order <strong>${dispute.orderNumber}</strong>` : ""}${dispute.reason ? ` - reason: ${dispute.reason}` : ""}.</p><p>Respond to it from the Stripe dashboard before the evidence deadline.</p>`
+  });
+}
+
+export async function sendPaymentReconciliationAlertEmail(env: Env) {
+  if (!env.CONTACT_RECIPIENT_EMAIL) {
+    return { queued: false, provider: "resend", reason: "CONTACT_RECIPIENT_EMAIL missing" };
+  }
+  return send(env, {
+    to: env.CONTACT_RECIPIENT_EMAIL,
+    subject: "Aether: paid checkout needs reconciliation",
+    html: "<p>A verified payment could not create an order. Review failed payment webhooks and the audit log in the administration panel; refund or fulfill the charge after investigation.</p>"
   });
 }
 

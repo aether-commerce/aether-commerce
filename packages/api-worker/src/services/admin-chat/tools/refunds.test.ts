@@ -54,6 +54,8 @@ describe("prepareRefundOrderTool", () => {
   it("prepares a pending action for a refundable Stripe order", async () => {
     const { env } = fakeEnv([
       { first: { id: "ord_1", ...stripeOrderRow() } },
+      { first: { amount: 0 } },
+      { first: null },
       { first: null },
       {},
       { first: { id: "pact_1", expires_at: new Date(Date.now() + 300_000).toISOString() } }
@@ -68,6 +70,8 @@ describe("prepareRefundOrderTool", () => {
   it("prepares a pending action for a refundable Wompi order", async () => {
     const { env } = fakeEnv([
       { first: { id: "ord_1", ...stripeOrderRow({ channel: "wompi", payload_json: JSON.stringify({ payment: { providerPaymentIntentId: "txn_123" } }) }) } },
+      { first: { amount: 0 } },
+      { first: null },
       { first: null },
       {},
       { first: { id: "pact_1", expires_at: new Date(Date.now() + 300_000).toISOString() } }
@@ -90,10 +94,10 @@ describe("executeRefundOrder", () => {
     expect(outcome).toMatchObject({ success: false, code: "REFUND_NOT_APPLICABLE" });
   });
 
-  it("calls the payment provider, marks the order refunded, restocks, and writes an audit log entry on a full refund", async () => {
+  it("calls the payment provider and records a full refund without automatically restocking", async () => {
     const refunds = await import("../../refunds");
-    vi.mocked(refunds.createProviderRefund).mockResolvedValueOnce({ id: "re_123" });
-    const { env, db } = fakeEnv([{ first: stripeOrderRow() }]);
+    vi.mocked(refunds.createProviderRefund).mockResolvedValueOnce({ id: "re_123", status: "succeeded" });
+    const { env, db } = fakeEnv([{ first: stripeOrderRow() }, { first: { amount: 0 } }, { first: null }, { first: { id: "pay_1", amount: 5000 } }, { first: null }, { first: { amount: 0 } }]);
     // batch() default mock in test-support resolves without meta.changes,
     // which executeRefundOrder never inspects (unlike changeOrderState) -
     // this executor trusts the WHERE clause, same as the real REST route.
@@ -107,8 +111,8 @@ describe("executeRefundOrder", () => {
 
   it("marks the order partially_refunded (no restock) when the amount is less than the order total", async () => {
     const refunds = await import("../../refunds");
-    vi.mocked(refunds.createProviderRefund).mockResolvedValueOnce({ id: "re_456" });
-    const { env } = fakeEnv([{ first: stripeOrderRow({ total: 5000 }) }]);
+    vi.mocked(refunds.createProviderRefund).mockResolvedValueOnce({ id: "re_456", status: "succeeded" });
+    const { env } = fakeEnv([{ first: stripeOrderRow({ total: 5000 }) }, { first: { amount: 0 } }, { first: null }, { first: { id: "pay_1", amount: 5000 } }, { first: null }, { first: { amount: 0 } }]);
     const ctx = fakeContext(env);
 
     const outcome = await executeRefundOrder(ctx, { orderId: "ord_1", amountCents: 1000 });
@@ -120,14 +124,18 @@ describe("executeRefundOrder", () => {
     const refunds = await import("../../refunds");
     vi.mocked(refunds.createProviderRefund).mockResolvedValueOnce({ id: "txn_123", status: "VOIDED" });
     const { env } = fakeEnv([
-      { first: stripeOrderRow({ channel: "wompi", payload_json: JSON.stringify({ payment: { providerPaymentIntentId: "txn_123" } }) }) }
+      { first: stripeOrderRow({ channel: "wompi", payload_json: JSON.stringify({ payment: { providerPaymentIntentId: "txn_123" } }) }) },
+      { first: { amount: 0 } },
+      { first: null },
+      { first: { id: "pay_1", amount: 5000 } }, { first: null }, { first: { amount: 0 } }
     ]);
     const ctx = fakeContext(env);
 
     const outcome = await executeRefundOrder(ctx, { orderId: "ord_1" });
 
     expect(outcome).toEqual({ success: true, result: { orderId: "ord_1", paymentStatus: "refunded", providerRefundId: "txn_123" } });
-    expect(refunds.createProviderRefund).toHaveBeenCalledWith(env, "wompi", "txn_123", undefined, 5000);
+    expect(refunds.createProviderRefund).toHaveBeenCalledWith(env, "wompi", "txn_123", undefined, 5000,
+      "aether-refund:ord_1:5000:5000");
   });
 
   it("returns REFUND_FAILED without writing anything when the payment provider rejects the refund", async () => {
