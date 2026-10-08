@@ -1,5 +1,11 @@
 # @aether-commerce/migrations
 
+## 0.3.0
+
+### Minor Changes
+
+- b0c4057: Reconcile checkout amounts, payment events, refunds and inventory atomically; require production payment configuration and checkout request keys; retry restock notices; extend admin navigation and clarify remaining refund balances. Raise the supported Next.js development version to the patched 16.3.8 release.
+
 ## 0.2.7
 
 ### Patch Changes
