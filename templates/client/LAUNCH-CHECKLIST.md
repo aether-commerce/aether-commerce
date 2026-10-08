@@ -28,6 +28,8 @@ construir, desplegar y probar ese servicio para el cliente.
   portada, producto, checkout, error y panel autenticado.
 - [ ] Ensayar copia/restauración de la base y acordar tiempos de recuperación,
   soporte y salida/exportación de datos con el cliente.
+- [ ] Ejecutar `pnpm audit --prod` antes de liberar y revisar por separado los
+  avisos de herramientas de desarrollo que aún no tengan parche publicado.
 - [ ] Entregar por escrito el alcance contratado, titularidad de dominio/datos,
   costes recurrentes y licencia comercial aplicable; el repositorio no concede
   por sí solo uso comercial bajo su licencia no comercial.

@@ -8,4 +8,4 @@
 "@aether-commerce/i18n": patch
 ---
 
-Reconcile checkout amounts, payment events, refunds and inventory atomically; require production payment configuration and checkout request keys; retry restock notices; extend admin navigation and clarify remaining refund balances.
+Reconcile checkout amounts, payment events, refunds and inventory atomically; require production payment configuration and checkout request keys; retry restock notices; extend admin navigation and clarify remaining refund balances. Raise the supported Next.js development version to the patched 16.3.8 release.
