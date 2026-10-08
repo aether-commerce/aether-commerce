@@ -1,5 +1,11 @@
 # @aether-commerce/storefront-default
 
+## 0.5.3
+
+### Patch Changes
+
+- 2aa11d4: Seed review visibility from server-resolved storefront settings to prevent disabled ratings from flashing before hydration.
+
 ## 0.5.2
 
 ### Patch Changes
