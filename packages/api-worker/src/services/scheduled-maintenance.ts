@@ -17,7 +17,7 @@ export async function runScheduledMaintenance(env: Env): Promise<void> {
     env.DB.prepare(
       "update inventory_reservations set status = 'expired', updated_at = CURRENT_TIMESTAMP where status = 'active' and expires_at < ?"
     ).bind(new Date().toISOString()),
-    env.DB.prepare("update checkout_snapshots set status = 'expired', updated_at = CURRENT_TIMESTAMP where status = 'active' and expires_at <= CURRENT_TIMESTAMP"),
+    env.DB.prepare("update checkout_snapshots set status = 'expired', updated_at = CURRENT_TIMESTAMP where status = 'active' and datetime(expires_at) <= CURRENT_TIMESTAMP"),
     env.DB.prepare("delete from checkout_snapshots where status != 'active' and updated_at <= datetime('now', '-30 days')"),
     env.DB.prepare("delete from webhook_events where created_at <= datetime('now', '-90 days')"),
     env.DB.prepare("delete from operational_metrics where created_at <= datetime('now', ?)").bind(`-${metricsDays} days`),

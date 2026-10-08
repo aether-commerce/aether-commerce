@@ -6,7 +6,7 @@ import type { Address, Cart, CartItem, Product } from "@aether-commerce/schemas"
 export type CheckoutSessionResult = {
   success: boolean;
   data?: { checkoutUrl: string };
-  error?: { code: string; message: string };
+  error?: { code: string; message: string; details?: { cart?: Cart } };
 };
 
 // Versioned so a catalog-source migration (e.g. Platzi -> DummyJSON, where
@@ -15,6 +15,7 @@ export type CheckoutSessionResult = {
 const cartIdKey = "aether.cartId.dummyjson.v2";
 const cartTokenKey = "aether.cartToken.dummyjson.v2";
 const localCartKey = "aether.localCartItems.dummyjson.v1";
+const checkoutAttemptKey = "aether.checkoutAttempt.v1";
 const cartApiTimeoutMs = 5000;
 
 export type CartMutationResult =
@@ -318,17 +319,31 @@ export function createCartClient(apiBaseUrl: string) {
     shippingAddress?: Address
   ): Promise<CheckoutSessionResult> {
     const { cartId, token: cartToken } = await getCartCredentials();
+    const signature = JSON.stringify({ cartId, items: readLocalCartItems(), shippingAddress: shippingAddress ?? null });
+    const prior = window.sessionStorage.getItem(checkoutAttemptKey);
+    let attempt: { signature: string; key: string } | null = null;
+    try { attempt = prior ? JSON.parse(prior) as { signature: string; key: string } : null; } catch { /* replace corrupt local state */ }
+    if (!attempt || attempt.signature !== signature) {
+      attempt = { signature, key: crypto.randomUUID() };
+      window.sessionStorage.setItem(checkoutAttemptKey, JSON.stringify(attempt));
+    }
     const authToken = await getToken();
     const response = await fetch(`${apiBaseUrl}/api/v1/checkout/session`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
+        "x-idempotency-key": attempt.key,
         ...(authToken ? { authorization: `Bearer ${authToken}` } : {}),
         ...(cartToken ? { "x-aether-cart-token": cartToken } : {})
       },
       body: JSON.stringify({ cartId, ...(shippingAddress ? { shippingAddress } : {}) })
     });
-    return (await response.json()) as CheckoutSessionResult;
+    const payload = (await response.json()) as CheckoutSessionResult;
+    if (payload.error?.code === "CHECKOUT_QUOTE_CHANGED") {
+      window.sessionStorage.removeItem(checkoutAttemptKey);
+      if (payload.error.details?.cart) replaceLocalCartItems(payload.error.details.cart.items);
+    }
+    return payload;
   }
 
   return {

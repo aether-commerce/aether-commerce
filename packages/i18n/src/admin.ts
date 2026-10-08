@@ -262,7 +262,7 @@ export const adminDictionaries = {
       refundVia: "Refund via {provider}",
       refundViaTitle: "Refund via {provider}?",
       refundDescription:
-        "Refund the full amount ({amount}) via {provider}? This calls the real {provider} API and cannot be undone.",
+        "Refund the remaining amount ({amount}) via {provider}? This calls the real {provider} API and cannot be undone. Inventory is not restocked automatically.",
       confirmRefund: "Confirm refund",
       actionCouldNotComplete: "The action could not be completed.",
       orderNotFoundTitle: "Order not found",
@@ -1124,7 +1124,7 @@ export const adminDictionaries = {
       refundVia: "Reembolsar vía {provider}",
       refundViaTitle: "¿Reembolsar vía {provider}?",
       refundDescription:
-        "¿Reembolsar el monto total ({amount}) vía {provider}? Esto llama a la API real de {provider} y no se puede deshacer.",
+        "¿Reembolsar el saldo restante ({amount}) vía {provider}? Esto llama a la API real de {provider} y no se puede deshacer. El inventario no se repone automáticamente.",
       confirmRefund: "Confirmar reembolso",
       actionCouldNotComplete: "La acción no se pudo completar.",
       orderNotFoundTitle: "Pedido no encontrado",

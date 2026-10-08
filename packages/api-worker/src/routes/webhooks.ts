@@ -6,12 +6,14 @@ import { fail, ok } from "../http";
 import { verifyStripeSignature, mapStripeSessionToPaidCheckoutSession } from "../services/stripe";
 import { verifyWompiSignature, mapWompiTransactionToPaidCheckoutSession } from "../services/wompi";
 import { createOrderFromPaidSession } from "../services/orders";
-import { syncChargeRefunded, syncDisputeCreated } from "../services/payment-sync";
+import { syncChargeRefunded, syncDisputeCreated, syncRefundUpdated } from "../services/payment-sync";
 import { resolveCheckoutSettings } from "../services/checkout-provider";
 import { type ClerkUser, primaryEmailFromUser, verifyClerkSignature } from "../services/clerk";
 import { markWebhookFailed, markWebhookProcessing, markWebhookProcessed, recordWebhookReceived } from "../services/webhooks";
 import { captureException, getLogger } from "../services/observability";
 import { incrementMetric } from "../services/metrics";
+import { writeAuditLog } from "../services/audit";
+import { sendPaymentReconciliationAlertEmail } from "../services/email";
 
 export const webhookRoutes = new Hono<AppBindings>();
 
@@ -59,12 +61,16 @@ webhookRoutes.post("/stripe", async (c) => {
 
   let orderCreated = false;
   try {
-    if (payload.type === "checkout.session.completed" && payload.data?.object) {
+    if ((payload.type === "checkout.session.completed" || payload.type === "checkout.session.async_payment_succeeded") && payload.data?.object) {
       const session = mapStripeSessionToPaidCheckoutSession(payload.data.object);
-      const result = await createOrderFromPaidSession(c.env, session, "stripe");
-      orderCreated = result.created;
+      if (session.status === "paid") {
+        const result = await createOrderFromPaidSession(c.env, session, "stripe");
+        orderCreated = result.created;
+      }
     } else if (payload.type === "charge.refunded" && payload.data?.object) {
       await syncChargeRefunded(c.env, payload.data.object, requestId);
+    } else if ((payload.type === "refund.updated" || payload.type === "refund.failed") && payload.data?.object) {
+      await syncRefundUpdated(c.env, payload.data.object, requestId);
     } else if (payload.type === "charge.dispute.created" && payload.data?.object) {
       await syncDisputeCreated(c.env, payload.data.object, requestId);
     }
@@ -77,6 +83,12 @@ webhookRoutes.post("/stripe", async (c) => {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error processing webhook";
     await markWebhookFailed(c.env, "stripe", payload.id, { message });
+    if (payload.data?.object?.payment_status === "paid" &&
+        (payload.type === "checkout.session.completed" || payload.type === "checkout.session.async_payment_succeeded")) {
+      await writeAuditLog(c.env, { actorId: "stripe", action: "payment.reconciliation_required", targetType: "checkout_session",
+        targetId: payload.data.object.id, payload: { requestId, eventId: payload.id, reason: message.slice(0, 200) } }).catch(() => {});
+      await sendPaymentReconciliationAlertEmail(c.env).catch(() => {});
+    }
     await incrementMetric(c.env, "webhooks_failed");
     logger.error(OBSERVABILITY_EVENTS.webhookFailed, {
       requestId,
@@ -116,7 +128,7 @@ webhookRoutes.post("/wompi", async (c) => {
   }
 
   const transaction = payload.data?.transaction;
-  const eventId = transaction?.id ?? payload.event;
+  const eventId = `${transaction?.id ?? payload.event}:${payload.timestamp ?? "unknown"}:${payload.signature?.checksum ?? "unknown"}`;
 
   const { shouldProcess } = await recordWebhookReceived(c.env, {
     provider: "wompi",
@@ -137,8 +149,10 @@ webhookRoutes.post("/wompi", async (c) => {
   try {
     if (payload.event === "transaction.updated" && transaction) {
       const session = mapWompiTransactionToPaidCheckoutSession(transaction);
-      const result = await createOrderFromPaidSession(c.env, session, "wompi");
-      orderCreated = result.created;
+      if (session.status === "paid") {
+        const result = await createOrderFromPaidSession(c.env, session, "wompi");
+        orderCreated = result.created;
+      }
     }
     await markWebhookProcessed(c.env, "wompi", eventId);
     logger.info(OBSERVABILITY_EVENTS.webhookProcessed, {
@@ -149,6 +163,11 @@ webhookRoutes.post("/wompi", async (c) => {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error processing webhook";
     await markWebhookFailed(c.env, "wompi", eventId, { message });
+    if (transaction?.status === "APPROVED") {
+      await writeAuditLog(c.env, { actorId: "wompi", action: "payment.reconciliation_required", targetType: "checkout_session",
+        targetId: transaction.id, payload: { requestId, eventId, reason: message.slice(0, 200) } }).catch(() => {});
+      await sendPaymentReconciliationAlertEmail(c.env).catch(() => {});
+    }
     await incrementMetric(c.env, "webhooks_failed");
     logger.error(OBSERVABILITY_EVENTS.webhookFailed, {
       requestId,

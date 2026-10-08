@@ -125,11 +125,8 @@ export async function createOrderFromPaidSession(env: Env, session: PaidCheckout
   }
 
   const snapshot = await loadCheckoutSnapshot(env, snapshotId);
-  if (!snapshot || snapshot.status !== "active") {
-    throw new Error("Checkout snapshot is missing or no longer active");
-  }
-  if (Date.parse(snapshot.expiresAt) <= Date.now()) {
-    throw new Error("Checkout snapshot has expired");
+  if (!snapshot || (snapshot.status !== "active" && snapshot.status !== "expired")) {
+    throw new Error("Checkout snapshot is missing or already completed");
   }
   if (snapshot.providerSessionId && snapshot.providerSessionId !== session.id) {
     throw new Error("Checkout snapshot belongs to a different checkout session");
@@ -182,11 +179,8 @@ export async function createOrderFromPaidSession(env: Env, session: PaidCheckout
   // Resolve each cart item's real products.sku for the stock decrement below
   // (order_items.sku, bound further down, is historically the variant/product
   // id, not the real SKU - that convention predates this and stays as-is).
-  // A product referenced by the cart can be missing here if it was deleted
-  // between being added to the cart and this webhook firing (a product with
-  // no order_items yet is still hard-deletable) - the payment has already
-  // succeeded at this point, so a missing product only skips that one line's
-  // stock/movement bookkeeping rather than failing order creation.
+  // A product deleted after the quote cannot be silently omitted from stock
+  // bookkeeping. Fail the order transaction and surface paid reconciliation.
   const productIds = [...new Set(cart.items.map((item) => item.productId))];
   const skuRows = await env.DB.prepare(
     `select id, sku from products where id in (${productIds.map(() => "?").join(",")})`
@@ -206,6 +200,7 @@ export async function createOrderFromPaidSession(env: Env, session: PaidCheckout
       orderId: order.id,
       metadata: { reason: "deleted_product_referenced", missingProductIds }
     });
+    throw new Error("Paid checkout references a product that no longer exists");
   }
 
   // channel/payment_status/fulfillment_status are additive columns
@@ -231,8 +226,8 @@ export async function createOrderFromPaidSession(env: Env, session: PaidCheckout
          values (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`
       ).bind(crypto.randomUUID(), order.id, item.productId, item.variantId ?? item.productId, JSON.stringify(item))
     ),
-    ...buildStockDecrementStatements(env, stockItems, { actorId: provider, requestId: session.id, reason: `order:${order.id}` }),
     convertCartReservations(env, cartId),
+    ...buildStockDecrementStatements(env, stockItems, { actorId: provider, requestId: session.id, reason: `order:${order.id}` }),
     completeCheckoutSnapshotStatement(env, snapshotId, session.id),
     clearCartIfUnchangedStatement(env, cart, originalCartPayloadJson)
   ]);

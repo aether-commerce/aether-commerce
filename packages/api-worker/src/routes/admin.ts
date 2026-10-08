@@ -52,7 +52,8 @@ import {
   orderWithCurrentData,
   type StoredOrderRow
 } from "../services/orders";
-import { applyRefundLocally, createProviderRefund, isRefundableChannel } from "../services/refunds";
+import { applyRefundLocally, createProviderRefund, getRefundedAmount, hasPendingRefund, isRefundableChannel, recordPendingRefund, refundIdempotencyKey } from "../services/refunds";
+import { withIdempotency } from "../services/idempotency";
 import { buildRestockStatements } from "../services/inventory";
 import {
   getCustomerDetail,
@@ -819,9 +820,11 @@ adminRoutes.get("/orders/:id", requirePermission("orders.read"), async (c) => {
   )
     .bind(c.req.param("id"))
     .all();
+  const refundedAmount = await getRefundedAmount(c.env, c.req.param("id"));
 
   return ok(c, {
     ...parsed,
+    refundedAmount,
     internalNotes: row.internal_notes,
     history: history.results
   });
@@ -1068,6 +1071,13 @@ adminRoutes.post(
     if (order.payment_status !== "paid" && order.payment_status !== "partially_refunded") {
       return fail(c, 409, "REFUND_NOT_APPLICABLE", "Only a paid order can be refunded.");
     }
+    const remaining = order.total - await getRefundedAmount(c.env, orderId);
+    if (remaining <= 0 || (body.amountCents !== undefined && body.amountCents > remaining)) {
+      return fail(c, 409, "REFUND_AMOUNT_INVALID", "Refund exceeds the remaining payment balance.");
+    }
+    if (await hasPendingRefund(c.env, orderId)) {
+      return fail(c, 409, "REFUND_PENDING", "A previous refund is still processing at the payment provider.");
+    }
 
     const payload = JSON.parse(order.payload_json) as {
       payment?: { providerPaymentIntentId?: string };
@@ -1082,14 +1092,23 @@ adminRoutes.post(
       );
     }
 
+    return withIdempotency(c.env.DB, "POST /admin/orders/:id/refund",
+      refundIdempotencyKey(orderId, remaining, body.amountCents ?? remaining),
+      { actorId: c.get("actor").userId, orderId, amountCents: body.amountCents ?? remaining }, async () => {
     try {
       const refund = await createProviderRefund(
         c.env,
         order.channel,
         paymentIntentId,
         body.amountCents,
-        order.total
+        order.total,
+        refundIdempotencyKey(orderId, remaining, body.amountCents ?? remaining)
       );
+      if (order.channel === "stripe" && refund.status !== "succeeded") {
+        if (refund.status !== "pending" && refund.status !== "requires_action") throw new Error("Stripe did not complete the refund");
+        await recordPendingRefund(c.env, orderId, refund.id, refund.amount ?? body.amountCents ?? remaining, body.reason ?? "stripe_pending_refund");
+        return ok(c, { orderId, paymentStatus: order.payment_status, providerRefundId: refund.id, pending: true });
+      }
       const { paymentStatus } = await applyRefundLocally(c.env, {
         orderId,
         channel: order.channel,
@@ -1098,7 +1117,7 @@ adminRoutes.post(
         stockRestoredAt: order.stock_restored_at,
         email: order.email,
         number: order.number,
-        amountCents: body.amountCents,
+        amountCents: refund.amount ?? body.amountCents,
         providerRefundId: refund.id,
         ...(body.reason !== undefined ? { reason: body.reason } : {}),
         actorId: c.get("actor").userId ?? "admin",
@@ -1114,6 +1133,7 @@ adminRoutes.post(
         error instanceof Error ? error.message : "Refund failed."
       );
     }
+    });
   }
 );
 

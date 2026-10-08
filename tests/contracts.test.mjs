@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { test } from "node:test";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const root = process.cwd().endsWith("aether-commerce") ? process.cwd() : resolve("aether-commerce");
+const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 function read(path) {
   return readFileSync(resolve(root, path), "utf8");
@@ -230,7 +231,7 @@ test("sensitive signatures and account order lookup avoid enumeration paths", ()
   assert.match(checkoutRoutes, /verifyCartToken/);
   assert.match(checkoutRoutes, /CART_OWNERSHIP_MISMATCH/);
   assert.match(checkoutRoutes, /CHECKOUT_OWNERSHIP_MISMATCH/);
-  assert.match(checkoutRoutes, /\.\.\.cart,\s*\n\s*userId: actor\.userId,/);
+  assert.match(checkoutRoutes, /\.\.\.quotedCart,\s*\n\s*userId,/);
   // Moved from an inline fetch in cart/page.tsx into a shared
   // createCheckoutSession() (apps/storefront/components/cart-client.ts) so
   // the storefront's new /checkout page (shipping address collection) can
@@ -264,7 +265,8 @@ test("checkout provider abstraction covers Stripe and Wompi behind one port", ()
   assert.match(checkoutCore, /export interface CheckoutProvider/);
   assert.match(checkoutCore, /checkoutProviderIds = \["stripe", "wompi"\]/);
   assert.doesNotMatch(checkoutRoutes, /createStripeCheckoutProvider/);
-  assert.match(checkoutRoutes, /resolveActiveCheckoutProvider/);
+  assert.match(checkoutRoutes, /resolveCheckoutSettings/);
+  assert.match(checkoutRoutes, /createCheckoutProviderFor/);
   assert.match(checkoutSettings, /encryptSecret/);
   assert.match(checkoutSettings, /decryptSecret/);
   assert.match(adminRoutes, /requirePermission\("settings.manage"\)/);

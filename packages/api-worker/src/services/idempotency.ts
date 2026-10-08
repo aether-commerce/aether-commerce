@@ -23,6 +23,14 @@ export async function withIdempotency(
   run: () => Promise<Response>
 ): Promise<Response> {
   if (!idempotencyKey) return run();
+  if (idempotencyKey.length > 128) {
+    return new Response(JSON.stringify({ success: false, error: { code: "INVALID_IDEMPOTENCY_KEY", message: "Idempotency key is too long." } }),
+      { status: 400, headers: { "content-type": "application/json; charset=utf-8" } });
+  }
+  const payload = requestPayload && typeof requestPayload === "object" ? requestPayload as Record<string, unknown> : {};
+  const rawScope = payload.actorId ?? payload.userId ?? payload.cartId;
+  const scope = typeof rawScope === "string" || typeof rawScope === "number" ? String(rawScope) : "";
+  const scopedKey = await digest(`${route}\0${scope}\0${idempotencyKey}`);
   const requestHash = await digest(JSON.stringify(requestPayload ?? null));
 
   await db
@@ -36,13 +44,13 @@ export async function withIdempotency(
        values (?, ?, ?, datetime('now', '+24 hours'))
        on conflict(key) do nothing`
     )
-    .bind(idempotencyKey, route, requestHash)
+    .bind(scopedKey, route, requestHash)
     .run();
 
   if (claim.meta.changes === 0) {
     const existing = await db
       .prepare("select request_hash, response_json from idempotency_keys where key = ?")
-      .bind(idempotencyKey)
+      .bind(scopedKey)
       .first<{ request_hash: string; response_json: string | null }>();
     if (existing && existing.request_hash !== requestHash) {
       return new Response(
@@ -66,22 +74,25 @@ export async function withIdempotency(
         }
       });
     }
-    // Row claimed with a matching request hash but no cached response yet: a
-    // concurrent request for this exact key is still mid-flight. Nothing safe
-    // to replay, so fall through and execute normally rather than blocking.
+    // A matching claim without a response is still running (or needs an
+    // operator to reconcile after a crash). Never execute it twice.
+    return new Response(JSON.stringify({ success: false, error: {
+      code: "IDEMPOTENCY_IN_PROGRESS",
+      message: "This request is still being processed. Retry shortly with the same key."
+    } }), { status: 409, headers: { "content-type": "application/json; charset=utf-8", "retry-after": "2" } });
   }
 
-  const response = await run();
-  if (response.status < 500) {
+  try {
+    const response = await run();
     const body = await response.clone().json();
-    await db
-      .prepare("update idempotency_keys set response_json = ? where key = ?")
-      .bind(JSON.stringify({ status: response.status, body }), idempotencyKey)
-      .run();
-  } else {
-    // Don't let a transient server error permanently occupy this key - free
-    // it so a legitimate retry can actually go through.
-    await db.prepare("delete from idempotency_keys where key = ?").bind(idempotencyKey).run();
+    await db.prepare("update idempotency_keys set response_json = ? where key = ?")
+      .bind(JSON.stringify({ status: response.status, body }), scopedKey).run();
+    return response;
+  } catch (error) {
+    // The side effect may have happened before the failure. Preserve the
+    // claim for reconciliation instead of allowing an unsafe second run.
+    await db.prepare("update idempotency_keys set response_json = ? where key = ?")
+      .bind(JSON.stringify({ status: 500, body: { success: false, error: { code: "IDEMPOTENCY_RECONCILIATION_REQUIRED", message: "Request outcome requires reconciliation." } } }), scopedKey).run();
+    throw error;
   }
-  return response;
 }

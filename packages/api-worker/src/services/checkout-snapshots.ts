@@ -1,7 +1,8 @@
 import type { Cart } from "@aether-commerce/schemas";
 import type { Env } from "../types";
+import { CHECKOUT_RESERVATION_WINDOW_MINUTES } from "./checkout-lifetime";
 
-const CHECKOUT_SNAPSHOT_TTL_MINUTES = 60;
+const CHECKOUT_SNAPSHOT_TTL_MINUTES = CHECKOUT_RESERVATION_WINDOW_MINUTES;
 
 export type CheckoutSnapshot = {
   id: string;
@@ -95,7 +96,7 @@ export function completeCheckoutSnapshotStatement(env: Env, snapshotId: string, 
   return env.DB.prepare(
     `update checkout_snapshots
      set status = 'completed', provider_session_id = ?, completed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-     where id = ? and status = 'active' and (provider_session_id is null or provider_session_id = ?)`
+     where id = ? and status in ('active', 'expired') and (provider_session_id is null or provider_session_id = ?)`
   ).bind(sessionId, snapshotId, sessionId);
 }
 

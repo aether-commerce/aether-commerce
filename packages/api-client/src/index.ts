@@ -96,6 +96,7 @@ export function createCommerceClient(options: CommerceClientOptions) {
     checkout(cartId: string) {
       return request<{ checkoutUrl: string }>(`/api/v1/checkout/session`, {
         method: "POST",
+        headers: { "x-idempotency-key": crypto.randomUUID() },
         body: JSON.stringify({ cartId })
       });
     },

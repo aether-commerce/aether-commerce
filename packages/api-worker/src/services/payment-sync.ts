@@ -16,7 +16,7 @@ type OrderForSync = {
 };
 
 async function findOrderIdByPaymentIntent(env: Env, paymentIntentId: string): Promise<string | null> {
-  const payment = await env.DB.prepare("select order_id from payments where provider_reference = ?").bind(paymentIntentId).first<{ order_id: string }>();
+  const payment = await env.DB.prepare("select order_id from payments where provider_ref = ?").bind(paymentIntentId).first<{ order_id: string }>();
   return payment?.order_id ?? null;
 }
 
@@ -25,8 +25,8 @@ async function findOrderIdByPaymentIntent(env: Env, paymentIntentId: string): Pr
  * Aether's admin panel or admin chat) back to the local order - without
  * this, that order stays "paid" forever with no record of what actually
  * happened to the customer's money. Idempotent against a refund Aether
- * itself already applied: only orders still in "paid" get updated, so the
- * webhook arriving after (or racing) an admin-initiated refund is a no-op.
+ * itself already applied: compare Stripe's cumulative refunded amount with
+ * the immutable local refund ledger before recording any new delta.
  */
 export async function syncChargeRefunded(env: Env, charge: StripeChargeOrDispute, requestId: string): Promise<void> {
   if (!charge.payment_intent) return;
@@ -38,10 +38,15 @@ export async function syncChargeRefunded(env: Env, charge: StripeChargeOrDispute
   )
     .bind(orderId)
     .first<OrderForSync>();
-  if (!order || order.payment_status !== "paid") return;
+  if (!order || order.payment_status === "refunded") return;
 
   const amountRefunded = charge.amount_refunded;
-  const isFullRefund = amountRefunded === undefined || amountRefunded >= order.total;
+  if (amountRefunded === undefined || amountRefunded <= 0) return;
+  const refunded = await env.DB.prepare(
+    "select coalesce(sum(r.amount), 0) as amount from refunds r join payments p on p.id = r.payment_id where p.order_id = ? and r.status = 'succeeded'"
+  ).bind(orderId).first<{ amount: number }>();
+  const delta = Math.min(order.total, amountRefunded) - (refunded?.amount ?? 0);
+  if (delta <= 0) return;
 
   await applyRefundLocally(env, {
     orderId,
@@ -51,12 +56,38 @@ export async function syncChargeRefunded(env: Env, charge: StripeChargeOrDispute
     stockRestoredAt: order.stock_restored_at,
     email: order.email,
     number: order.number,
-    amountCents: isFullRefund ? undefined : amountRefunded,
-    providerRefundId: charge.id,
+    amountCents: delta,
+    providerRefundId: `${charge.id}:${amountRefunded}`,
     reason: "stripe_webhook:charge.refunded",
     actorId: "stripe",
     requestId,
     source: "stripe_webhook"
+  });
+  await env.DB.prepare(
+    "update refunds set status = 'reconciled', updated_at = CURRENT_TIMESTAMP where status = 'pending' and payment_id in (select id from payments where order_id = ?)"
+  ).bind(orderId).run();
+}
+
+/** Finalizes a refund Aether recorded as pending when Stripe later confirms it. */
+export async function syncRefundUpdated(env: Env, refund: StripeChargeOrDispute, requestId: string): Promise<void> {
+  if (refund.status !== "succeeded" && refund.status !== "failed" && refund.status !== "canceled") return;
+  const row = await env.DB.prepare(
+    `select r.amount, p.order_id from refunds r join payments p on p.id = r.payment_id
+     where r.id = ? and r.status = 'pending'`
+  ).bind(refund.id).first<{ amount: number; order_id: string }>();
+  if (!row) return;
+  if (refund.amount !== undefined && refund.amount !== row.amount) {
+    throw new Error("Provider refund amount differs from pending refund ledger");
+  }
+  const status = refund.status === "succeeded" ? "succeeded" : "failed";
+  const result = await env.DB.prepare(
+    "update refunds set status = ?, updated_at = CURRENT_TIMESTAMP where id = ? and status = 'pending'"
+  ).bind(status, refund.id).run();
+  if (!result.meta.changes) return;
+  await writeAuditLog(env, {
+    actorId: "stripe", action: status === "succeeded" ? "order.refunded" : "order.refund_failed",
+    targetType: "order", targetId: row.order_id,
+    payload: { providerRefundId: refund.id, amountCents: row.amount, requestId, source: "stripe_webhook" }
   });
 }
 

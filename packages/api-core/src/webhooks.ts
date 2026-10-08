@@ -39,6 +39,8 @@ export type StripeWebhookPayload = {
       // charge.refunded - the object is the Charge itself.
       refunded?: boolean;
       amount_refunded?: number;
+      // refund.updated - the object is the Refund itself.
+      amount?: number;
       // charge.dispute.created - the object is the Dispute itself.
       reason?: string;
       status?: string;

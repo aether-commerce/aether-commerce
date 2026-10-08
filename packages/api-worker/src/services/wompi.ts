@@ -2,6 +2,7 @@ import type { Cart } from "@aether-commerce/schemas";
 import { type CheckoutProvider, type CheckoutProviderCredentials, type PaidCheckoutSession, type WompiWebhookPayload } from "@aether-commerce/api-core";
 import type { Env } from "../types";
 import { timingSafeEqualText } from "./secure-compare";
+import { CHECKOUT_PAYMENT_WINDOW_MINUTES } from "./checkout-lifetime";
 
 type WompiErrorLog = {
   type?: string;
@@ -116,11 +117,20 @@ async function createWompiCheckoutSession(
     )
   };
 
+  if (!secretKey && env.AETHER_ENV === "production") {
+    throw new Error("Wompi is not configured");
+  }
   if (!secretKey) {
     return simulatedCheckout;
   }
 
-  const amountInCents = cart.items.reduce((total, item) => total + item.finalUnitPrice * item.quantity, 0);
+  const amountInCents = cart.totals.total;
+  if (!Number.isInteger(amountInCents) || amountInCents <= 0) {
+    throw new Error("Checkout total must be a positive amount");
+  }
+  if (cart.totals.currency.toUpperCase() !== "COP") {
+    throw new Error("Wompi payment links require COP currency");
+  }
   // Wompi's payment-link redirect appends ?id={transactionId}&env={env} to redirect_url on completion,
   // which is what /checkout/confirm treats as the sessionId to retrieve and confirm.
   const redirectUrl = storefrontUrl(
@@ -141,6 +151,7 @@ async function createWompiCheckoutSession(
         name: `${env.BRAND_NAME ?? "Aether"} cart ${cart.id}`,
         description: `${env.BRAND_NAME ?? "Aether"} checkout for cart ${cart.id}`,
         single_use: true,
+        expires_at: new Date(Date.now() + CHECKOUT_PAYMENT_WINDOW_MINUTES * 60_000).toISOString(),
         collect_shipping: false,
         currency: cart.totals.currency.toUpperCase(),
         amount_in_cents: amountInCents,
@@ -176,10 +187,8 @@ async function createWompiCheckoutSession(
 
   const payload: { data?: { id?: string } } = await response.json();
   const linkId = payload.data?.id;
-  const checkoutUrl = linkId
-    ? `https://checkout.wompi.co/l/${linkId}`
-    : storefrontUrl(origin, env.APP_STORE_BASE_PATH, "/cart?checkout=missing-url");
-  return { checkoutUrl };
+  if (!linkId) throw new Error("Wompi returned an incomplete payment link");
+  return { checkoutUrl: `https://checkout.wompi.co/l/${linkId}` };
 }
 
 async function retrieveWompiCheckoutSession(secretKey: string | undefined, transactionId: string): Promise<PaidCheckoutSession> {
@@ -218,8 +227,7 @@ export type WompiRefund = {
  * admin isn't surprised by a mismatch between what they asked for and what
  * actually happened.
  */
-export async function createWompiRefund(env: Env, transactionId: string, amountCents: number | undefined, orderTotalCents: number): Promise<WompiRefund> {
-  const secretKey = env.WOMPI_SECRET_KEY;
+export async function createWompiRefund(env: Env, transactionId: string, amountCents: number | undefined, orderTotalCents: number, secretKey = env.WOMPI_SECRET_KEY): Promise<WompiRefund> {
   if (!secretKey) {
     throw new Error("Wompi secret key is not configured");
   }
@@ -243,7 +251,10 @@ export async function createWompiRefund(env: Env, transactionId: string, amountC
   }
 
   const payload: { data?: WompiTransactionResponse } = await response.json();
-  return { id: payload.data?.id ?? transactionId, ...(payload.data?.status ? { status: payload.data.status } : {}) };
+  if (payload.data?.id !== transactionId || payload.data.status !== "VOIDED") {
+    throw new Error("Wompi did not confirm that the transaction was voided");
+  }
+  return { id: payload.data.id, status: payload.data.status };
 }
 
 /** Cloudflare/Wompi adapter for the provider-neutral checkout port. Credentials fall back to env vars when omitted. */
@@ -274,7 +285,7 @@ export async function verifyWompiSignature(secret: string, event: WompiWebhookPa
   const values = properties.map((path) => {
     const segments = path.split(".");
     let cursor: unknown = event.data;
-    for (const segment of segments.slice(1)) {
+    for (const segment of segments) {
       if (cursor && typeof cursor === "object" && segment in cursor) {
         cursor = (cursor as Record<string, unknown>)[segment];
       } else {
@@ -282,8 +293,10 @@ export async function verifyWompiSignature(secret: string, event: WompiWebhookPa
         break;
       }
     }
-    return typeof cursor === "string" || typeof cursor === "number" || typeof cursor === "boolean" ? String(cursor) : "";
+    return typeof cursor === "string" || typeof cursor === "number" || typeof cursor === "boolean" ? String(cursor) : null;
   });
+
+  if (values.some((value) => value === null)) return false;
 
   const concatenated = `${values.join("")}${event.timestamp}${secret}`;
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(concatenated));
