@@ -226,8 +226,8 @@ export async function createOrderFromPaidSession(env: Env, session: PaidCheckout
          values (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`
       ).bind(crypto.randomUUID(), order.id, item.productId, item.variantId ?? item.productId, JSON.stringify(item))
     ),
-    ...buildStockDecrementStatements(env, stockItems, { actorId: provider, requestId: session.id, reason: `order:${order.id}` }),
     convertCartReservations(env, cartId),
+    ...buildStockDecrementStatements(env, stockItems, { actorId: provider, requestId: session.id, reason: `order:${order.id}` }),
     completeCheckoutSnapshotStatement(env, snapshotId, session.id),
     clearCartIfUnchangedStatement(env, cart, originalCartPayloadJson)
   ]);

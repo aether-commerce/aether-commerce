@@ -25,8 +25,12 @@ test("migrated SQLite admits one of twenty carts for the last unit and rejects n
     catch (error) { assert.match(String(error), /INSUFFICIENT_STOCK/); }
   }
   assert.equal(accepted, 1);
+  assert.throws(() => db.prepare("update products set stock = stock - 1 where id = ?").run(product.id), /INSUFFICIENT_STOCK/);
+  db.prepare("update inventory_reservations set status = 'converted' where id = 'r_0'").run();
+  db.prepare("update products set stock = stock - 1 where id = ?").run(product.id);
+  assert.equal(db.prepare("select stock from products where id = ?").get(product.id).stock, 0);
   assert.throws(() => db.prepare("update products set stock = stock - 2 where id = ?").run(product.id), /INSUFFICIENT_STOCK/);
-  assert.equal(db.prepare("select stock from products where id = ?").get(product.id).stock, 1);
+  assert.equal(db.prepare("select stock from products where id = ?").get(product.id).stock, 0);
 });
 
 test("refund ledger accumulates partial refunds without returning stock or exceeding payment", () => {

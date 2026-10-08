@@ -24,7 +24,10 @@ END;
 
 CREATE TRIGGER IF NOT EXISTS products_no_negative_stock
 BEFORE UPDATE OF stock ON products
-WHEN NEW.stock < 0
+WHEN NEW.stock < 0 OR NEW.stock < (
+  SELECT coalesce(sum(quantity), 0) FROM inventory_reservations
+  WHERE product_id = NEW.id AND status = 'active' AND datetime(expires_at) > CURRENT_TIMESTAMP
+)
 BEGIN
   SELECT RAISE(ABORT, 'INSUFFICIENT_STOCK');
 END;
