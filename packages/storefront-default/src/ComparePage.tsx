@@ -19,9 +19,15 @@ function availabilityTone(outOfStock: boolean, status: string): "danger" | "warn
   return "success";
 }
 
-export function ComparePage() {
+export function ComparePage({
+  initialReviewsEnabled,
+}: {
+  /** Review visibility resolved on the server for the first comparison render. */
+  initialReviewsEnabled?: boolean;
+} = {}) {
   const { locale, t } = useLanguage();
-  const { apiBaseUrl, reviewsEnabled } = useStorefrontConfig();
+  const { apiBaseUrl, reviewsEnabled: runtimeReviewsEnabled } = useStorefrontConfig();
+  const reviewsEnabled = initialReviewsEnabled ?? runtimeReviewsEnabled;
   const cartClient = useMemo(() => createCartClient(apiBaseUrl), [apiBaseUrl]);
   const [products, setProducts] = useState<Product[]>([]);
   const [addingId, setAddingId] = useState<string | null>(null);
