@@ -1,5 +1,11 @@
 # @aether-commerce/storefront-default
 
+## 0.5.1
+
+### Patch Changes
+
+- f7677f0: Increase the size of product images in the comparison table.
+
 ## 0.5.0
 
 ### Minor Changes

@@ -81,7 +81,7 @@ export function ComparePage() {
                   const localized = getLocalizedProduct(product, locale);
                   const outOfStock = product.availableStock <= 0;
                   return (
-                    <th key={product.id} className="min-w-[220px] border-b border-zinc-200 p-4 align-bottom">
+                    <th key={product.id} className="min-w-[260px] border-b border-zinc-200 p-4 align-bottom">
                       <button
                         type="button"
                         onClick={() => removeCompareProduct(product.id)}
@@ -90,8 +90,8 @@ export function ComparePage() {
                       >
                         <Trash2 size={15} aria-hidden />
                       </button>
-                      <StorefrontLink href={`/products/${encodeURIComponent(product.slug)}`} className="relative mx-auto block aspect-square w-24 bg-zinc-50">
-                        <ProductImage src={product.images[0]?.url ?? product.thumbnail} alt={product.name} fill sizes="96px" className="object-contain" />
+                      <StorefrontLink href={`/products/${encodeURIComponent(product.slug)}`} className="relative mx-auto block aspect-square w-full max-w-56 bg-zinc-50">
+                        <ProductImage src={product.images[0]?.url ?? product.thumbnail} alt={product.name} fill sizes="224px" className="object-contain" />
                       </StorefrontLink>
                       <StorefrontLink href={`/products/${encodeURIComponent(product.slug)}`} className="mt-2 block font-semibold text-zinc-950 hover:text-accent">
                         {product.name}
