@@ -1,5 +1,11 @@
 # @aether-commerce/storefront-default
 
+## 0.5.2
+
+### Patch Changes
+
+- 9a570e4: Hide product ratings in comparison when reviews are disabled in store settings.
+
 ## 0.5.1
 
 ### Patch Changes
