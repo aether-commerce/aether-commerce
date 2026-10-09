@@ -1,5 +1,11 @@
 # @aether-commerce/api-worker
 
+## 0.6.2
+
+### Patch Changes
+
+- 10ae4c5: Keep Wompi sandbox webhooks isolated to production and reject development checkout references.
+
 ## 0.6.1
 
 ### Patch Changes
