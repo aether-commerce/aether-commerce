@@ -60,6 +60,13 @@ test("development deployment never defaults its D1 binding to production", () =>
   assert.doesNotMatch(workflow, /AETHER_D1_DATABASE_NAME:.*aether-production['\"]?\s*\}\}/);
 });
 
+test("skipped PR CI cannot cancel a real development deployment", () => {
+  const workflow = read(".github/workflows/deploy-development.yml");
+  assert.match(workflow, /cancel-in-progress: >-/);
+  assert.match(workflow, /github\.event_name == 'workflow_dispatch'/);
+  assert.match(workflow, /github\.event_name == 'workflow_run' && github\.event\.workflow_run\.event == 'push' && github\.event\.workflow_run\.conclusion == 'success'/);
+});
+
 test("CI enforces the single develop to main release path", () => {
   const workflow = read(".github/workflows/ci.yml");
   const policy = read("scripts/check-release-policy.mjs");
