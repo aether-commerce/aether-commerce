@@ -47,6 +47,7 @@ const config = {
     APP_ORIGIN_STORE: process.env.APP_ORIGIN_STORE || "",
     APP_ORIGIN_ADMIN: process.env.APP_ORIGIN_ADMIN || "",
     APP_STORE_BASE_PATH: process.env.APP_STORE_BASE_PATH || "",
+    WOMPI_DEV_WEBHOOK_URL: process.env.WOMPI_DEV_WEBHOOK_URL || "",
     GEMINI_MODEL: process.env.GEMINI_MODEL || "gemini-3.5-flash-lite",
     AI_PROVIDER: process.env.AI_PROVIDER || "gemini",
     ADMIN_CHAT_MUTATIONS_ENABLED: process.env.ADMIN_CHAT_MUTATIONS_ENABLED || "true",

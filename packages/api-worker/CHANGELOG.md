@@ -1,5 +1,11 @@
 # @aether-commerce/api-worker
 
+## 0.6.1
+
+### Patch Changes
+
+- 5798cf5: Use Wompi's signed Web Checkout with a recoverable checkout snapshot reference, route sandbox events to the correct store environment, and show operator readiness for the required keys and COP currency.
+
 ## 0.6.0
 
 ### Minor Changes

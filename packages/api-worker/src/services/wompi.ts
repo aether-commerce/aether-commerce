@@ -3,6 +3,7 @@ import { type CheckoutProvider, type CheckoutProviderCredentials, type PaidCheck
 import type { Env } from "../types";
 import { timingSafeEqualText } from "./secure-compare";
 import { CHECKOUT_PAYMENT_WINDOW_MINUTES } from "./checkout-lifetime";
+import { loadCheckoutSnapshot } from "./checkout-snapshots";
 
 type WompiErrorLog = {
   type?: string;
@@ -74,39 +75,49 @@ type WompiTransactionResponse = {
 };
 
 export function mapWompiTransactionToPaidCheckoutSession(transaction: WompiTransactionResponse): PaidCheckoutSession {
-  const [cartId, userId, checkoutSnapshotId] = (transaction.reference ?? "").split("::");
+  const reference = transaction.reference ?? "";
+  const snapshotReference = reference.match(/^[dp]_(chk_[0-9a-f-]{36})$/);
+  const [cartId, userId, checkoutSnapshotId] = snapshotReference ? ["", "", snapshotReference[1]] : reference.split("::");
   return {
     id: transaction.id,
     status: (transaction.status && WOMPI_STATUS_TO_NEUTRAL[transaction.status]) || "unknown",
     ...(transaction.amount_in_cents !== undefined ? { amountTotal: transaction.amount_in_cents } : {}),
     ...(transaction.currency ? { currency: transaction.currency } : {}),
     ...(transaction.customer_email ? { customerEmail: transaction.customer_email } : {}),
-    ...(cartId
-      ? { metadata: { cartId, ...(userId ? { userId } : {}), ...(checkoutSnapshotId ? { checkoutSnapshotId } : {}) } }
+    ...(cartId || checkoutSnapshotId
+      ? { metadata: { ...(cartId ? { cartId } : {}), ...(userId ? { userId } : {}), ...(checkoutSnapshotId ? { checkoutSnapshotId } : {}) } }
       : {}),
     providerReference: transaction.id
   };
 }
 
-// Encodes cartId/userId/checkoutSnapshotId into Wompi's single reference
-// field (Wompi payment links have no free-form metadata). checkoutSnapshotId
-// is how the immutable-snapshot integrity check (services/checkout-snapshots.ts,
-// otherwise Stripe-only via session.metadata) reaches order creation for
-// Wompi too - createOrderFromPaidSession refuses to fall back to the live
-// cart, so without this a Wompi order could never be created at all.
-function wompiReference(cart: Cart, checkoutSnapshotId: string): string {
-  return `${cart.id}::${cart.userId ?? ""}::${checkoutSnapshotId}`;
+export function wompiReferenceEnvironment(reference: string | undefined): "development" | "production" | null {
+  if (reference?.startsWith("d_chk_")) return "development";
+  if (reference?.startsWith("p_chk_")) return "production";
+  return null;
 }
 
-// The CheckoutProvider port's createCheckoutSession also accepts a
-// customerEmail (Stripe prefills its hosted checkout's email field with it);
-// Wompi's payment_links API has no confirmed equivalent field, so this
-// adapter intentionally never receives or sends it.
+export async function enrichWompiSessionFromSnapshot(env: Env, session: PaidCheckoutSession): Promise<PaidCheckoutSession> {
+  const snapshotId = session.metadata?.checkoutSnapshotId;
+  if (!snapshotId || session.metadata?.cartId) return session;
+  const snapshot = await loadCheckoutSnapshot(env, snapshotId);
+  if (!snapshot) throw new Error("Wompi checkout snapshot is missing");
+  return { ...session, metadata: { cartId: snapshot.cartId, userId: snapshot.userId, checkoutSnapshotId: snapshotId } };
+}
+
+// Web Checkout preserves this compact reference. The environment prefix lets
+// one sandbox Wompi webhook safely dispatch to the matching Aether database.
+function wompiReference(env: Env, checkoutSnapshotId: string): string {
+  return `${env.AETHER_ENV === "production" ? "p" : "d"}_${checkoutSnapshotId}`;
+}
+
 async function createWompiCheckoutSession(
   env: Env,
-  secretKey: string | undefined,
+  publicKey: string | undefined,
+  integrityKey: string | undefined,
   cart: Cart,
-  checkoutSnapshotId: string
+  checkoutSnapshotId: string,
+  customerEmail?: string
 ): Promise<{ checkoutUrl: string }> {
   const origin = env.APP_ORIGIN_STORE ?? "http://localhost:3000";
   const simulatedCheckout = {
@@ -117,11 +128,18 @@ async function createWompiCheckoutSession(
     )
   };
 
-  if (!secretKey && env.AETHER_ENV === "production") {
+  if ((!publicKey || !integrityKey) && env.AETHER_ENV === "production") {
     throw new Error("Wompi is not configured");
   }
-  if (!secretKey) {
+  if (!publicKey || !integrityKey) {
     return simulatedCheckout;
+  }
+  if (!/^pub_(test|prod)_/.test(publicKey) || !/^(test|prod)_integrity_/.test(integrityKey) ||
+      (publicKey.startsWith("pub_test_") !== integrityKey.startsWith("test_integrity_"))) {
+    throw new Error("Wompi public and integrity keys must belong to the same environment");
+  }
+  if (!/^chk_[0-9a-f-]{36}$/.test(checkoutSnapshotId)) {
+    throw new Error("A valid checkout snapshot is required for Wompi");
   }
 
   const amountInCents = cart.totals.total;
@@ -129,69 +147,32 @@ async function createWompiCheckoutSession(
     throw new Error("Checkout total must be a positive amount");
   }
   if (cart.totals.currency.toUpperCase() !== "COP") {
-    throw new Error("Wompi payment links require COP currency");
+    throw new Error("Wompi checkout requires COP currency");
   }
-  // Wompi's payment-link redirect appends ?id={transactionId}&env={env} to redirect_url on completion,
-  // which is what /checkout/confirm treats as the sessionId to retrieve and confirm.
+  const reference = wompiReference(env, checkoutSnapshotId);
+  const currency = "COP";
+  const expiresAt = new Date(Date.now() + CHECKOUT_PAYMENT_WINDOW_MINUTES * 60_000).toISOString();
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${reference}${amountInCents}${currency}${expiresAt}${integrityKey}`));
+  const signature = [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
   const redirectUrl = storefrontUrl(
     origin,
     env.APP_STORE_BASE_PATH,
     `/checkout/success?checkout=success&cart=${encodeURIComponent(cart.id)}&provider=wompi`
   );
 
-  let response: Response;
-  try {
-    response = await fetch(`${wompiApiBase(secretKey)}/payment_links`, {
-      method: "POST",
-      headers: {
-        authorization: `Bearer ${secretKey}`,
-        "content-type": "application/json"
-      },
-      body: JSON.stringify({
-        name: `${env.BRAND_NAME ?? "Aether"} cart ${cart.id}`,
-        description: `${env.BRAND_NAME ?? "Aether"} checkout for cart ${cart.id}`,
-        single_use: true,
-        expires_at: new Date(Date.now() + CHECKOUT_PAYMENT_WINDOW_MINUTES * 60_000).toISOString(),
-        collect_shipping: false,
-        currency: cart.totals.currency.toUpperCase(),
-        amount_in_cents: amountInCents,
-        reference: wompiReference(cart, checkoutSnapshotId),
-        redirect_url: redirectUrl
-      })
-    });
-  } catch (error) {
-    if (env.AETHER_ENV !== "production") {
-      console.info("Wompi checkout unavailable in development. Using simulated checkout.", {
-        error: error instanceof Error ? error.name : "unknown"
-      });
-      return simulatedCheckout;
-    }
-    console.error("Wompi checkout request failed", { error: error instanceof Error ? error.name : "unknown" });
-    throw new Error("Wompi payment link could not be created");
-  }
-
-  if (!response.ok) {
-    const errorBody = await response.text().catch(() => "");
-    const wompiError = parseWompiError(errorBody);
-    if (env.AETHER_ENV !== "production") {
-      console.info("Wompi checkout unavailable in development. Using simulated checkout.", {
-        status: response.status,
-        statusText: response.statusText,
-        wompiError
-      });
-      return simulatedCheckout;
-    }
-    console.error("Wompi checkout failed", { status: response.status, statusText: response.statusText, wompiError });
-    throw new Error("Wompi payment link could not be created");
-  }
-
-  const payload: { data?: { id?: string } } = await response.json();
-  const linkId = payload.data?.id;
-  if (!linkId) throw new Error("Wompi returned an incomplete payment link");
-  return { checkoutUrl: `https://checkout.wompi.co/l/${linkId}` };
+  const url = new URL("https://checkout.wompi.co/p/");
+  url.searchParams.set("public-key", publicKey);
+  url.searchParams.set("currency", currency);
+  url.searchParams.set("amount-in-cents", String(amountInCents));
+  url.searchParams.set("reference", reference);
+  url.searchParams.set("signature:integrity", signature);
+  url.searchParams.set("expiration-time", expiresAt);
+  url.searchParams.set("redirect-url", redirectUrl);
+  if (customerEmail) url.searchParams.set("customer-data:email", customerEmail);
+  return { checkoutUrl: url.toString() };
 }
 
-async function retrieveWompiCheckoutSession(secretKey: string | undefined, transactionId: string): Promise<PaidCheckoutSession> {
+async function retrieveWompiCheckoutSession(env: Env, secretKey: string | undefined, transactionId: string): Promise<PaidCheckoutSession> {
   if (!secretKey) {
     throw new Error("Wompi secret key is not configured");
   }
@@ -211,7 +192,11 @@ async function retrieveWompiCheckoutSession(secretKey: string | undefined, trans
   }
 
   const payload: { data: WompiTransactionResponse } = await response.json();
-  return mapWompiTransactionToPaidCheckoutSession(payload.data);
+  const referenceEnvironment = wompiReferenceEnvironment(payload.data.reference);
+  if (referenceEnvironment && referenceEnvironment !== (env.AETHER_ENV === "production" ? "production" : "development")) {
+    throw new Error("Wompi transaction belongs to another environment");
+  }
+  return enrichWompiSessionFromSnapshot(env, mapWompiTransactionToPaidCheckoutSession(payload.data));
 }
 
 export type WompiRefund = {
@@ -261,9 +246,9 @@ export async function createWompiRefund(env: Env, transactionId: string, amountC
 export function createWompiCheckoutProvider(env: Env, credentials?: CheckoutProviderCredentials): CheckoutProvider {
   const secretKey = credentials?.secretKey ?? env.WOMPI_SECRET_KEY;
   return {
-    createCheckoutSession: (cart, _customerEmail, checkoutSnapshotId) =>
-      createWompiCheckoutSession(env, secretKey, cart, checkoutSnapshotId ?? ""),
-    retrieveCheckoutSession: (transactionId) => retrieveWompiCheckoutSession(secretKey, transactionId)
+    createCheckoutSession: (cart, customerEmail, checkoutSnapshotId) =>
+      createWompiCheckoutSession(env, env.WOMPI_PUBLIC_KEY, env.WOMPI_INTEGRITY_KEY, cart, checkoutSnapshotId ?? "", customerEmail),
+    retrieveCheckoutSession: (transactionId) => retrieveWompiCheckoutSession(env, secretKey, transactionId)
   };
 }
 

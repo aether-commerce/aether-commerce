@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Cart } from "@aether-commerce/schemas";
 import type { Env } from "../types";
 import { createStripeCheckoutProvider, getStripeSecretKeyStatus, mapStripeSessionToPaidCheckoutSession } from "./stripe";
-import { createWompiCheckoutProvider, getWompiSecretKeyStatus, mapWompiTransactionToPaidCheckoutSession, verifyWompiSignature } from "./wompi";
+import { createWompiCheckoutProvider, enrichWompiSessionFromSnapshot, getWompiSecretKeyStatus, mapWompiTransactionToPaidCheckoutSession, verifyWompiSignature, wompiReferenceEnvironment } from "./wompi";
 
 afterEach(() => vi.unstubAllGlobals());
 const quotedCart = {
@@ -103,17 +103,49 @@ describe("wompi adapter", () => {
     expect(statusFor("SOMETHING_UNDOCUMENTED")).toBe("unknown");
   });
 
-  it("sends the same total to Wompi and rejects a missing production secret", async () => {
-    vi.stubGlobal("fetch", vi.fn((_url: string, init: RequestInit) => {
-      const body = JSON.parse(init.body as string) as { amount_in_cents: number; expires_at: string };
-      expect(body.amount_in_cents).toBe(9500);
-      expect(Date.parse(body.expires_at)).toBeGreaterThan(Date.now() + 3_500_000);
-      return Promise.resolve(new Response(JSON.stringify({ data: { id: "link_1" } })));
-    }));
-    await createWompiCheckoutProvider({ AETHER_ENV: "production" } as Env, { secretKey: "prv_test_1" })
-      .createCheckoutSession(quotedCart, undefined, "chk_1");
+  it("resolves a signed environment reference to the correct immutable checkout owner", async () => {
+    const snapshotId = "chk_12345678-1234-1234-1234-123456789abc";
+    const reference = `d_${snapshotId}`;
+    expect(wompiReferenceEnvironment(reference)).toBe("development");
+    expect(wompiReferenceEnvironment(`p_${snapshotId}`)).toBe("production");
+    const session = mapWompiTransactionToPaidCheckoutSession({ id: "txn_1", status: "APPROVED", reference });
+    expect(session.metadata).toEqual({ checkoutSnapshotId: snapshotId });
+    const env = { DB: { prepare: vi.fn(() => ({ bind: vi.fn(() => ({ first: vi.fn(() => Promise.resolve({
+      id: snapshotId, cart_id: "cart_1", user_id: "user_1", cart_payload_json: JSON.stringify(quotedCart),
+      amount_total: 9500, currency: "COP", status: "active", provider_session_id: null, expires_at: new Date(Date.now() + 60_000).toISOString()
+    })) })) })) } } as unknown as Env;
+    expect((await enrichWompiSessionFromSnapshot(env, session)).metadata).toEqual({
+      cartId: "cart_1", userId: "user_1", checkoutSnapshotId: snapshotId
+    });
+  });
+
+  it("signs a Web Checkout URL with the immutable snapshot reference and authoritative COP total", async () => {
+    const checkoutSnapshotId = "chk_12345678-1234-1234-1234-123456789abc";
+    const env = { AETHER_ENV: "production", WOMPI_PUBLIC_KEY: "pub_test_1", WOMPI_INTEGRITY_KEY: "test_integrity_1" } as Env;
+    const { checkoutUrl } = await createWompiCheckoutProvider(env, { secretKey: "prv_test_1" })
+      .createCheckoutSession(quotedCart, "buyer@example.com", checkoutSnapshotId);
+    const url = new URL(checkoutUrl);
+    expect(url.origin + url.pathname).toBe("https://checkout.wompi.co/p/");
+    expect(url.searchParams.get("reference")).toBe(`p_${checkoutSnapshotId}`);
+    expect(url.searchParams.get("amount-in-cents")).toBe("9500");
+    expect(url.searchParams.get("currency")).toBe("COP");
+    expect(url.searchParams.get("customer-data:email")).toBe("buyer@example.com");
+    const expiresAt = url.searchParams.get("expiration-time")!;
+    expect(Date.parse(expiresAt)).toBeGreaterThan(Date.now() + 3_500_000);
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`p_${checkoutSnapshotId}9500COP${expiresAt}test_integrity_1`));
+    expect(url.searchParams.get("signature:integrity")).toBe([...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join(""));
+    expect(checkoutUrl).not.toContain("test_integrity_1");
     await expect(createWompiCheckoutProvider({ AETHER_ENV: "production" } as Env)
-      .createCheckoutSession(quotedCart, undefined, "chk_2")).rejects.toThrow("not configured");
+      .createCheckoutSession(quotedCart, undefined, checkoutSnapshotId)).rejects.toThrow("not configured");
+  });
+
+  it("rejects mismatched keys and a USD cart before sending a customer to Wompi", async () => {
+    const snapshotId = "chk_12345678-1234-1234-1234-123456789abc";
+    const env = { AETHER_ENV: "production", WOMPI_PUBLIC_KEY: "pub_test_1", WOMPI_INTEGRITY_KEY: "prod_integrity_1" } as Env;
+    await expect(createWompiCheckoutProvider(env).createCheckoutSession(quotedCart, undefined, snapshotId)).rejects.toThrow("same environment");
+    env.WOMPI_INTEGRITY_KEY = "test_integrity_1";
+    await expect(createWompiCheckoutProvider(env).createCheckoutSession({ ...quotedCart, totals: { ...quotedCart.totals, currency: "USD" } }, undefined, snapshotId))
+      .rejects.toThrow("requires COP");
   });
 
   it("accepts a signed transaction path and rejects changed data or absent properties", async () => {

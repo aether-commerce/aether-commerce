@@ -19,6 +19,7 @@ type SettingsSummary = {
   mode: ProviderId;
   stripe: CredentialsSummary;
   wompi: CredentialsSummary;
+  wompiCheckout?: { publicKeyConfigured: boolean; integrityKeyConfigured: boolean; currency: string };
 };
 
 type LoadStatus = "loading" | "ready" | "forbidden" | "error";
@@ -174,6 +175,11 @@ function CheckoutSettingsBody(
         <ProviderForm provider="stripe" summary={summary.stripe} apiBaseUrl={apiBaseUrl} onSaved={onSaved} />
         <ProviderForm provider="wompi" summary={summary.wompi} apiBaseUrl={apiBaseUrl} onSaved={onSaved} />
       </div>
+      <p className="text-sm text-zinc-600">
+        Wompi Web Checkout also needs its public and integrity keys in the deployment. They are{" "}
+        {summary.wompiCheckout?.publicKeyConfigured && summary.wompiCheckout.integrityKeyConfigured ? "configured" : "not fully configured"}.
+        Wompi accepts COP only; this store currently uses {summary.wompiCheckout?.currency ?? "an unknown currency"}.
+      </p>
     </div>
   );
 }
