@@ -92,7 +92,7 @@ describe("createRefund", () => {
     const fetchMock = vi.fn((_url: string, init: RequestInit) => {
       const params = new URLSearchParams(init.body as string);
       expect(params.get("amount")).toBe("500");
-      return Promise.resolve(new Response(JSON.stringify({ id: "re_456" }), { status: 200 }));
+      return Promise.resolve(new Response(JSON.stringify({ id: "re_456", status: "succeeded" }), { status: 200 }));
     });
     vi.stubGlobal("fetch", fetchMock);
 

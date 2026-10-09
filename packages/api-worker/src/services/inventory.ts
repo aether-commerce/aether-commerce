@@ -1,6 +1,7 @@
 import { InventoryService, type InventoryRepository } from "@aether-commerce/api-core";
 import { defaultReservationSettings } from "@aether-commerce/core";
 import type { Env } from "../types";
+import { CHECKOUT_RESERVATION_WINDOW_MINUTES } from "./checkout-lifetime";
 
 /** D1 persistence adapter for reusable inventory operations. */
 export function createInventoryService(db: D1Database): InventoryService {
@@ -36,7 +37,7 @@ export function createInventoryService(db: D1Database): InventoryService {
   return new InventoryService(repository, () => crypto.randomUUID());
 }
 
-export const CHECKOUT_EXTENSION_MINUTES = 30;
+export const CHECKOUT_EXTENSION_MINUTES = CHECKOUT_RESERVATION_WINDOW_MINUTES;
 
 export class InsufficientStockError extends Error {
   available: number;
@@ -65,7 +66,7 @@ export async function getAvailableStock(env: Env, productId: string, excludeCart
   }
 
   const reserved = await env.DB.prepare(
-    "select coalesce(sum(quantity), 0) as qty from inventory_reservations where product_id = ? and status = 'active' and (cart_id is null or cart_id != ?)"
+    "select coalesce(sum(quantity), 0) as qty from inventory_reservations where product_id = ? and status = 'active' and datetime(expires_at) > CURRENT_TIMESTAMP and (cart_id is null or cart_id != ?)"
   )
     .bind(productId, excludeCartId ?? "")
     .first<{ qty: number }>();
@@ -103,27 +104,20 @@ export async function upsertActiveReservation(
 ): Promise<void> {
   const ttlMinutes = await getReservationTtlMinutes(env);
   const expiresAt = isoIn(ttlMinutes);
-  const existing = await env.DB.prepare(
-    "select id from inventory_reservations where cart_id = ? and product_id = ? and status = 'active'"
-  )
-    .bind(input.cartId, input.productId)
-    .first<{ id: string }>();
-
-  if (existing) {
+  try {
     await env.DB.prepare(
-      "update inventory_reservations set quantity = ?, expires_at = ?, updated_at = CURRENT_TIMESTAMP where id = ?"
-    )
-      .bind(input.quantity, expiresAt, existing.id)
-      .run();
-    return;
+      `insert into inventory_reservations (id, cart_id, product_id, sku, quantity, status, expires_at, created_at, updated_at)
+       values (?, ?, ?, ?, ?, 'active', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+       on conflict(cart_id, product_id) where status = 'active'
+       do update set quantity = excluded.quantity, expires_at = excluded.expires_at, updated_at = CURRENT_TIMESTAMP`
+    ).bind(crypto.randomUUID(), input.cartId, input.productId, input.sku, input.quantity, expiresAt).run();
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("INSUFFICIENT_STOCK")) {
+      const availability = await getAvailableStock(env, input.productId, input.cartId);
+      throw new InsufficientStockError(availability?.available ?? 0);
+    }
+    throw error;
   }
-
-  await env.DB.prepare(
-    `insert into inventory_reservations (id, cart_id, product_id, sku, quantity, status, expires_at, created_at, updated_at)
-     values (?, ?, ?, ?, ?, 'active', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
-  )
-    .bind(crypto.randomUUID(), input.cartId, input.productId, input.sku, input.quantity, expiresAt)
-    .run();
 }
 
 export async function releaseReservation(env: Env, cartId: string, productId: string): Promise<void> {
@@ -134,21 +128,12 @@ export async function releaseReservation(env: Env, cartId: string, productId: st
     .run();
 }
 
-// Stripe's hosted checkout page defaults to a 24h session expiry, far
-// longer than the cart's own 15-minute reservation TTL - without this, a
-// shopper who takes a while entering payment details could lose their hold
-// mid-checkout. Best-effort: a failed extension shouldn't block checkout.
+// Extends the hold to the provider-session lifetime. A failed extension must
+// block the redirect: otherwise a shopper can pay against unreserved stock.
 export async function extendCartReservations(env: Env, cartId: string, minutes: number): Promise<void> {
-  try {
-    await env.DB.prepare(
-      "update inventory_reservations set expires_at = ?, updated_at = CURRENT_TIMESTAMP where cart_id = ? and status = 'active'"
-    )
-      .bind(isoIn(minutes), cartId)
-      .run();
-  } catch {
-    // A slow checkout losing its reservation extension is recoverable (the
-    // shopper just re-adds to cart); it must not block the Stripe redirect.
-  }
+  await env.DB.prepare(
+    "update inventory_reservations set expires_at = ?, updated_at = CURRENT_TIMESTAMP where cart_id = ? and status = 'active'"
+  ).bind(isoIn(minutes), cartId).run();
 }
 
 export function convertCartReservations(env: Env, cartId: string) {
@@ -160,7 +145,8 @@ export function convertCartReservations(env: Env, cartId: string) {
 // SQL-level arithmetic (not adjustProductInventory's read-then-write
 // pattern) - this has to live inside a batch() shared with order creation,
 // where one statement can't feed its read result into another's bound
-// params. max(0, ...) matches adjustProductInventory's own floor behavior.
+// params. The database trigger rejects a negative balance and rolls back the
+// whole order batch instead of silently recording an impossible sale.
 // updated_at is bound as a real ISO string, not inline CURRENT_TIMESTAMP -
 // products.updated_at flows through productSchema's strict .datetime() on
 // every catalog read, and CURRENT_TIMESTAMP's "YYYY-MM-DD HH:MM:SS" shape
@@ -172,7 +158,7 @@ export function buildStockDecrementStatements(
 ) {
   const now = new Date().toISOString();
   return items.flatMap((item) => [
-    env.DB.prepare("update products set stock = max(0, stock - ?), updated_at = ? where id = ?").bind(
+    env.DB.prepare("update products set stock = stock - ?, updated_at = ? where id = ?").bind(
       item.quantity,
       now,
       item.productId

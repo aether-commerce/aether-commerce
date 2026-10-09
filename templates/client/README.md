@@ -45,9 +45,9 @@ copy Aether demo data, provider secrets or deployment resources.
      `AETHER_CART_TOKEN_SECRET`/`AETHER_SETTINGS_ENCRYPTION_KEY` for cart
      tokens and encrypted integration secrets; `STRIPE_SECRET_KEY`/
      `WOMPI_SECRET_KEY`, `RESEND_API_KEY`, `CLOUDINARY_*`, and `GEMINI_API_KEY`
-     are each optional - every integration already degrades gracefully
-     without its secret set, so only configure the providers you actually
-     use. `apps/api/wrangler.jsonc`'s `vars` block also carries
+     are optional for development, but production checkout requires both the
+     active provider key and its webhook secret. Configure only the provider
+     you use. `apps/api/wrangler.jsonc`'s `vars` block also carries
      `STORE_CURRENCY`, `STORE_LOCALE`, `STORE_COUNTRY`, `BRAND_NAME`,
      `EMAIL_FROM`, `OBSERVABILITY_SERVICE_NAME`, and `AI_ASSISTANT_NAME` -
      override these to replace the "client-store" placeholders `create:client`
@@ -61,6 +61,9 @@ copy Aether demo data, provider secrets or deployment resources.
      that content is genuinely yours to write, not something a starter can
      provide. `config/legal.ts`'s `legalPolicyVersion` (sent by the contact
      form and the AI assistant) is a placeholder until you add real pages.
+     Complete the [commercial launch checklist](./LAUNCH-CHECKLIST.md)
+     before enabling real orders. The AI adapter is outside the initial
+     commercial scope until a deployable assistant is built and verified.
 5. `apps/storefront/wrangler.jsonc` and `apps/api/wrangler.jsonc` each deploy
    their own Cloudflare Worker (`wrangler deploy`, or each app's own
    `pnpm deploy`) - the storefront's runs the OpenNext server bundle and the

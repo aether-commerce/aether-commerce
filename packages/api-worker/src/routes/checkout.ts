@@ -5,14 +5,18 @@ import { isCheckoutSessionPaid } from "@aether-commerce/api-core";
 import { addressSchema } from "@aether-commerce/schemas";
 import type { AppBindings } from "../types";
 import { fail, ok } from "../http";
-import { readCart, writeCart } from "../services/cart";
+import { CheckoutQuoteChangedError, readCart, repriceCartForCheckout, writeCart } from "../services/cart";
 import { resolveActorEmail } from "../services/clerk";
-import { resolveActiveCheckoutProvider } from "../services/checkout-provider";
+import { createCheckoutProviderFor, resolveCheckoutSettings } from "../services/checkout-provider";
 import { createOrderFromPaidSession } from "../services/orders";
 import { verifyCartToken } from "../services/cart-token";
-import { CHECKOUT_EXTENSION_MINUTES, extendCartReservations } from "../services/inventory";
+import { CHECKOUT_EXTENSION_MINUTES, extendCartReservations, upsertActiveReservation } from "../services/inventory";
+import { getProductById } from "../services/catalog";
 import { bindCheckoutSnapshotToSession, createCheckoutSnapshot } from "../services/checkout-snapshots";
 import { getRuntimeStoreConfig } from "../services/store-config";
+import { createShippingSettingsService } from "../services/shipping-settings";
+import { defaultShippingSettings } from "../defaults";
+import { withIdempotency } from "../services/idempotency";
 
 export const checkoutRoutes = new Hono<AppBindings>();
 
@@ -36,6 +40,7 @@ checkoutRoutes.post(
     if (!actor.userId) {
       return fail(c, 401, "AUTH_REQUIRED", "Sign in before starting checkout.");
     }
+    const userId = actor.userId;
 
     const { cartId, shippingAddress } = c.req.valid("json");
     const hasCartToken = await verifyCartToken(c.env, c.req.header("x-aether-cart-token"), cartId);
@@ -44,18 +49,41 @@ checkoutRoutes.post(
     }
 
     const cart = await readCart(c.env, cartId);
-    if (cart.userId && cart.userId !== actor.userId) {
+    if (cart.userId && cart.userId !== userId) {
       return fail(c, 403, "CART_OWNERSHIP_MISMATCH", "This cart belongs to another account.");
     }
     if (cart.items.length === 0) {
       return fail(c, 422, "EMPTY_CART", "Add at least one item before checkout.");
     }
 
-    const { mode, provider } = await resolveActiveCheckoutProvider(c.env);
+    const settings = await resolveCheckoutSettings(c.env);
+    const { mode, provider } = createCheckoutProviderFor(c.env, settings);
+    const idempotencyKey = c.req.header("x-idempotency-key");
+    if (c.env.AETHER_ENV === "production") {
+      if (!idempotencyKey) return fail(c, 400, "IDEMPOTENCY_KEY_REQUIRED", "A checkout request key is required.");
+      const active = settings[mode];
+      if (!active.secretKey || !active.webhookSecret) {
+        return fail(c, 503, "CHECKOUT_NOT_CONFIGURED", "Payments are not configured for this store.");
+      }
+      const shipping = await createShippingSettingsService(c.env.DB).get(defaultShippingSettings);
+      if (shipping.enabled && !shippingAddress && !cart.shippingAddress) {
+        return fail(c, 422, "SHIPPING_ADDRESS_REQUIRED", "Add a delivery address before paying.");
+      }
+    }
+    return withIdempotency(c.env.DB, "POST /checkout/session", idempotencyKey,
+      { actorId: userId, cartId, shippingAddress: shippingAddress ?? null }, async () => {
     try {
+      const quotedCart = await repriceCartForCheckout(c.env, cart);
+      for (const productId of new Set(quotedCart.items.map((item) => item.productId))) {
+        const product = await getProductById(c.env, productId);
+        if (!product) throw new CheckoutQuoteChangedError();
+        const quantity = quotedCart.items.filter((item) => item.productId === productId).reduce((sum, item) => sum + item.quantity, 0);
+        await upsertActiveReservation(c.env, { cartId, productId, sku: product.sku, quantity });
+      }
+      await extendCartReservations(c.env, cartId, CHECKOUT_EXTENSION_MINUTES);
       const checkoutCart = await writeCart(c.env, {
-        ...cart,
-        userId: actor.userId,
+        ...quotedCart,
+        userId,
         ...(shippingAddress
           ? {
               shippingAddress: {
@@ -66,7 +94,6 @@ checkoutRoutes.post(
             }
           : {})
       });
-      await extendCartReservations(c.env, cartId, CHECKOUT_EXTENSION_MINUTES);
       const customerEmail = await resolveActorEmail(c.env, actor);
       // Every provider gets an immutable checkout snapshot
       // (services/checkout-snapshots.ts) - order creation only ever trusts
@@ -76,13 +103,17 @@ checkoutRoutes.post(
       // here; Wompi's payment_links API has no such hook, so its adapter
       // instead threads the snapshot id through the reference field itself
       // (see wompiReference) and the webhook recovers it from there.
-      const snapshot = await createCheckoutSnapshot(c.env, checkoutCart, actor.userId);
+      const snapshot = await createCheckoutSnapshot(c.env, checkoutCart, userId);
       const session = await provider.createCheckoutSession(checkoutCart, customerEmail, snapshot.id);
       if (session.sessionId) {
         await bindCheckoutSnapshotToSession(c.env, snapshot.id, session.sessionId);
       }
       return ok(c, { checkoutUrl: session.checkoutUrl }, 201);
-    } catch {
+    } catch (error) {
+      if (error instanceof CheckoutQuoteChangedError) {
+        const latest = error.quote ? await writeCart(c.env, error.quote) : undefined;
+        return fail(c, 409, "CHECKOUT_QUOTE_CHANGED", error.message, latest ? { cart: latest } : undefined);
+      }
       return fail(
         c,
         500,
@@ -90,6 +121,7 @@ checkoutRoutes.post(
         `${mode} checkout could not be started. Check its secret key and network access.`
       );
     }
+    });
   }
 );
 
@@ -102,7 +134,8 @@ checkoutRoutes.post(
       return fail(c, 401, "AUTH_REQUIRED", "Sign in before confirming checkout.");
     }
 
-    const { mode, provider } = await resolveActiveCheckoutProvider(c.env);
+    const settings = await resolveCheckoutSettings(c.env);
+    const { mode, provider } = createCheckoutProviderFor(c.env, settings);
     try {
       const session = await provider.retrieveCheckoutSession(c.req.valid("json").sessionId);
       if (!session.metadata?.userId || session.metadata.userId !== actor.userId) {

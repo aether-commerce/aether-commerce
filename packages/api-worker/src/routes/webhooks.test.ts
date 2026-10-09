@@ -116,7 +116,7 @@ describe("POST /webhooks/stripe", () => {
   });
 
   it("records a new event, processes it, and marks it processed", async () => {
-    const body = JSON.stringify({ id: "evt_1", type: "checkout.session.completed", data: { object: { id: "cs_1" } } });
+    const body = JSON.stringify({ id: "evt_1", type: "checkout.session.completed", data: { object: { id: "cs_1", payment_status: "paid" } } });
     const signature = await signStripe("whsec_test_secret", body);
     const { env, statements } = fakeEnv([
       { first: null }, // resolveCheckoutSettings: no stored settings, falls back to env
@@ -160,7 +160,7 @@ describe("POST /webhooks/stripe", () => {
 
   it("reclaims a previously failed event so Stripe can retry it", async () => {
     const { createOrderFromPaidSession } = await import("../services/orders");
-    const body = JSON.stringify({ id: "evt_retry", type: "checkout.session.completed", data: { object: { id: "cs_1" } } });
+    const body = JSON.stringify({ id: "evt_retry", type: "checkout.session.completed", data: { object: { id: "cs_1", payment_status: "paid" } } });
     const signature = await signStripe("whsec_test_secret", body);
     const { env } = fakeEnv([
       { first: null }, // resolveCheckoutSettings
@@ -179,7 +179,7 @@ describe("POST /webhooks/stripe", () => {
     const { createOrderFromPaidSession } = await import("../services/orders");
     vi.mocked(createOrderFromPaidSession).mockRejectedValueOnce(new Error("D1 write failed"));
 
-    const body = JSON.stringify({ id: "evt_fail", type: "checkout.session.completed", data: { object: { id: "cs_1" } } });
+    const body = JSON.stringify({ id: "evt_fail", type: "checkout.session.completed", data: { object: { id: "cs_1", payment_status: "paid" } } });
     const signature = await signStripe("whsec_test_secret", body);
     const { env, statements } = fakeEnv([
       { first: null }, // resolveCheckoutSettings

@@ -84,7 +84,7 @@ function fakeCart(overrides: Partial<Cart> = {}): Cart {
   };
 }
 
-async function mockActiveSnapshot(cart = fakeCart()) {
+async function mockActiveSnapshot(cart = fakeCart(), status: "active" | "expired" = "active") {
   const { loadCheckoutSnapshot } = await import("./checkout-snapshots");
   vi.mocked(loadCheckoutSnapshot).mockResolvedValueOnce({
     id: "chk_1",
@@ -94,9 +94,9 @@ async function mockActiveSnapshot(cart = fakeCart()) {
     cartPayloadJson: JSON.stringify(cart),
     amountTotal: cart.totals.total,
     currency: cart.totals.currency,
-    status: "active",
+    status,
     providerSessionId: "cs_1",
-    expiresAt: new Date(Date.now() + 60_000).toISOString()
+    expiresAt: new Date(Date.now() + (status === "expired" ? -60_000 : 60_000)).toISOString()
   });
 }
 
@@ -329,17 +329,22 @@ describe("createOrderFromPaidSession", () => {
     expect(clearCatalogCache).toHaveBeenCalledWith(env);
   });
 
-  it("skips stock/movement bookkeeping for a cart item whose product was deleted, without failing order creation", async () => {
-    const { buildStockDecrementStatements } = await import("./inventory");
+  it("reconciles a verified late payment against its immutable expired snapshot", async () => {
+    await mockActiveSnapshot(fakeCart(), "expired");
+    const { env } = fakeEnv([{ first: null }, { all: [{ id: "prd_1", sku: "SKU-1" }] }]);
+    const result = await createOrderFromPaidSession(env, paidSession(), "stripe");
+    expect(result.created).toBe(true);
+  });
+
+  it("stops a paid checkout whose product was deleted so reconciliation can intervene", async () => {
     await mockActiveSnapshot();
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     // sku lookup returns zero rows - the cart's one product is "missing"
-    const { env } = fakeEnv([{ first: null }, { all: [] }]);
-    const result = await createOrderFromPaidSession(env, paidSession(), "stripe");
+    const { env, db } = fakeEnv([{ first: null }, { all: [] }]);
+    await expect(createOrderFromPaidSession(env, paidSession(), "stripe")).rejects.toThrow("no longer exists");
 
-    expect(result.created).toBe(true);
-    expect(buildStockDecrementStatements).toHaveBeenCalledWith(env, [], expect.any(Object));
+    expect(db.batch).not.toHaveBeenCalled();
     expect(errorSpy).toHaveBeenCalled();
     errorSpy.mockRestore();
   });

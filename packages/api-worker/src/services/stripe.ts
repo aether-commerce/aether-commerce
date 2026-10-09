@@ -5,6 +5,7 @@ import type { Env } from "../types";
 import { timingSafeEqualText } from "./secure-compare";
 import { getLogger } from "./observability";
 import { incrementMetric } from "./metrics";
+import { CHECKOUT_PAYMENT_WINDOW_MINUTES } from "./checkout-lifetime";
 
 const STRIPE_SIGNATURE_TOLERANCE_SECONDS = 5 * 60;
 
@@ -79,7 +80,7 @@ type StripeSessionResponse = {
 export function mapStripeSessionToPaidCheckoutSession(session: StripeSessionResponse): PaidCheckoutSession {
   return {
     id: session.id,
-    status: !session.payment_status || session.payment_status === "paid" ? "paid" : "pending",
+    status: session.payment_status === "paid" ? "paid" : "pending",
     ...(session.amount_total !== undefined ? { amountTotal: session.amount_total } : {}),
     ...(session.currency ? { currency: session.currency } : {}),
     ...(session.customer_details?.email || session.customer_email
@@ -106,12 +107,20 @@ async function createStripeCheckoutSession(
     )
   };
 
+  if (!secretKey && env.AETHER_ENV === "production") {
+    throw new PaymentError("Stripe is not configured", { code: "PAYMENT_PROVIDER_NOT_CONFIGURED" });
+  }
   if (!secretKey) {
     return simulatedCheckout;
   }
 
+  if (!Number.isInteger(cart.totals.total) || cart.totals.total <= 0) {
+    throw new PaymentError("Checkout total must be a positive amount", { code: "PAYMENT_AMOUNT_INVALID" });
+  }
+
   const params = new URLSearchParams();
   params.set("mode", "payment");
+  params.set("expires_at", String(Math.floor(Date.now() / 1000) + CHECKOUT_PAYMENT_WINDOW_MINUTES * 60));
   params.set(
     "success_url",
     storefrontUrl(
@@ -132,12 +141,13 @@ async function createStripeCheckoutSession(
     params.set("customer_email", customerEmail);
   }
 
-  cart.items.forEach((item, index) => {
-    params.set(`line_items[${index}][quantity]`, String(item.quantity));
-    params.set(`line_items[${index}][price_data][currency]`, cart.totals.currency.toLowerCase());
-    params.set(`line_items[${index}][price_data][unit_amount]`, String(item.finalUnitPrice));
-    params.set(`line_items[${index}][price_data][product_data][name]`, item.name);
-  });
+  // Stripe must charge the immutable server quote, including coupons, shipping
+  // and tax. One line avoids rounding drift when a cart-level discount spans
+  // multiple products; the full item breakdown remains in Aether's order.
+  params.set("line_items[0][quantity]", "1");
+  params.set("line_items[0][price_data][currency]", cart.totals.currency.toLowerCase());
+  params.set("line_items[0][price_data][unit_amount]", String(cart.totals.total));
+  params.set("line_items[0][price_data][product_data][name]", `${env.BRAND_NAME ?? "Aether"} order`);
 
   let response: Response;
   try {
@@ -145,7 +155,8 @@ async function createStripeCheckoutSession(
       method: "POST",
       headers: {
         authorization: `Bearer ${secretKey}`,
-        "content-type": "application/x-www-form-urlencoded"
+        "content-type": "application/x-www-form-urlencoded",
+        ...(checkoutSnapshotId ? { "Idempotency-Key": checkoutSnapshotId } : {})
       },
       body: params
     });
@@ -229,8 +240,8 @@ export type StripeRefund = {
 // in this deployment is a test-mode (sk_test_) key, so real money never
 // moves - confirmed via getStripeSecretKeyStatus, which every admin route
 // calling this already surfaces to the UI.
-export async function createRefund(env: Env, paymentIntentId: string, amountCents?: number): Promise<StripeRefund> {
-  if (!env.STRIPE_SECRET_KEY) {
+export async function createRefund(env: Env, paymentIntentId: string, amountCents?: number, secretKey = env.STRIPE_SECRET_KEY, idempotencyKey?: string): Promise<StripeRefund> {
+  if (!secretKey) {
     throw new Error("Stripe secret key is not configured");
   }
 
@@ -243,8 +254,9 @@ export async function createRefund(env: Env, paymentIntentId: string, amountCent
   const response = await fetch("https://api.stripe.com/v1/refunds", {
     method: "POST",
     headers: {
-      authorization: `Bearer ${env.STRIPE_SECRET_KEY}`,
-      "content-type": "application/x-www-form-urlencoded"
+      authorization: `Bearer ${secretKey}`,
+      "content-type": "application/x-www-form-urlencoded",
+      ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {})
     },
     body: params
   });
@@ -263,7 +275,11 @@ export async function createRefund(env: Env, paymentIntentId: string, amountCent
     });
   }
 
-  return response.json();
+  const refund: StripeRefund = await response.json();
+  if (!refund.id || !refund.status) {
+    throw new PaymentError("Stripe returned an incomplete refund response", { code: "PAYMENT_REFUND_FAILED" });
+  }
+  return refund;
 }
 
 /** Cloudflare/Stripe adapter for the provider-neutral checkout port. Credentials fall back to env vars when omitted. */

@@ -639,7 +639,15 @@ describe("admin routes integration (real middleware chain, mocked D1)", () => {
             email: "shopper@example.com",
             number: "AETH-1"
           }
-        }
+        },
+        { first: { amount: 0 } }, // remaining refund balance
+        { first: null }, // no pending provider refund
+        {}, // expire old idempotency claims
+        {}, // reserve this refund operation
+        { first: null }, // checkout settings fall back to env
+        { first: { id: "pay_1", amount: 5000 } },
+        { first: null }, // provider refund not yet recorded
+        { first: { amount: 0 } }
       ],
       { STRIPE_SECRET_KEY: "sk_test_123" }
     );
@@ -694,7 +702,15 @@ describe("admin routes integration (real middleware chain, mocked D1)", () => {
             email: "shopper@example.com",
             number: "AETH-2"
           }
-        }
+        },
+        { first: { amount: 0 } },
+        { first: null },
+        {}, // expire old idempotency claims
+        {}, // reserve this refund operation
+        { first: null },
+        { first: { id: "pay_2", amount: 5000 } },
+        { first: null },
+        { first: { amount: 0 } }
       ],
       { WOMPI_SECRET_KEY: "prv_test_123" }
     );

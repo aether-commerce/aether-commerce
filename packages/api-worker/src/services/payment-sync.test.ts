@@ -1,20 +1,24 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Env } from "../types";
-import { syncChargeRefunded, syncDisputeCreated } from "./payment-sync";
+import { syncChargeRefunded, syncDisputeCreated, syncRefundUpdated } from "./payment-sync";
 
 type Row = Record<string, unknown> | null;
 
-function fakeDb(rows: { payment?: Row; order?: Row } = {}) {
+function fakeDb(rows: { payment?: Row; order?: Row; refund?: Row } = {}) {
   const run = vi.fn(() => Promise.resolve({ success: true, meta: { changes: 1 } }));
   const batch = vi.fn((stmts: unknown[]) => Promise.resolve(stmts.map(() => ({ success: true, meta: { changes: 1 } }))));
   const statements: string[] = [];
   const db = {
     prepare: vi.fn((sql: string) => {
+      if (sql.includes("from payments") && sql.includes("provider_")) {
+        expect(sql).toContain("provider_ref = ?");
+      }
       statements.push(sql);
       return {
         run,
         bind: vi.fn(() => ({
           first: vi.fn(() => {
+            if (sql.includes("from refunds r")) return Promise.resolve(rows.refund ?? null);
             if (sql.includes("from payments")) return Promise.resolve(rows.payment ?? null);
             if (sql.includes("from orders")) return Promise.resolve(rows.order ?? null);
             return Promise.resolve(null);
@@ -67,6 +71,32 @@ describe("syncChargeRefunded", () => {
     await syncChargeRefunded(env, { id: "ch_1", payment_intent: "pi_1", refunded: true, amount_refunded: 5000 }, "req_1");
 
     expect(batch).toHaveBeenCalledTimes(1);
+  });
+
+  it("processes a later partial refund after the order is already partially refunded", async () => {
+    const { env, batch } = fakeDb({
+      payment: { order_id: "ord_1", id: "pay_1", amount: 5000 },
+      order: { channel: "stripe", payment_status: "partially_refunded", total: 5000, stock_restored_at: null,
+        email: "shopper@example.com", number: "AETH-1" }
+    });
+    await syncChargeRefunded(env, { id: "ch_1", payment_intent: "pi_1", amount_refunded: 2500 }, "req_2");
+    expect(batch).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("syncRefundUpdated", () => {
+  it("finalizes only the matching pending refund after Stripe confirms it", async () => {
+    const { env, statements } = fakeDb({ refund: { amount: 400, order_id: "ord_1" } });
+    await syncRefundUpdated(env, { id: "re_1", amount: 400, status: "succeeded" }, "req_1");
+    expect(statements.some((sql) => sql.includes("update refunds set status"))).toBe(true);
+    expect(statements.some((sql) => sql.includes("insert into audit_logs"))).toBe(true);
+  });
+
+  it("refuses a provider event with an amount different from the pending ledger", async () => {
+    const { env, statements } = fakeDb({ refund: { amount: 400, order_id: "ord_1" } });
+    await expect(syncRefundUpdated(env, { id: "re_1", amount: 500, status: "succeeded" }, "req_1"))
+      .rejects.toThrow("differs");
+    expect(statements.some((sql) => sql.includes("update refunds set status"))).toBe(false);
   });
 });
 

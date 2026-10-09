@@ -2,7 +2,7 @@ import { createCartItem } from "@aether-commerce/api-core";
 import { calculateCartTotals } from "@aether-commerce/core";
 import type { Cart, CartItemInput, Coupon } from "@aether-commerce/schemas";
 import type { Env } from "../types";
-import { getProductBySlug, getCatalogProducts } from "./catalog";
+import { getProductBySlug, getCatalogProducts, getProductById } from "./catalog";
 import { InsufficientStockError, getAvailableStock, releaseReservation, upsertActiveReservation } from "./inventory";
 import { createShippingSettingsService } from "./shipping-settings";
 import { defaultShippingSettings } from "../defaults";
@@ -127,6 +127,44 @@ export async function writeCart(env: Env, cart: Cart): Promise<Cart> {
   return updated;
 }
 
+export class CheckoutQuoteChangedError extends Error {
+  constructor(public readonly quote?: Cart) {
+    super("The cart changed. Review the latest price and availability before paying.");
+    this.name = "CheckoutQuoteChangedError";
+  }
+}
+
+/** Rebuilds the quote from today's catalog and rules before a provider sees it. */
+export async function repriceCartForCheckout(env: Env, cart: Cart): Promise<Cart> {
+  const store = await getStoreConfig(env);
+  const items: Cart["items"] = [];
+  for (const line of cart.items) {
+    const product = await getProductById(env, line.productId);
+    if (!product || !product.visible || product.currency !== store.currency ||
+        (line.variantId && !product.variants.some((variant) => variant.id === line.variantId))) {
+      throw new CheckoutQuoteChangedError();
+    }
+    items.push(createCartItem(product, { productId: product.id, ...(line.variantId ? { variantId: line.variantId } : {}), quantity: line.quantity }));
+  }
+  for (const productId of new Set(items.map((item) => item.productId))) {
+    const quantity = items.filter((item) => item.productId === productId).reduce((sum, item) => sum + item.quantity, 0);
+    const stock = await getAvailableStock(env, productId, cart.id);
+    if (!stock || quantity > stock.available) throw new InsufficientStockError(stock?.available ?? 0);
+  }
+  const coupon = cart.couponCode ? await findActiveCoupon(env, cart.couponCode) : undefined;
+  if (cart.couponCode && !coupon) {
+    const shipping = await getShippingCents(env);
+    const totals = calculateCartTotals(items, undefined, shipping, 0, store.currency);
+    throw new CheckoutQuoteChangedError({ ...cart, items, couponCode: undefined, totals });
+  }
+  const shipping = await getShippingCents(env);
+  const totals = calculateCartTotals(items, coupon, shipping, 0, store.currency);
+  if (JSON.stringify(items) !== JSON.stringify(cart.items) || JSON.stringify(totals) !== JSON.stringify(cart.totals)) {
+    throw new CheckoutQuoteChangedError({ ...cart, items, totals });
+  }
+  return { ...cart, items, totals };
+}
+
 export async function addItem(env: Env, cartId: string, input: CartItemInput): Promise<Cart> {
   const product = await findProduct(env, input.productId);
   if (!product) {
@@ -141,15 +179,9 @@ export async function addItem(env: Env, cartId: string, input: CartItemInput): P
   );
   const newQuantity = Math.min(25, (existing?.quantity ?? 0) + item.quantity);
 
-  // Missing availability data (product row deleted out from under a cached
-  // catalog entry) fails open rather than blocking the whole cart flow -
-  // the real backstop against overselling is the atomic decrement at order
-  // creation time, this check is a UX improvement on top of that, not the
-  // only guard.
+  // The database trigger is the concurrency backstop. This read gives the
+  // shopper a useful available-quantity error before trying the write.
   const availability = await getAvailableStock(env, product.id, cartId);
-  if (availability && newQuantity > availability.available) {
-    throw new InsufficientStockError(availability.available);
-  }
 
   const items = existing
     ? cart.items.map((candidate) =>
@@ -161,8 +193,10 @@ export async function addItem(env: Env, cartId: string, input: CartItemInput): P
 
   const [shipping, coupon, store] = await Promise.all([getShippingCents(env), resolveCartCoupon(env, cart), getStoreConfig(env)]);
   const totals = calculateCartTotals(items, coupon, shipping, 0, store.currency);
+  const productQuantity = items.filter((line) => line.productId === product.id).reduce((sum, line) => sum + line.quantity, 0);
+  if (!availability || productQuantity > availability.available) throw new InsufficientStockError(availability?.available ?? 0);
+  await upsertActiveReservation(env, { cartId, productId: product.id, sku: product.sku, quantity: productQuantity });
   const updatedCart = await writeCart(env, { ...cart, items, totals });
-  await upsertActiveReservation(env, { cartId, productId: product.id, sku: product.sku, quantity: newQuantity });
   return updatedCart;
 }
 
@@ -200,9 +234,7 @@ export async function updateItemQuantity(env: Env, cartId: string, itemId: strin
 
   if (target) {
     const availability = await getAvailableStock(env, target.productId, cartId);
-    if (availability && quantity > availability.available) {
-      throw new InsufficientStockError(availability.available);
-    }
+    if (!availability) throw new InsufficientStockError(0);
   }
 
   const items = cart.items.map((item) =>
@@ -212,13 +244,14 @@ export async function updateItemQuantity(env: Env, cartId: string, itemId: strin
   );
   const [shipping, coupon, store] = await Promise.all([getShippingCents(env), resolveCartCoupon(env, cart), getStoreConfig(env)]);
   const totals = calculateCartTotals(items, coupon, shipping, 0, store.currency);
-  const updatedCart = await writeCart(env, { ...cart, items, totals });
-
   if (target) {
     const product = await findProduct(env, target.productId);
     if (product) {
-      await upsertActiveReservation(env, { cartId, productId: target.productId, sku: product.sku, quantity });
+      const productQuantity = items.filter((line) => line.productId === target.productId).reduce((sum, line) => sum + line.quantity, 0);
+      const availability = await getAvailableStock(env, target.productId, cartId);
+      if (!availability || productQuantity > availability.available) throw new InsufficientStockError(availability?.available ?? 0);
+      await upsertActiveReservation(env, { cartId, productId: target.productId, sku: product.sku, quantity: productQuantity });
     }
   }
-  return updatedCart;
+  return writeCart(env, { ...cart, items, totals });
 }

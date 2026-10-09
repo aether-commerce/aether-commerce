@@ -1,6 +1,13 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Env } from "../types";
 import { sendDueRestockNotifications, subscribeToRestockNotification } from "./restock-notifications";
+import { sendRestockNotificationEmail } from "./email";
+
+vi.mock("./email", () => ({ sendRestockNotificationEmail: vi.fn() }));
+beforeEach(() => {
+  vi.mocked(sendRestockNotificationEmail).mockReset();
+  vi.mocked(sendRestockNotificationEmail).mockResolvedValue({ queued: true, provider: "resend", status: 200 });
+});
 
 // A generic bind-aware D1 mock, keyed by matching SQL text - resend/send()'s
 // own bind-less integration-settings lookup (RESEND_API_KEY missing in
@@ -70,5 +77,15 @@ describe("sendDueRestockNotifications", () => {
     expect(result).toEqual({ sent: 1 });
     const update = statements.find((s) => s.sql.includes("update restock_notifications set notified_at"));
     expect(update?.args).toEqual(["rn_1"]);
+  });
+
+  it("keeps a failed notification pending for a bounded retry", async () => {
+    vi.mocked(sendRestockNotificationEmail).mockResolvedValueOnce({ queued: false, provider: "resend", status: 503 });
+    const { env, statements } = fakeDb({
+      pending: [{ id: "rn_2", email: "shopper@example.com", product_id: "prd_1", name: "Mouse", slug: "mouse" }]
+    });
+    expect(await sendDueRestockNotifications(env)).toEqual({ sent: 0 });
+    expect(statements.some((entry) => entry.sql.includes("notified_at = CURRENT_TIMESTAMP"))).toBe(false);
+    expect(statements.some((entry) => entry.sql.includes("attempts = attempts + 1"))).toBe(true);
   });
 });
