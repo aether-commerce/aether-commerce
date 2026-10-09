@@ -40,7 +40,7 @@ describe("SettingsPage", () => {
 
     expect(await screen.findByDisplayValue("Aether Test")).toBeInTheDocument();
     expect(screen.getByLabelText(/charge for shipping/i)).toBeChecked();
-    expect(screen.getByLabelText(/shipping cost in dollars/i)).toHaveValue(150);
+    expect(screen.getByLabelText(/shipping cost in the selected currency/i)).toHaveValue(150);
     expect(screen.getByLabelText(/reservation ttl/i)).toHaveValue(15);
   });
 
@@ -54,7 +54,7 @@ describe("SettingsPage", () => {
     render(<SettingsPage />);
 
     await screen.findByDisplayValue("Aether Test");
-    expect(screen.queryByLabelText(/shipping cost in dollars/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/shipping cost in the selected currency/i)).not.toBeInTheDocument();
   });
 
   it("saves the branding section", async () => {
@@ -98,7 +98,7 @@ describe("SettingsPage", () => {
     render(<SettingsPage />);
     await screen.findByDisplayValue("Aether Test");
 
-    const amountInput = screen.getByLabelText(/shipping cost in dollars/i);
+    const amountInput = screen.getByLabelText(/shipping cost in the selected currency/i);
     fireEvent.change(amountInput, { target: { value: "200" } });
 
     fetchMock.mockResolvedValueOnce({ json: () => Promise.resolve({ success: true }) } as Response);
@@ -152,6 +152,21 @@ describe("SettingsPage", () => {
     const call = fetchMock.mock.calls.find(([url]) => String(url).includes("/settings/reservations"));
     const body = JSON.parse((call?.[1] as RequestInit).body as string) as { ttlMinutes: number };
     expect(body).toEqual({ ttlMinutes: 30 });
+  });
+
+  it("sends the fixed rate when changing from USD to COP", async () => {
+    fetchMock.mockResolvedValueOnce(settingsResponse());
+    const user = userEvent.setup();
+    render(<SettingsPage />);
+    await screen.findByDisplayValue("Aether Test");
+
+    await user.selectOptions(screen.getByRole("combobox", { name: /currency/i }), "COP");
+    expect(screen.getByRole("option", { name: "Online payment" })).toBeInTheDocument();
+    fetchMock.mockResolvedValueOnce({ json: () => Promise.resolve({ success: true }) } as Response);
+    await user.click(screen.getByRole("button", { name: "Save currency settings" }));
+
+    const call = fetchMock.mock.calls.find(([url]) => String(url).includes("/settings/store"));
+    expect(JSON.parse((call?.[1] as RequestInit).body as string)).toEqual({ currency: "COP", copPerUsd: 3500 });
   });
 
   it("shows an error note when a save fails", async () => {
