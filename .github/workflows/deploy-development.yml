@@ -13,7 +13,11 @@ permissions:
 
 concurrency:
   group: aether-development
-  cancel-in-progress: true
+  # workflow_run also fires for PR CI. Those runs skip the deploy job and must
+  # not cancel a real push or manual deployment already in progress.
+  cancel-in-progress: >-
+    ${{ github.event_name == 'workflow_dispatch' ||
+        (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success') }}
 
 jobs:
   deploy:
