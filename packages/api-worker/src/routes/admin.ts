@@ -23,6 +23,7 @@ import { collection, fail, ok } from "../http";
 import { requirePermission } from "../middleware/admin";
 import { clearCatalogCache } from "../services/catalog";
 import { getStoreConfig } from "../services/store-config";
+import { CurrencySwitchError, switchStoreCurrency } from "../services/currency-switch";
 import { createCouponService } from "../services/coupons";
 import { computeDashboardSummary } from "../services/dashboard-summary";
 import { createReviewModerationService } from "../services/review-moderation";
@@ -1522,7 +1523,8 @@ const checkoutSettingsSchema = z
   );
 
 const storeSettingsSchema = z.object({
-  currency: z.enum(["USD", "COP"])
+  currency: z.enum(["USD", "COP"]),
+  copPerUsd: z.number().int().min(1).max(100_000).optional()
 });
 
 adminRoutes.patch(
@@ -1531,9 +1533,22 @@ adminRoutes.patch(
   zValidator("json", storeSettingsSchema),
   async (c) => {
     const value = c.req.valid("json");
-    await saveApplicationSetting(c, "store", value);
+    let result;
+    try {
+      result = await switchStoreCurrency(c.env, value.currency, value.copPerUsd);
+    } catch (error) {
+      if (error instanceof CurrencySwitchError) return fail(c, 422, error.code, error.message);
+      throw error;
+    }
     await clearCatalogCache(c.env);
-    return ok(c, value);
+    await writeAuditLog(c.env, {
+      actorId: c.get("actor").userId ?? "admin",
+      action: "settings.updated",
+      targetType: "settings",
+      targetId: "store",
+      payload: result
+    });
+    return ok(c, result);
   }
 );
 

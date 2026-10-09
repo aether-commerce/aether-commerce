@@ -75,6 +75,8 @@ export function SettingsPage() {
   const [reservationsForm, setReservationsForm] = useState<ReservationSettings>(defaultReservations);
   const [reservationsSaveStatus, setReservationsSaveStatus] = useState<SaveStatus>("idle");
   const [storeForm, setStoreForm] = useState<StoreSettings>(() => ({ currency: config.store.currency === "COP" ? "COP" : "USD" }));
+  const [copPerUsd, setCopPerUsd] = useState(3500);
+  const [rateLocked, setRateLocked] = useState(false);
   const [storeSaveStatus, setStoreSaveStatus] = useState<SaveStatus>("idle");
   const [logoUploading, setLogoUploading] = useState(false);
   const [logoUploadError, setLogoUploadError] = useState<string | null>(null);
@@ -163,6 +165,13 @@ export function SettingsPage() {
             const parsed = JSON.parse(row.value_json) as Partial<StoreSettings>;
             if (parsed.currency === "USD" || parsed.currency === "COP") setStoreForm({ currency: parsed.currency });
           }
+          if (row.key === "currency_conversion") {
+            const parsed = JSON.parse(row.value_json) as { copPerUsd?: number };
+            if (Number.isSafeInteger(parsed.copPerUsd) && (parsed.copPerUsd ?? 0) > 0) {
+              setCopPerUsd(parsed.copPerUsd!);
+              setRateLocked(true);
+            }
+          }
         }
         setLoadStatus("ready");
       } catch {
@@ -180,6 +189,7 @@ export function SettingsPage() {
         body: JSON.stringify(value)
       });
       const payload = (await response.json()) as { success: boolean };
+      if (payload.success && key === "store") setRateLocked(true);
       setStatus(payload.success ? "saved" : "error");
     } catch {
       setStatus("error");
@@ -471,12 +481,26 @@ export function SettingsPage() {
                 </select>
                 <span className="text-xs text-ink-subtle">{t.settingsPage.currencyHint}</span>
               </label>
+              <label className="grid gap-1 text-sm">
+                <span className="font-medium text-ink-muted">{t.settingsPage.exchangeRateLabel}</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={100000}
+                  step={1}
+                  value={copPerUsd}
+                  disabled={rateLocked}
+                  onChange={(event) => setCopPerUsd(Math.max(1, Math.round(Number(event.target.value))))}
+                  className="focus-ring min-h-10 w-32 rounded-md border border-border bg-surface px-3 text-ink tabular-nums"
+                />
+                <span className="text-xs text-ink-subtle">{t.settingsPage.exchangeRateHint}</span>
+              </label>
               <div className="flex items-center gap-3">
                 <button
                   type="button"
                   aria-label="Save currency settings"
                   disabled={storeSaveStatus === "saving"}
-                  onClick={() => void saveSettings("store", storeForm, setStoreSaveStatus)}
+                  onClick={() => void saveSettings("store", { ...storeForm, copPerUsd }, setStoreSaveStatus)}
                   className="focus-ring min-h-10 rounded-md border border-border-strong px-3 text-sm font-semibold text-ink hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {storeSaveStatus === "saving" ? t.settingsPage.saving : t.settingsPage.save}

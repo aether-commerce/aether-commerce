@@ -557,7 +557,9 @@ export const adminDictionaries = {
       storeDescription: "Choose the currency used for catalog prices, carts and new orders.",
       currencyLabel: "Currency",
       currencyHint:
-        "Changing currency does not convert existing cent values; it changes how future prices are presented.",
+        "Switching currency restores its saved prices. New COP amounts are rounded to the nearest 100 pesos; existing orders keep their original currency.",
+      exchangeRateLabel: "Fixed rate (COP per USD)",
+      exchangeRateHint: "Used when a price needs converting for the first time. Saved prices keep their exact amounts in each currency.",
       storeName: "Store name",
       accentColor: "Accent color",
       accentColorPicker: "Accent color picker",
@@ -1427,7 +1429,9 @@ export const adminDictionaries = {
         "Elige la moneda usada en los precios del catálogo, carritos y pedidos nuevos.",
       currencyLabel: "Moneda",
       currencyHint:
-        "Cambiar la moneda no convierte los valores existentes en centavos; cambia cómo se presentan los precios futuros.",
+        "Al cambiar de moneda se recuperan sus precios guardados. Los nuevos importes COP se redondean a 100 pesos; los pedidos anteriores conservan su moneda.",
+      exchangeRateLabel: "Tasa fija (COP por USD)",
+      exchangeRateHint: "Se usa al convertir un precio por primera vez. Los precios guardados conservan su importe en cada moneda.",
       storeName: "Nombre de la tienda",
       accentColor: "Color de acento",
       accentColorPicker: "Selector de color de acento",
