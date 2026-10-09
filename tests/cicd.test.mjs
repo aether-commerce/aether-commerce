@@ -60,11 +60,15 @@ test("development deployment never defaults its D1 binding to production", () =>
   assert.doesNotMatch(workflow, /AETHER_D1_DATABASE_NAME:.*aether-production['\"]?\s*\}\}/);
 });
 
-test("production Wompi relay uses a service binding to development", () => {
+test("Wompi sandbox stays isolated to production", () => {
   const config = read("scripts/write-api-wrangler-config.mjs");
   const webhook = read("packages/api-worker/src/routes/webhooks.ts");
-  assert.match(config, /binding: "WOMPI_DEV_API", service: process\.env\.WOMPI_DEV_WORKER_NAME \|\| "aether-api"/);
-  assert.match(webhook, /c\.env\.WOMPI_DEV_API\.fetch\(relayRequest\)/);
+  const development = read(".github/workflows/deploy-development.yml");
+  const production = read(".github/workflows/deploy-production.yml");
+  assert.doesNotMatch(config, /WOMPI_DEV_API|WOMPI_DEV_WEBHOOK_URL/);
+  assert.doesNotMatch(webhook, /WOMPI_DEV_API|WOMPI_DEV_WEBHOOK_URL/);
+  assert.doesNotMatch(development, /WOMPI_(SECRET_KEY|EVENTS_SECRET|PUBLIC_KEY|INTEGRITY_KEY|PRIVATE_KEY|EVENT_KEY)/);
+  assert.match(production, /WOMPI_SECRET_KEY: \$\{\{ secrets\.WOMPI_PRIVATE_KEY \}\}/);
 });
 
 test("package publishing configures a tag author and verifies tags before client notification", () => {

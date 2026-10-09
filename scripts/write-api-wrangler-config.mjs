@@ -47,16 +47,12 @@ const config = {
     APP_ORIGIN_STORE: process.env.APP_ORIGIN_STORE || "",
     APP_ORIGIN_ADMIN: process.env.APP_ORIGIN_ADMIN || "",
     APP_STORE_BASE_PATH: process.env.APP_STORE_BASE_PATH || "",
-    WOMPI_DEV_WEBHOOK_URL: process.env.WOMPI_DEV_WEBHOOK_URL || "",
     GEMINI_MODEL: process.env.GEMINI_MODEL || "gemini-3.5-flash-lite",
     AI_PROVIDER: process.env.AI_PROVIDER || "gemini",
     ADMIN_CHAT_MUTATIONS_ENABLED: process.env.ADMIN_CHAT_MUTATIONS_ENABLED || "true",
     ADMIN_CHAT_MAX_INPUT_CHARACTERS: process.env.ADMIN_CHAT_MAX_INPUT_CHARACTERS || "4000",
     ADMIN_CHAT_PENDING_ACTION_TTL_MINUTES: process.env.ADMIN_CHAT_PENDING_ACTION_TTL_MINUTES || "5",
   },
-  ...(deployEnvironment === "production"
-    ? { services: [{ binding: "WOMPI_DEV_API", service: process.env.WOMPI_DEV_WORKER_NAME || "aether-api" }] }
-    : {}),
   triggers: {
     crons: ["*/5 * * * *"],
   },
