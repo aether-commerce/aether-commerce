@@ -31,7 +31,13 @@ export async function getStoreConfig(env: Env): Promise<RuntimeStoreConfig> {
     const row = await env.DB.prepare("select value_json from application_settings where key = 'store'").first<{ value_json: string }>();
     if (!row) return fallback;
     const value = JSON.parse(row.value_json) as { currency?: unknown };
-    return { ...fallback, currency: value.currency === "COP" ? "COP" : value.currency === "USD" ? "USD" : fallback.currency };
+    const currency = value.currency === "COP" ? "COP" : value.currency === "USD" ? "USD" : fallback.currency;
+    return {
+      ...fallback,
+      currency,
+      locale: currency === "COP" ? "es-CO" : fallback.locale,
+      country: currency === "COP" ? "CO" : fallback.country
+    };
   } catch {
     return fallback;
   }
