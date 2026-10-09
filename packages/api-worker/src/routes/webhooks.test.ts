@@ -105,26 +105,22 @@ describe("POST /webhooks/wompi sandbox routing", () => {
     vi.unstubAllGlobals();
   });
 
-  it("relays a verified development payment from the single sandbox callback to development", async () => {
+  it("rejects a verified development event in production without contacting development", async () => {
     const body = await signedWompiEvent("d_chk_12345678-1234-1234-1234-123456789abc");
-    const relay = vi.fn((_url: string, init: RequestInit) => {
-      expect(init.body).toBe(body);
-      return Promise.resolve(new Response("ok"));
-    });
-    vi.stubGlobal("fetch", relay);
-    const { env } = fakeEnv([{ first: null }], { AETHER_ENV: "production", WOMPI_EVENTS_SECRET: "test_events_1",
-      WOMPI_DEV_WEBHOOK_URL: "https://dev.example.com/api/v1/webhooks/wompi" });
+    const publicFetch = vi.fn();
+    vi.stubGlobal("fetch", publicFetch);
+    const { env, db } = fakeEnv([{ first: null }], { AETHER_ENV: "production", WOMPI_EVENTS_SECRET: "test_events_1" });
     const response = await worker.fetch(new Request("https://api.example.com/api/v1/webhooks/wompi", { method: "POST", body }), env, ctx);
-    expect(response.status).toBe(200);
-    expect(relay).toHaveBeenCalledTimes(1);
+    expect(response.status).toBe(409);
+    expect(publicFetch).not.toHaveBeenCalled();
+    expect(db.prepare).toHaveBeenCalledTimes(1);
   });
 
   it("never relays a Wompi event with a changed signature", async () => {
     const body = (await signedWompiEvent("d_chk_12345678-1234-1234-1234-123456789abc")).replace("APPROVED", "DECLINED");
     const relay = vi.fn();
     vi.stubGlobal("fetch", relay);
-    const { env } = fakeEnv([{ first: null }], { AETHER_ENV: "production", WOMPI_EVENTS_SECRET: "test_events_1",
-      WOMPI_DEV_WEBHOOK_URL: "https://dev.example.com/api/v1/webhooks/wompi" });
+    const { env } = fakeEnv([{ first: null }], { AETHER_ENV: "production", WOMPI_EVENTS_SECRET: "test_events_1" });
     const response = await worker.fetch(new Request("https://api.example.com/api/v1/webhooks/wompi", { method: "POST", body }), env, ctx);
     expect(response.status).toBe(401);
     expect(relay).not.toHaveBeenCalled();
