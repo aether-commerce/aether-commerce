@@ -1,5 +1,11 @@
 # @aether-commerce/i18n
 
+## 0.3.5
+
+### Patch Changes
+
+- dc140a6: Save separate USD and COP prices when an operator switches the store currency. Convert new COP amounts at a fixed rate with peso rounding, restore saved USD amounts exactly, and keep shipping and coupon amounts aligned with the selected currency. Keep checkout copy accurate for either configured payment provider.
+
 ## 0.3.4
 
 ### Patch Changes
