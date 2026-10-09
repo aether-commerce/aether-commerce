@@ -8,3 +8,11 @@ describe("admin product image guidance", () => {
     expect(ADMIN_CHAT_SYSTEM_PROMPT.text).toContain("do not claim an Aether package update changes a client's custom introduction animation");
   });
 });
+
+describe("admin Wompi environment guidance", () => {
+  it("keeps sandbox Wompi in production and checks store currency before recommending it", () => {
+    expect(ADMIN_CHAT_SYSTEM_PROMPT.text).toContain("development deployment has no Wompi credentials");
+    expect(ADMIN_CHAT_SYSTEM_PROMPT.text).toContain("production deployment uses Wompi sandbox");
+    expect(ADMIN_CHAT_SYSTEM_PROMPT.text).toContain("Wompi accepts COP only");
+  });
+});
