@@ -4,7 +4,7 @@ import { ExternalServiceError, OBSERVABILITY_EVENTS } from "@aether-commerce/cor
 import { parseStripeWebhookPayload, parseWompiWebhookPayload } from "@aether-commerce/api-core";
 import { fail, ok } from "../http";
 import { verifyStripeSignature, mapStripeSessionToPaidCheckoutSession } from "../services/stripe";
-import { verifyWompiSignature, mapWompiTransactionToPaidCheckoutSession } from "../services/wompi";
+import { verifyWompiSignature, mapWompiTransactionToPaidCheckoutSession, enrichWompiSessionFromSnapshot, wompiReferenceEnvironment } from "../services/wompi";
 import { createOrderFromPaidSession } from "../services/orders";
 import { syncChargeRefunded, syncDisputeCreated, syncRefundUpdated } from "../services/payment-sync";
 import { resolveCheckoutSettings } from "../services/checkout-provider";
@@ -128,6 +128,23 @@ webhookRoutes.post("/wompi", async (c) => {
   }
 
   const transaction = payload.data?.transaction;
+  const referenceEnvironment = wompiReferenceEnvironment(transaction?.reference);
+  if (c.env.AETHER_ENV === "production" && referenceEnvironment === "development") {
+    const relayUrl = c.env.WOMPI_DEV_WEBHOOK_URL;
+    if (!relayUrl || !relayUrl.startsWith("https://")) {
+      return fail(c, 503, "WOMPI_RELAY_NOT_CONFIGURED", "Development Wompi webhook relay is not configured.");
+    }
+    try {
+      const response = await fetch(relayUrl, { method: "POST", headers: { "content-type": "application/json" }, body });
+      if (!response.ok) return fail(c, 502, "WOMPI_RELAY_FAILED", "Development Wompi webhook did not accept the event.");
+      return ok(c, { received: true, relayed: true });
+    } catch {
+      return fail(c, 502, "WOMPI_RELAY_FAILED", "Development Wompi webhook is unavailable.");
+    }
+  }
+  if (referenceEnvironment && referenceEnvironment !== (c.env.AETHER_ENV === "production" ? "production" : "development")) {
+    return fail(c, 409, "WOMPI_ENVIRONMENT_MISMATCH", "Wompi event belongs to another environment.");
+  }
   const eventId = `${transaction?.id ?? payload.event}:${payload.timestamp ?? "unknown"}:${payload.signature?.checksum ?? "unknown"}`;
 
   const { shouldProcess } = await recordWebhookReceived(c.env, {
@@ -148,7 +165,7 @@ webhookRoutes.post("/wompi", async (c) => {
   let orderCreated = false;
   try {
     if (payload.event === "transaction.updated" && transaction) {
-      const session = mapWompiTransactionToPaidCheckoutSession(transaction);
+      const session = await enrichWompiSessionFromSnapshot(c.env, mapWompiTransactionToPaidCheckoutSession(transaction));
       if (session.status === "paid") {
         const result = await createOrderFromPaidSession(c.env, session, "wompi");
         orderCreated = result.created;

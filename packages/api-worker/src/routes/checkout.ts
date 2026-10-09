@@ -62,7 +62,8 @@ checkoutRoutes.post(
     if (c.env.AETHER_ENV === "production") {
       if (!idempotencyKey) return fail(c, 400, "IDEMPOTENCY_KEY_REQUIRED", "A checkout request key is required.");
       const active = settings[mode];
-      if (!active.secretKey || !active.webhookSecret) {
+      if (!active.secretKey || !active.webhookSecret ||
+          (mode === "wompi" && (!c.env.WOMPI_PUBLIC_KEY || !c.env.WOMPI_INTEGRITY_KEY))) {
         return fail(c, 503, "CHECKOUT_NOT_CONFIGURED", "Payments are not configured for this store.");
       }
       const shipping = await createShippingSettingsService(c.env.DB).get(defaultShippingSettings);
@@ -95,14 +96,9 @@ checkoutRoutes.post(
           : {})
       });
       const customerEmail = await resolveActorEmail(c.env, actor);
-      // Every provider gets an immutable checkout snapshot
-      // (services/checkout-snapshots.ts) - order creation only ever trusts
-      // this snapshot, never the live (still-editable) cart, so a shopper
-      // can't alter their cart after the price is quoted and before payment
-      // clears. Stripe gets session.sessionId back immediately and binds it
-      // here; Wompi's payment_links API has no such hook, so its adapter
-      // instead threads the snapshot id through the reference field itself
-      // (see wompiReference) and the webhook recovers it from there.
+      // Every provider gets an immutable checkout snapshot. Stripe binds its
+      // returned session id here; Wompi Web Checkout carries the snapshot id
+      // in its signed reference and resolves it on return or webhook.
       const snapshot = await createCheckoutSnapshot(c.env, checkoutCart, userId);
       const session = await provider.createCheckoutSession(checkoutCart, customerEmail, snapshot.id);
       if (session.sessionId) {

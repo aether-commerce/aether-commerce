@@ -42,6 +42,7 @@ jobs:
       APP_ORIGIN_STORE: ${{ vars.APP_ORIGIN_STORE }}
       APP_ORIGIN_ADMIN: ${{ vars.APP_ORIGIN_ADMIN }}
       APP_STORE_BASE_PATH: ""
+      WOMPI_DEV_WEBHOOK_URL: ${{ vars.WOMPI_DEV_WEBHOOK_URL }}
       NEXT_PUBLIC_AETHER_API_URL: ${{ vars.NEXT_PUBLIC_AETHER_API_URL }}
       NEXT_PUBLIC_AETHER_STOREFRONT_URL: ${{ vars.NEXT_PUBLIC_AETHER_STOREFRONT_URL }}
       NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION: ${{ vars.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION }}
@@ -111,8 +112,10 @@ jobs:
           CLERK_WEBHOOK_SECRET: ${{ secrets.CLERK_WEBHOOK_SECRET }}
           STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
           STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
-          WOMPI_SECRET_KEY: ${{ secrets.WOMPI_SECRET_KEY }}
-          WOMPI_EVENTS_SECRET: ${{ secrets.WOMPI_EVENTS_SECRET }}
+          WOMPI_SECRET_KEY: ${{ secrets.WOMPI_PRIVATE_KEY }}
+          WOMPI_EVENTS_SECRET: ${{ secrets.WOMPI_EVENT_KEY }}
+          WOMPI_PUBLIC_KEY: ${{ secrets.WOMPI_PUBLIC_KEY }}
+          WOMPI_INTEGRITY_KEY: ${{ secrets.WOMPI_INTEGRITY_KEY }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           CONTACT_RECIPIENT_EMAIL: ${{ secrets.CONTACT_RECIPIENT_EMAIL }}
           CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
@@ -125,7 +128,7 @@ jobs:
         run: |
           umask 077
           trap 'rm -f .api-secrets.json' EXIT
-          node -e "const fs=require('fs'); const keys=['AETHER_CART_TOKEN_SECRET','AETHER_SETTINGS_ENCRYPTION_KEY','CLERK_SECRET_KEY','CLERK_JWT_ISSUER','CLERK_WEBHOOK_SECRET','STRIPE_SECRET_KEY','STRIPE_WEBHOOK_SECRET','WOMPI_SECRET_KEY','WOMPI_EVENTS_SECRET','RESEND_API_KEY','CONTACT_RECIPIENT_EMAIL','CLOUDINARY_CLOUD_NAME','CLOUDINARY_API_KEY','CLOUDINARY_API_SECRET','GEMINI_API_KEY','SENTRY_DSN','SENTRY_ENABLED','SENTRY_ENVIRONMENT']; const out={}; for (const key of keys) if (process.env[key]) out[key]=process.env[key]; fs.writeFileSync('.api-secrets.json', JSON.stringify(out));"
+          node -e "const fs=require('fs'); const keys=['AETHER_CART_TOKEN_SECRET','AETHER_SETTINGS_ENCRYPTION_KEY','CLERK_SECRET_KEY','CLERK_JWT_ISSUER','CLERK_WEBHOOK_SECRET','STRIPE_SECRET_KEY','STRIPE_WEBHOOK_SECRET','WOMPI_SECRET_KEY','WOMPI_EVENTS_SECRET','WOMPI_PUBLIC_KEY','WOMPI_INTEGRITY_KEY','RESEND_API_KEY','CONTACT_RECIPIENT_EMAIL','CLOUDINARY_CLOUD_NAME','CLOUDINARY_API_KEY','CLOUDINARY_API_SECRET','GEMINI_API_KEY','SENTRY_DSN','SENTRY_ENABLED','SENTRY_ENVIRONMENT']; const out={}; for (const key of keys) if (process.env[key]) out[key]=process.env[key]; fs.writeFileSync('.api-secrets.json', JSON.stringify(out));"
           pnpm exec wrangler secret bulk .api-secrets.json --config apps/api/wrangler.production.json
       - name: Deploy AI assistant Worker
         env:

@@ -3,6 +3,7 @@ import type { Env } from "../types";
 import { createCheckoutSettingsService } from "./checkout-settings";
 import { createStripeCheckoutProvider } from "./stripe";
 import { createWompiCheckoutProvider } from "./wompi";
+import { getStoreConfig } from "./store-config";
 
 function credentialsFrom(secretKey: string | undefined, webhookSecret: string | undefined) {
   return {
@@ -45,5 +46,13 @@ export async function resolveActiveCheckoutProvider(env: Env) {
 /** Masked view of effective settings (DB overrides over env vars) for the admin panel. Never exposes plaintext secrets. */
 export async function summarizeCheckoutSettings(env: Env) {
   const service = createCheckoutSettingsService(env.DB, env.AETHER_SETTINGS_ENCRYPTION_KEY);
-  return service.summarize(envFallback(env));
+  const [summary, store] = await Promise.all([service.summarize(envFallback(env)), getStoreConfig(env)]);
+  return {
+    ...summary,
+    wompiCheckout: {
+      publicKeyConfigured: Boolean(env.WOMPI_PUBLIC_KEY),
+      integrityKeyConfigured: Boolean(env.WOMPI_INTEGRITY_KEY),
+      currency: store.currency
+    }
+  };
 }
