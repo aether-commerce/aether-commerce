@@ -90,6 +90,47 @@ function stripeRequest(body: string, signature: string) {
   });
 }
 
+async function signedWompiEvent(reference: string) {
+  const timestamp = Math.floor(Date.now() / 1000);
+  const transaction = { id: "txn_sandbox_1", status: "APPROVED", reference };
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${transaction.id}${transaction.status}${timestamp}test_events_1`));
+  const checksum = [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+  return JSON.stringify({ event: "transaction.updated", data: { transaction }, timestamp,
+    signature: { properties: ["transaction.id", "transaction.status"], checksum }, environment: "test" });
+}
+
+describe("POST /webhooks/wompi sandbox routing", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("relays a verified development payment from the single sandbox callback to development", async () => {
+    const body = await signedWompiEvent("d_chk_12345678-1234-1234-1234-123456789abc");
+    const relay = vi.fn((_url: string, init: RequestInit) => {
+      expect(init.body).toBe(body);
+      return Promise.resolve(new Response("ok"));
+    });
+    vi.stubGlobal("fetch", relay);
+    const { env } = fakeEnv([{ first: null }], { AETHER_ENV: "production", WOMPI_EVENTS_SECRET: "test_events_1",
+      WOMPI_DEV_WEBHOOK_URL: "https://dev.example.com/api/v1/webhooks/wompi" });
+    const response = await worker.fetch(new Request("https://api.example.com/api/v1/webhooks/wompi", { method: "POST", body }), env, ctx);
+    expect(response.status).toBe(200);
+    expect(relay).toHaveBeenCalledTimes(1);
+  });
+
+  it("never relays a Wompi event with a changed signature", async () => {
+    const body = (await signedWompiEvent("d_chk_12345678-1234-1234-1234-123456789abc")).replace("APPROVED", "DECLINED");
+    const relay = vi.fn();
+    vi.stubGlobal("fetch", relay);
+    const { env } = fakeEnv([{ first: null }], { AETHER_ENV: "production", WOMPI_EVENTS_SECRET: "test_events_1",
+      WOMPI_DEV_WEBHOOK_URL: "https://dev.example.com/api/v1/webhooks/wompi" });
+    const response = await worker.fetch(new Request("https://api.example.com/api/v1/webhooks/wompi", { method: "POST", body }), env, ctx);
+    expect(response.status).toBe(401);
+    expect(relay).not.toHaveBeenCalled();
+  });
+});
+
 describe("POST /webhooks/stripe", () => {
   beforeEach(() => {
     vi.clearAllMocks();

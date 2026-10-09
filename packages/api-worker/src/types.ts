@@ -24,6 +24,10 @@ export type Env = {
   STRIPE_WEBHOOK_SECRET?: string;
   WOMPI_SECRET_KEY?: string;
   WOMPI_EVENTS_SECRET?: string;
+  WOMPI_PUBLIC_KEY?: string;
+  WOMPI_INTEGRITY_KEY?: string;
+  /** Signed sandbox Wompi events for development are relayed here by production. */
+  WOMPI_DEV_WEBHOOK_URL?: string;
   RESEND_API_KEY?: string;
   CONTACT_RECIPIENT_EMAIL?: string;
   CLOUDINARY_CLOUD_NAME?: string;
