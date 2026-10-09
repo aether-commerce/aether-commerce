@@ -21,7 +21,7 @@ export function useCheckoutOptions(): CheckoutOptions | null {
         if (!cancelled && payload.success && payload.data) setCheckoutOptions(payload.data);
       })
       .catch(() => {
-        // Stripe stays the safe default if this read fails - never silently
+        // Online checkout stays the safe default if this read fails - never silently
         // switch a shopper into a mode with no working checkout.
       });
     return () => {

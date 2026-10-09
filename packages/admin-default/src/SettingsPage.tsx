@@ -347,7 +347,7 @@ export function SettingsPage() {
                   }
                   className="focus-ring min-h-10 rounded-md border border-border bg-surface px-3 text-ink"
                 >
-                  <option value="stripe">Stripe</option>
+                  <option value="stripe">{t.settingsPage.onlinePaymentOption}</option>
                   <option value="whatsapp">WhatsApp</option>
                 </select>
               </label>
