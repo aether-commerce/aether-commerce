@@ -557,7 +557,9 @@ export const adminDictionaries = {
       storeDescription: "Choose the currency used for catalog prices, carts and new orders.",
       currencyLabel: "Currency",
       currencyHint:
-        "Changing currency does not convert existing cent values; it changes how future prices are presented.",
+        "Switching currency restores its saved prices. New COP amounts are rounded to the nearest 100 pesos; existing orders keep their original currency.",
+      exchangeRateLabel: "Fixed rate (COP per USD)",
+      exchangeRateHint: "Used when a price needs converting for the first time. Saved prices keep their exact amounts in each currency.",
       storeName: "Store name",
       accentColor: "Accent color",
       accentColorPicker: "Accent color picker",
@@ -575,8 +577,9 @@ export const adminDictionaries = {
       brandSaveError: "Could not save - check the color format and your permissions.",
       checkoutMethodSection: "Checkout method",
       checkoutMethodDescription:
-        "Stripe runs the normal sandbox checkout. WhatsApp sends shoppers to a chat with the sales number instead.",
+        "Online payment uses the provider selected in Integrations. WhatsApp sends shoppers to a chat with the sales number instead.",
       paymentMethod: "Payment method",
+      onlinePaymentOption: "Online payment",
       salesWhatsappNumber: "Sales WhatsApp number",
       whatsappNumberHint: "Select the country, then type the local number - no spaces or dashes.",
       checkoutSaveError: "Could not save - check the number format and your permissions.",
@@ -585,7 +588,7 @@ export const adminDictionaries = {
         "Charge a flat shipping fee at checkout. Only asks the shopper for a delivery address when this is on and payment isn't WhatsApp (shipping is arranged directly over chat there).",
       shippingEnabledLabel: "Charge for shipping",
       shippingAmount: "Shipping cost",
-      shippingAmountAriaLabel: "Shipping cost in dollars",
+      shippingAmountAriaLabel: "Shipping cost in the selected currency",
       genericSaveError: "Could not save - check your permissions.",
       cartReservationsSection: "Cart reservations",
       cartReservationsDescription:
@@ -1427,7 +1430,9 @@ export const adminDictionaries = {
         "Elige la moneda usada en los precios del catálogo, carritos y pedidos nuevos.",
       currencyLabel: "Moneda",
       currencyHint:
-        "Cambiar la moneda no convierte los valores existentes en centavos; cambia cómo se presentan los precios futuros.",
+        "Al cambiar de moneda se recuperan sus precios guardados. Los nuevos importes COP se redondean a 100 pesos; los pedidos anteriores conservan su moneda.",
+      exchangeRateLabel: "Tasa fija (COP por USD)",
+      exchangeRateHint: "Se usa al convertir un precio por primera vez. Los precios guardados conservan su importe en cada moneda.",
       storeName: "Nombre de la tienda",
       accentColor: "Color de acento",
       accentColorPicker: "Selector de color de acento",
@@ -1445,8 +1450,9 @@ export const adminDictionaries = {
       brandSaveError: "No se pudo guardar - revisa el formato del color y tus permisos.",
       checkoutMethodSection: "Método de checkout",
       checkoutMethodDescription:
-        "Stripe usa el checkout sandbox normal. WhatsApp envía a los compradores a un chat con el número de ventas en su lugar.",
+        "El pago en línea usa el proveedor seleccionado en Integraciones. WhatsApp envía a los compradores a un chat con el número de ventas.",
       paymentMethod: "Método de pago",
+      onlinePaymentOption: "Pago en línea",
       salesWhatsappNumber: "Número de WhatsApp de ventas",
       whatsappNumberHint: "Selecciona el país y escribe el número local - sin espacios ni guiones.",
       checkoutSaveError: "No se pudo guardar - revisa el formato del número y tus permisos.",
@@ -1455,7 +1461,7 @@ export const adminDictionaries = {
         "Cobra un costo de envío fijo al hacer checkout. Solo se le pide dirección de entrega al comprador cuando esto está activo y el pago no es por WhatsApp (ahí el envío se coordina directamente por chat).",
       shippingEnabledLabel: "Cobrar por el envío",
       shippingAmount: "Costo de envío",
-      shippingAmountAriaLabel: "Costo de envío en dólares",
+      shippingAmountAriaLabel: "Costo de envío en la moneda seleccionada",
       genericSaveError: "No se pudo guardar - revisa tus permisos.",
       cartReservationsSection: "Reservas de carrito",
       cartReservationsDescription:
