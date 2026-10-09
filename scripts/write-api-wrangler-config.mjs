@@ -54,6 +54,9 @@ const config = {
     ADMIN_CHAT_MAX_INPUT_CHARACTERS: process.env.ADMIN_CHAT_MAX_INPUT_CHARACTERS || "4000",
     ADMIN_CHAT_PENDING_ACTION_TTL_MINUTES: process.env.ADMIN_CHAT_PENDING_ACTION_TTL_MINUTES || "5",
   },
+  ...(deployEnvironment === "production"
+    ? { services: [{ binding: "WOMPI_DEV_API", service: process.env.WOMPI_DEV_WORKER_NAME || "aether-api" }] }
+    : {}),
   triggers: {
     crons: ["*/5 * * * *"],
   },

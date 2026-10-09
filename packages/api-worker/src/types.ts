@@ -28,6 +28,8 @@ export type Env = {
   WOMPI_INTEGRITY_KEY?: string;
   /** Signed sandbox Wompi events for development are relayed here by production. */
   WOMPI_DEV_WEBHOOK_URL?: string;
+  /** Service binding avoids same-zone Worker-to-Worker fetch failures. */
+  WOMPI_DEV_API?: Fetcher;
   RESEND_API_KEY?: string;
   CONTACT_RECIPIENT_EMAIL?: string;
   CLOUDINARY_CLOUD_NAME?: string;

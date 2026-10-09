@@ -60,6 +60,21 @@ test("development deployment never defaults its D1 binding to production", () =>
   assert.doesNotMatch(workflow, /AETHER_D1_DATABASE_NAME:.*aether-production['\"]?\s*\}\}/);
 });
 
+test("production Wompi relay uses a service binding to development", () => {
+  const config = read("scripts/write-api-wrangler-config.mjs");
+  const webhook = read("packages/api-worker/src/routes/webhooks.ts");
+  assert.match(config, /binding: "WOMPI_DEV_API", service: process\.env\.WOMPI_DEV_WORKER_NAME \|\| "aether-api"/);
+  assert.match(webhook, /c\.env\.WOMPI_DEV_API\.fetch\(relayRequest\)/);
+});
+
+test("package publishing configures a tag author and verifies tags before client notification", () => {
+  const workflow = read(".github/workflows/publish-packages.yml");
+  assert.match(workflow, /fetch-tags: true/);
+  assert.match(workflow, /git config user\.name "github-actions\[bot\]"/);
+  assert.match(workflow, /git show-ref --verify --quiet "refs\/tags\/\$tag"/);
+  assert.ok(workflow.indexOf("- name: Push release tags") < workflow.indexOf("- name: Notify Liminal client"));
+});
+
 test("skipped PR CI cannot cancel a real development deployment", () => {
   const workflow = read(".github/workflows/deploy-development.yml");
   assert.match(workflow, /cancel-in-progress: >-/);

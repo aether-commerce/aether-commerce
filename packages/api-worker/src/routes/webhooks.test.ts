@@ -107,16 +107,19 @@ describe("POST /webhooks/wompi sandbox routing", () => {
 
   it("relays a verified development payment from the single sandbox callback to development", async () => {
     const body = await signedWompiEvent("d_chk_12345678-1234-1234-1234-123456789abc");
-    const relay = vi.fn((_url: string, init: RequestInit) => {
-      expect(init.body).toBe(body);
+    const relay = vi.fn(async (request: Request) => {
+      expect(request.url).toBe("https://dev.example.com/api/v1/webhooks/wompi");
+      expect(await request.text()).toBe(body);
       return Promise.resolve(new Response("ok"));
     });
-    vi.stubGlobal("fetch", relay);
+    const publicFetch = vi.fn();
+    vi.stubGlobal("fetch", publicFetch);
     const { env } = fakeEnv([{ first: null }], { AETHER_ENV: "production", WOMPI_EVENTS_SECRET: "test_events_1",
-      WOMPI_DEV_WEBHOOK_URL: "https://dev.example.com/api/v1/webhooks/wompi" });
+      WOMPI_DEV_WEBHOOK_URL: "https://dev.example.com/api/v1/webhooks/wompi", WOMPI_DEV_API: { fetch: relay } as unknown as Fetcher });
     const response = await worker.fetch(new Request("https://api.example.com/api/v1/webhooks/wompi", { method: "POST", body }), env, ctx);
     expect(response.status).toBe(200);
     expect(relay).toHaveBeenCalledTimes(1);
+    expect(publicFetch).not.toHaveBeenCalled();
   });
 
   it("never relays a Wompi event with a changed signature", async () => {

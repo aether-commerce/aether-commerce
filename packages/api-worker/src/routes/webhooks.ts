@@ -135,7 +135,10 @@ webhookRoutes.post("/wompi", async (c) => {
       return fail(c, 503, "WOMPI_RELAY_NOT_CONFIGURED", "Development Wompi webhook relay is not configured.");
     }
     try {
-      const response = await fetch(relayUrl, { method: "POST", headers: { "content-type": "application/json" }, body });
+      const relayRequest = new Request(relayUrl, { method: "POST", headers: { "content-type": "application/json" }, body });
+      const response = c.env.WOMPI_DEV_API
+        ? await c.env.WOMPI_DEV_API.fetch(relayRequest)
+        : await fetch(relayRequest);
       if (!response.ok) return fail(c, 502, "WOMPI_RELAY_FAILED", "Development Wompi webhook did not accept the event.");
       return ok(c, { received: true, relayed: true });
     } catch {
