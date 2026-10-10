@@ -1,5 +1,11 @@
 # @aether-commerce/migrations
 
+## 0.4.1
+
+### Patch Changes
+
+- 4379a26: Normalize legacy SQLite product timestamps, repair existing product dates, and distinguish catalog outages from empty search results.
+
 ## 0.4.0
 
 ### Minor Changes

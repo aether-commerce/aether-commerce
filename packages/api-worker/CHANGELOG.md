@@ -1,5 +1,11 @@
 # @aether-commerce/api-worker
 
+## 0.7.1
+
+### Patch Changes
+
+- 4379a26: Normalize legacy SQLite product timestamps, repair existing product dates, and distinguish catalog outages from empty search results.
+
 ## 0.7.0
 
 ### Minor Changes
