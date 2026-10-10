@@ -68,14 +68,14 @@ function orderNumber(sessionId: string) {
 // - either shipping was disabled (so /checkout's address step never ran) or
 // the storefront checkout button skipped straight to the payment provider
 // (WhatsApp orders don't reach this function at all - see createManualOrder).
-function demoShippingAddress(env: Env, email: string): Address {
+function demoShippingAddress(env: Env, email: string, currency: string): Address {
   return {
     fullName: email.split("@")[0] || `${env.BRAND_NAME ?? "Aether"} Customer`,
     line1: "Sandbox checkout",
     city: "Demo City",
     region: "Demo",
     postalCode: "00000",
-    country: getRuntimeStoreConfig(env).country
+    country: currency === "COP" ? "CO" : getRuntimeStoreConfig(env).country
   };
 }
 
@@ -161,7 +161,7 @@ export async function createOrderFromPaidSession(env: Env, session: PaidCheckout
     fulfillmentStatus: "unfulfilled",
     items: cart.items,
     totals: { ...cart.totals, total, currency },
-    shippingAddress: cart.shippingAddress ?? demoShippingAddress(env, email),
+    shippingAddress: cart.shippingAddress ?? demoShippingAddress(env, email, currency),
     payment: {
       provider,
       providerSessionId: session.id,
@@ -315,7 +315,7 @@ export async function createManualOrder(
     fulfillmentStatus: "unfulfilled",
     items,
     totals: { subtotal, discount: 0, shipping: 0, tax: 0, total: subtotal, currency },
-    shippingAddress: demoShippingAddress(env, input.email),
+    shippingAddress: demoShippingAddress(env, input.email, currency),
     internalNotes: input.notes ?? null,
     tracking: null,
     createdAt: now,

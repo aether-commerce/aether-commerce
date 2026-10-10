@@ -155,8 +155,8 @@ export const dictionaries = {
     lastChanceDescription: "Limited stock - once it's gone, it's gone.",
     benefitsHeading: "Why shop at {brand}",
     benefits: [
-      ["Secure Stripe sandbox checkout", "Every order runs through a real Stripe test-mode payment flow."],
-      ["Simulated international shipping", "Rates and timelines modeled on real cross-border delivery."],
+      ["Secure online checkout", "Payment details are handled by the store's configured provider."],
+      ["Clear delivery costs", "Any shipping charge is shown before you pay."],
       ["Warranty & easy returns", "Clear return windows sourced straight from each product's data."],
       ["Personal shopping support", "Ask the assistant for recommendations, comparisons, or order help."]
     ],
@@ -261,7 +261,7 @@ export const dictionaries = {
     lowStockCountPlural: "{count} left in stock",
     lowStockGeneric: "Low stock",
     homeHighlights: [
-      ["Worker-owned checkout", "Prices and inventory are recalculated server-side before Stripe test checkout."],
+      ["Worker-owned checkout", "Prices and inventory are recalculated server-side before payment."],
       ["Bilingual support", "English and Spanish copy is centralized so pages do not mix languages."],
       ["Quality catalog", "External products are cleaned, filtered, and normalized before reaching the storefront."]
     ],
@@ -286,11 +286,11 @@ export const dictionaries = {
     },
     checkoutPage: {
       eyebrow: "Checkout",
-      title: "Review before Stripe sandbox",
+      title: "Review before payment",
       highlights: [
         ["Backend totals", "The Worker recalculates prices, coupons, shipping and inventory."],
-        ["Stripe test mode", "Checkout uses sandbox keys only and never processes live payments."],
-        ["Simulated shipping", "Standard, express and priority options are configured in D1."]
+        ["Secure payment", "Your payment is handled by the provider configured for this store."],
+        ["Shipping", "Any delivery charge is included in the total before you continue."]
       ],
       continueFromCart: "Continue from cart"
     },
@@ -454,8 +454,8 @@ export const dictionaries = {
     lastChanceDescription: "Stock limitado - cuando se agota, se agota.",
     benefitsHeading: "Por qué comprar en {brand}",
     benefits: [
-      ["Checkout seguro con Stripe sandbox", "Cada pedido pasa por un flujo real de pago en modo de prueba de Stripe."],
-      ["Envío internacional simulado", "Tarifas y tiempos modelados sobre entregas transfronterizas reales."],
+      ["Pago en línea seguro", "El proveedor configurado por la tienda gestiona los datos del pago."],
+      ["Costo de envío claro", "Cualquier cargo de envío se muestra antes de pagar."],
       ["Garantía y devoluciones fáciles", "Ventanas de devolución claras, tomadas directo de los datos de cada producto."],
       ["Asistencia de compra", "Pide al asistente recomendaciones, comparaciones o ayuda con tu pedido."]
     ],
@@ -560,7 +560,7 @@ export const dictionaries = {
     lowStockCountPlural: "Quedan {count} unidades",
     lowStockGeneric: "Últimas unidades",
     homeHighlights: [
-      ["Checkout controlado por backend", "Precios e inventario se recalculan en el servidor antes del checkout de prueba con Stripe."],
+      ["Checkout controlado por backend", "Precios e inventario se recalculan en el servidor antes del pago."],
       ["Soporte bilingüe", "Los textos en inglés y español están centralizados para evitar mezcla de idiomas."],
       ["Catálogo de calidad", "Los productos externos se limpian, filtran y normalizan antes de mostrarse en tienda."]
     ],
@@ -585,11 +585,11 @@ export const dictionaries = {
     },
     checkoutPage: {
       eyebrow: "Checkout",
-      title: "Revisión antes del checkout de prueba con Stripe",
+      title: "Revisión antes del pago",
       highlights: [
         ["Totales del backend", "El Worker recalcula precios, cupones, envío e inventario."],
-        ["Modo de prueba de Stripe", "El checkout usa solo llaves de sandbox y nunca procesa pagos reales."],
-        ["Envío simulado", "Las opciones estándar, exprés y prioritaria están configuradas en D1."]
+        ["Pago seguro", "El proveedor configurado para esta tienda gestiona tu pago."],
+        ["Envío", "Cualquier cargo de entrega está incluido en el total antes de continuar."]
       ],
       continueFromCart: "Continuar desde el carrito"
     },

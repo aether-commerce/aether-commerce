@@ -75,34 +75,34 @@ export function CheckoutSuccessClient() {
 
   const label =
     state === "confirming"
-      ? "Confirming order"
+      ? "Checking payment"
       : state === "created"
         ? "Order created"
         : state === "existing"
           ? "Order already confirmed"
           : state === "missing-session"
-            ? "Payment confirmed"
+          ? "Unable to verify payment"
             : state === "error"
-              ? "Payment confirmed, order pending"
-              : "Payment confirmed";
+              ? "Payment not confirmed"
+              : "Checkout status";
 
   const body =
     state === "confirming"
-      ? "We are saving your sandbox order in D1."
+      ? "We are checking the payment and saving your order."
       : state === "created"
         ? `Your order${orderNumber ? ` ${orderNumber}` : ""} was saved successfully.`
         : state === "existing"
           ? `Your order${orderNumber ? ` ${orderNumber}` : ""} was already saved.`
           : state === "missing-session"
-            ? "The payment provider returned without a session id. The webhook can still save the order if it is configured."
+            ? "The payment provider returned without a transaction ID. Check your order history before trying again."
             : state === "error"
-              ? "The payment provider approved the payment, but the order could not be confirmed from this page. Check webhook configuration or Worker logs."
-              : "The webhook flow is idempotent and stores payment/order events in D1.";
+              ? "We could not verify the payment or save the order. Check your order history before trying again."
+              : "Your order status will appear here after the payment provider returns.";
 
   return (
     <section className="rounded-lg border border-zinc-200 bg-white p-6">
       <p className="text-sm font-semibold uppercase text-cyan-300">{label}</p>
-      <h1 className="mt-2 text-4xl font-semibold">Sandbox checkout completed</h1>
+      <h1 className="mt-2 text-4xl font-semibold">Checkout status</h1>
       <p className="mt-4 text-zinc-600">{body}</p>
     </section>
   );

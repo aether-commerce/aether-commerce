@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Env } from "../types";
-import { getRuntimeStoreConfig } from "./store-config";
+import { getRuntimeStoreConfig, getStoreConfig } from "./store-config";
 
 describe("getRuntimeStoreConfig", () => {
   it("normalizes configured store values", () => {
@@ -17,5 +17,15 @@ describe("getRuntimeStoreConfig", () => {
       locale: "en-US",
       country: "US"
     });
+  });
+});
+
+describe("getStoreConfig", () => {
+  it("uses Colombian country and locale when the admin selects COP", async () => {
+    const env = {
+      DB: { prepare: () => ({ first: () => Promise.resolve({ value_json: '{"currency":"COP"}' }) }) },
+      STORE_CURRENCY: "USD"
+    } as unknown as Env;
+    expect(await getStoreConfig(env)).toEqual({ currency: "COP", locale: "es-CO", country: "CO" });
   });
 });

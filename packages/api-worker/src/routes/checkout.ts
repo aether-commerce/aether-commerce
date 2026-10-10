@@ -13,7 +13,7 @@ import { verifyCartToken } from "../services/cart-token";
 import { CHECKOUT_EXTENSION_MINUTES, extendCartReservations, upsertActiveReservation } from "../services/inventory";
 import { getProductById } from "../services/catalog";
 import { bindCheckoutSnapshotToSession, createCheckoutSnapshot } from "../services/checkout-snapshots";
-import { getRuntimeStoreConfig } from "../services/store-config";
+import { getStoreConfig } from "../services/store-config";
 import { createShippingSettingsService } from "../services/shipping-settings";
 import { defaultShippingSettings } from "../defaults";
 import { withIdempotency } from "../services/idempotency";
@@ -90,7 +90,7 @@ checkoutRoutes.post(
               shippingAddress: {
                 ...shippingAddress,
                 postalCode: shippingAddress.postalCode || "000000",
-                country: getRuntimeStoreConfig(c.env).country
+                country: (await getStoreConfig(c.env)).country
               }
             }
           : {})
