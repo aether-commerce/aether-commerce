@@ -6,8 +6,7 @@ import { checkoutProviderIds } from "@aether-commerce/api-core";
 import {
   canTransitionFulfillment,
   canTransitionPayment,
-  isValidHexColor,
-  isValidWhatsappNumber
+  isValidHexColor
 } from "@aether-commerce/core";
 import {
   categoryMerchandisingAddSchema,
@@ -28,6 +27,8 @@ import { createCouponService } from "../services/coupons";
 import { computeDashboardSummary } from "../services/dashboard-summary";
 import { createReviewModerationService } from "../services/review-moderation";
 import { createCheckoutSettingsService } from "../services/checkout-settings";
+import { STOREFRONT_CHECKOUT_OPTIONS_KEY } from "../services/checkout-settings-keys";
+import { storefrontCheckoutOptionsSchema } from "../services/storefront-checkout-options";
 import { summarizeCheckoutSettings } from "../services/checkout-provider";
 import {
   createIntegrationSettingsService,
@@ -1507,21 +1508,6 @@ async function saveApplicationSetting(c: Context<AppBindings>, key: string, valu
   });
 }
 
-const checkoutSettingsSchema = z
-  .object({
-    paymentMode: z.enum(["stripe", "whatsapp"]),
-    whatsappNumber: z.string().max(20),
-    whatsappMessageTemplate: z.string().max(500).optional().default("")
-  })
-  .refine(
-    (value) => value.paymentMode !== "whatsapp" || isValidWhatsappNumber(value.whatsappNumber),
-    {
-      message:
-        "whatsappNumber must be digits only with country code (e.g. 573001234567) when paymentMode is whatsapp",
-      path: ["whatsappNumber"]
-    }
-  );
-
 const storeSettingsSchema = z.object({
   currency: z.enum(["USD", "COP"]),
   copPerUsd: z.number().int().min(1).max(100_000).optional()
@@ -1559,10 +1545,10 @@ adminRoutes.patch(
 adminRoutes.patch(
   "/settings/checkout",
   requirePermission("settings.manage"),
-  zValidator("json", checkoutSettingsSchema),
+  zValidator("json", storefrontCheckoutOptionsSchema),
   async (c) => {
     const value = c.req.valid("json");
-    await saveApplicationSetting(c, "checkout", value);
+    await saveApplicationSetting(c, STOREFRONT_CHECKOUT_OPTIONS_KEY, value);
     return ok(c, value);
   }
 );
