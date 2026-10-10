@@ -91,7 +91,7 @@ type AssistantProduct = {
   name: string;
   description: string | null;
   price: string;
-  currency: "USD";
+  currency: string;
   image_url: string | null;
   product_url: string;
   available: boolean;
@@ -146,7 +146,7 @@ type AssistantRequest = {
   thread_id?: string | null;
   message?: string;
   locale?: string;
-  currency?: "USD";
+  currency?: "USD" | "COP";
   client_context?: {
     current_product_id?: string | null;
     current_product_slug?: string | null;
@@ -1589,16 +1589,25 @@ function isDealsQuery(message: string): boolean {
 // Catalog prices are integer cents. Only an explicit currency/budget marker
 // creates a ceiling: an arbitrary number may be a model, size, or ID.
 function extractExplicitBudgetCents(message: string): number | undefined {
-  const normalized = message
-    .toLowerCase()
+  const normalized = foldText(message)
     .replace(/\s+/g, " ")
-    .replace(/(us\$|usd|d[oó]lares?|dollars?)/g, "$ ");
-  const match = normalized.match(/(?:\$\s*|(?:hasta|menos de|under|below|up to|max(?:imo)?|maximum)\s+)(\d{1,3}(?:[,.]\d{3})*|\d+)(?:\.\d{1,2})?/i);
+    .replace(/(us\$|usd|dolares?|dollars?)/g, "$ ");
+  const match = normalized.match(/(?:\$\s*|(?:hasta|menos de|under|below|up to|maximo|maximum|presupuesto(?: de)?)\s+)(\d+(?:[,.]\d+)*)/i);
   if (!match) return undefined;
   const rawValue = match[1];
   if (!rawValue) return undefined;
-  const value = Number(rawValue.replace(/[,.]/g, ""));
+  const decimal = /[,.]\d{1,2}$/.test(rawValue) && !/^[\d]{1,3}(?:[,.]\d{3})+$/.test(rawValue);
+  const value = Number(decimal
+    ? rawValue.replace(/[,.](?=\d{3}(?:[,.]|$))/g, "").replace(",", ".")
+    : rawValue.replace(/[,.]/g, ""));
   return Number.isFinite(value) && value >= 0 ? Math.round(value * 100) : undefined;
+}
+
+function explicitBudgetCurrency(message: string): "USD" | "COP" | null {
+  const normalized = foldText(message);
+  if (/\b(?:cop|pesos(?: colombianos?)?)\b/.test(normalized)) return "COP";
+  if (/\b(?:usd|dolares?|dollars?)\b|us\$/.test(normalized)) return "USD";
+  return null;
 }
 
 async function searchProducts(
@@ -2151,7 +2160,7 @@ async function fetchCart(
         )
       : 0,
     subtotal: String(Number(cart.totals?.subtotal || 0) / 100),
-    currency: "USD",
+    currency: primitiveString(cart.totals?.currency, "USD").toUpperCase(),
     items: cart.items || []
   };
 }
@@ -2312,7 +2321,7 @@ function toCartSummary(payload: unknown): Record<string, unknown> | null {
         )
       : 0,
     subtotal: String(Number(data.totals?.subtotal || 0) / 100),
-    currency: "USD",
+    currency: primitiveString(data.totals?.currency, "USD").toUpperCase(),
     items: data.items || []
   };
 }
@@ -2370,9 +2379,9 @@ function toAssistantProduct(input: unknown): AssistantProduct | null {
     description:
       primitiveString(product.shortDescription) || primitiveString(product.description) || null,
     price: String(Number(product.finalPrice ?? product.price ?? 0) / 100),
-    currency: "USD",
+    currency: primitiveString(product.currency, "USD").toUpperCase(),
     image_url: primitiveString(image?.url) || primitiveString(product.thumbnail) || null,
-    product_url: `/products/detail?slug=${encodeURIComponent(slug)}`,
+    product_url: `/products/${encodeURIComponent(slug)}/`,
     available: Number(product.availableStock || 0) > 0,
     color: primitiveString(attributes?.color) || null,
     size: primitiveString(attributes?.size) || null,
@@ -4425,10 +4434,143 @@ const HEURISTIC_SHORT_CIRCUIT_INTENTS: Partial<
   GET_FAVORITES: runGetFavorites
 };
 
+function displayProductPrice(product: AssistantProduct, locale: string): string {
+  const amount = Number(product.price);
+  const formatted = new Intl.NumberFormat(locale, {
+    minimumFractionDigits: product.currency === "COP" ? 0 : 2,
+    maximumFractionDigits: product.currency === "COP" ? 0 : 2
+  }).format(amount);
+  return `${formatted} ${product.currency}`;
+}
+
+function displayAvailability(available: boolean, language: AssistantLanguage): string {
+  return available
+    ? localize(language, { es: "Disponible", en: "Available", fr: "Disponible", it: "Disponibile" })
+    : localize(language, { es: "Agotado", en: "Out of stock", fr: "Épuisé", it: "Esaurito" });
+}
+
+async function catalogProductsForNamedLookup(env: Env): Promise<AssistantProduct[]> {
+  const catalogPage = (page: number) => {
+    const url = new URL("/api/v1/catalog/products", env.AETHER_API_BASE_URL);
+    url.searchParams.set("page", String(page));
+    url.searchParams.set("pageSize", "60");
+    url.searchParams.set("sort", "name");
+    return url;
+  };
+  const first = await apiFetch(env, catalogPage(1), undefined, 5000);
+  if (!first.ok) return [];
+  const firstPayload = await first.json<{ data?: unknown[]; pagination?: { pageCount?: number } }>();
+  const pageCount = Math.min(10, Math.max(1, Number(firstPayload.pagination?.pageCount || 1)));
+  const pages = await Promise.all(
+    Array.from({ length: pageCount - 1 }, (_, index) => apiFetch(env, catalogPage(index + 2), undefined, 5000))
+  );
+  const rest = await Promise.all(
+    pages.map(async (response) => response.ok ? (await response.json<{ data?: unknown[] }>()).data || [] : [])
+  );
+  return [...(firstPayload.data || []), ...rest.flat()]
+    .map(toAssistantProduct)
+    .filter((product): product is AssistantProduct => product !== null);
+}
+
+function namedProductsInMessage(message: string, products: AssistantProduct[]): AssistantProduct[] {
+  const text = foldText(message).replace(/\s+/g, " ");
+  const matches = products
+    .map((product) => {
+      const name = foldText(product.name).replace(/\s+/g, " ");
+      return { product, start: text.indexOf(name), length: name.length };
+    })
+    .filter((match) => match.start >= 0)
+    .sort((a, b) => b.length - a.length);
+  const selected: typeof matches = [];
+  for (const match of matches) {
+    if (selected.some((other) => match.start < other.start + other.length && other.start < match.start + match.length)) continue;
+    selected.push(match);
+  }
+  return selected.sort((a, b) => a.start - b.start).map((match) => match.product);
+}
+
+async function catalogPurchaseShortCircuit(
+  ctx: AgentGraphData,
+  message: string
+): Promise<AssistantResponse | null> {
+  const normalized = foldText(message);
+  const budgetCents = extractExplicitBudgetCents(message);
+  const storeCurrency = ctx.body.currency;
+  const requestedCurrency = explicitBudgetCurrency(message);
+  if (budgetCents !== undefined && requestedCurrency && storeCurrency && requestedCurrency !== storeCurrency) {
+    const clarification = localize(ctx.language, {
+      es: `Los precios de esta tienda están en ${storeCurrency}. Indícame tu presupuesto en ${storeCurrency} para compararlo sin una conversión incierta.`,
+      en: `This store uses ${storeCurrency}. Please state your budget in ${storeCurrency} so I can compare it accurately.`,
+      fr: `Cette boutique utilise ${storeCurrency}. Indiquez votre budget en ${storeCurrency} pour une comparaison exacte.`,
+      it: `Questo negozio usa ${storeCurrency}. Indica il budget in ${storeCurrency} per un confronto corretto.`
+    });
+    return responsePayload(ctx.requestId, ctx.threadId, clarification, "SEARCH_PRODUCTS", ctx.language, [], null, "ASK_CLARIFICATION", "PENDING");
+  }
+
+  if (budgetCents !== undefined && /\b(?:dos|two|2)\b|\bpareja\b/.test(normalized) && /\b(?:total|suman|combined|together|pareja)\b/.test(normalized)) {
+    const url = new URL("/api/v1/catalog/products", ctx.env.AETHER_API_BASE_URL);
+    url.searchParams.set("page", "1");
+    url.searchParams.set("pageSize", "60");
+    url.searchParams.set("sort", "price_asc");
+    url.searchParams.set("inStock", "true");
+    url.searchParams.set("maxPrice", String(budgetCents));
+    const category = matchCategorySynonym(message);
+    if (category?.slugs.length === 1) url.searchParams.set("category", category.slugs[0] as string);
+    const candidates = (await fetchAssistantProducts(ctx.env, url))
+      .filter((product) => product.available && (!storeCurrency || product.currency === storeCurrency));
+    const first = candidates[0];
+    const second = candidates.find((product) => product.product_id !== first?.product_id);
+    const totalCents = first && second
+      ? Math.round(Number(first.price) * 100) + Math.round(Number(second.price) * 100)
+      : Infinity;
+    if (!first || !second || totalCents > budgetCents) {
+      const noPair = localize(ctx.language, {
+        es: "No encontré dos productos distintos y disponibles cuyo total esté dentro de ese presupuesto.",
+        en: "I could not find two distinct available products within that total budget.",
+        fr: "Je n'ai pas trouvé deux produits distincts et disponibles dans ce budget total.",
+        it: "Non ho trovato due prodotti diversi e disponibili entro il budget totale."
+      });
+      return responsePayload(ctx.requestId, ctx.threadId, noPair, "RECOMMEND_PRODUCTS", ctx.language);
+    }
+    const total = displayProductPrice({ ...first, price: String(totalCents / 100) }, ctx.locale);
+    const answer = localize(ctx.language, {
+      es: `${first.name}: ${displayProductPrice(first, ctx.locale)}; ${second.name}: ${displayProductPrice(second, ctx.locale)}. Total de ambos: ${total}.`,
+      en: `${first.name}: ${displayProductPrice(first, ctx.locale)}; ${second.name}: ${displayProductPrice(second, ctx.locale)}. Combined total: ${total}.`,
+      fr: `${first.name} : ${displayProductPrice(first, ctx.locale)} ; ${second.name} : ${displayProductPrice(second, ctx.locale)}. Total : ${total}.`,
+      it: `${first.name}: ${displayProductPrice(first, ctx.locale)}; ${second.name}: ${displayProductPrice(second, ctx.locale)}. Totale: ${total}.`
+    });
+    return responsePayload(ctx.requestId, ctx.threadId, answer, "RECOMMEND_PRODUCTS", ctx.language, [first, second]);
+  }
+
+  const comparison = /\b(?:compara|comparar|compare|versus|vs|diferencias?)\b/.test(normalized);
+  const priceQuestion = /\b(?:precio|cuanto cuesta|cuanto vale|cost|price)\b/.test(normalized);
+  if (!comparison && !priceQuestion) return null;
+  const products = namedProductsInMessage(message, await catalogProductsForNamedLookup(ctx.env));
+  if (comparison && products.length >= 2) {
+    const selected = products.slice(0, 3);
+    const details = selected.map((product) => `${product.name}: ${displayProductPrice(product, ctx.locale)} (${displayAvailability(product.available, ctx.language)})`).join("; ");
+    const totalCents = selected.reduce((sum, product) => sum + Math.round(Number(product.price) * 100), 0);
+    const totalLabel = localize(ctx.language, { es: "Total", en: "Total", fr: "Total", it: "Totale" });
+    const total = /\b(?:total|suman|sum|combined)\b/.test(normalized)
+      && selected.every((product) => product.currency === selected[0]?.currency)
+      ? ` ${totalLabel}: ${displayProductPrice({ ...selected[0]!, price: String(totalCents / 100) }, ctx.locale)}.`
+      : "";
+    return responsePayload(ctx.requestId, ctx.threadId, `${details}.${total}`, "COMPARE_PRODUCTS", ctx.language, selected);
+  }
+  if (priceQuestion && products.length === 1) {
+    const product = products[0]!;
+    const answer = `${product.name}: ${displayProductPrice(product, ctx.locale)}. ${displayAvailability(product.available, ctx.language)}.`;
+    return responsePayload(ctx.requestId, ctx.threadId, answer, "GET_PRODUCT_DETAILS", ctx.language, [product]);
+  }
+  return null;
+}
+
 async function tryHeuristicShortCircuit(
   ctx: AgentGraphData,
   message: string
 ): Promise<AssistantResponse | null> {
+  const purchaseAnswer = await catalogPurchaseShortCircuit(ctx, message);
+  if (purchaseAnswer) return purchaseAnswer;
   const heuristic = heuristicIntent(message, ctx.locale);
   // A suggested "Buscar ofertas" reply is a complete filter request, not a
   // conversational question. Execute it deterministically so a model cannot
