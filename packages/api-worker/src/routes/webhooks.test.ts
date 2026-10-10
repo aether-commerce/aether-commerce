@@ -109,18 +109,18 @@ describe("POST /webhooks/wompi sandbox routing", () => {
     const body = await signedWompiEvent("d_chk_12345678-1234-1234-1234-123456789abc");
     const publicFetch = vi.fn();
     vi.stubGlobal("fetch", publicFetch);
-    const { env, db } = fakeEnv([{ first: null }], { AETHER_ENV: "production", WOMPI_EVENTS_SECRET: "test_events_1" });
+    const { env, db } = fakeEnv([], { AETHER_ENV: "production", WOMPI_EVENTS_SECRET: "test_events_1" });
     const response = await worker.fetch(new Request("https://api.example.com/api/v1/webhooks/wompi", { method: "POST", body }), env, ctx);
     expect(response.status).toBe(409);
     expect(publicFetch).not.toHaveBeenCalled();
-    expect(db.prepare).toHaveBeenCalledTimes(1);
+    expect(db.prepare).not.toHaveBeenCalled();
   });
 
   it("never relays a Wompi event with a changed signature", async () => {
     const body = (await signedWompiEvent("d_chk_12345678-1234-1234-1234-123456789abc")).replace("APPROVED", "DECLINED");
     const relay = vi.fn();
     vi.stubGlobal("fetch", relay);
-    const { env } = fakeEnv([{ first: null }], { AETHER_ENV: "production", WOMPI_EVENTS_SECRET: "test_events_1" });
+    const { env } = fakeEnv([], { AETHER_ENV: "production", WOMPI_EVENTS_SECRET: "test_events_1" });
     const response = await worker.fetch(new Request("https://api.example.com/api/v1/webhooks/wompi", { method: "POST", body }), env, ctx);
     expect(response.status).toBe(401);
     expect(relay).not.toHaveBeenCalled();
@@ -143,20 +143,18 @@ describe("POST /webhooks/stripe", () => {
   });
 
   it("rejects an invalid signature without ever touching the webhook_events table", async () => {
-    // The webhook secret itself is admin-configurable (checkout-settings, D1
-    // backed) - resolving it costs one read even for a garbage signature.
-    // What still must never happen is any write to webhook_events.
-    const { env, db } = fakeEnv([{ first: null }]);
+    // With no settings encryption key, the env fallback needs no D1 read.
+    // An invalid signature must not write to webhook_events either.
+    const { env, db } = fakeEnv();
     const response = await worker.fetch(stripeRequest("{}", "t=123,v1=deadbeef"), env, ctx);
     expect(response.status).toBe(401);
-    expect(db.prepare).toHaveBeenCalledTimes(1);
+    expect(db.prepare).not.toHaveBeenCalled();
   });
 
   it("records a new event, processes it, and marks it processed", async () => {
     const body = JSON.stringify({ id: "evt_1", type: "checkout.session.completed", data: { object: { id: "cs_1", payment_status: "paid" } } });
     const signature = await signStripe("whsec_test_secret", body);
     const { env, statements } = fakeEnv([
-      { first: null }, // resolveCheckoutSettings: no stored settings, falls back to env
       { run: { changes: 1 } }, // recordWebhookReceived insert - new row
       { run: { changes: 1 } } // markWebhookProcessing update
       // createOrderFromPaidSession is mocked, no D1 call from it
@@ -182,7 +180,6 @@ describe("POST /webhooks/stripe", () => {
     const body = JSON.stringify({ id: "evt_dup", type: "checkout.session.completed", data: { object: { id: "cs_1" } } });
     const signature = await signStripe("whsec_test_secret", body);
     const { env } = fakeEnv([
-      { first: null }, // resolveCheckoutSettings
       { run: { changes: 0 } }, // recordWebhookReceived: already exists
       { run: { changes: 0 } } // not failed/stale, so it cannot be reclaimed
     ]);
@@ -200,7 +197,6 @@ describe("POST /webhooks/stripe", () => {
     const body = JSON.stringify({ id: "evt_retry", type: "checkout.session.completed", data: { object: { id: "cs_1", payment_status: "paid" } } });
     const signature = await signStripe("whsec_test_secret", body);
     const { env } = fakeEnv([
-      { first: null }, // resolveCheckoutSettings
       { run: { changes: 0 } }, // duplicate insert
       { run: { changes: 1 } }, // failed row atomically reclaimed
       { run: { changes: 1 } }, // processing
@@ -219,7 +215,6 @@ describe("POST /webhooks/stripe", () => {
     const body = JSON.stringify({ id: "evt_fail", type: "checkout.session.completed", data: { object: { id: "cs_1", payment_status: "paid" } } });
     const signature = await signStripe("whsec_test_secret", body);
     const { env, statements } = fakeEnv([
-      { first: null }, // resolveCheckoutSettings
       { run: { changes: 1 } },
       { run: { changes: 1 } },
       { run: { changes: 1 } }

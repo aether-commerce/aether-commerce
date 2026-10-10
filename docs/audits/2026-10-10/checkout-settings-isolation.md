@@ -1,0 +1,9 @@
+# Aislamiento de los ajustes de checkout
+
+Fecha: 10 de octubre de 2026. Hallazgo durante la revisión de la integración Wompi.
+
+La ruta pública `GET /api/v1/checkout/options` y la configuración privada de Stripe/Wompi consultaban la misma fila `application_settings.key = 'checkout'`. La ruta devolvía el JSON completo: si la fila contenía credenciales cifradas, podía entregar ese texto cifrado a un visitante sin autenticar. La configuración de «Online payment / WhatsApp» del panel y la de «Integrations» también podían sobrescribirse mutuamente. Esto no demuestra que una clave en texto claro se haya publicado ni que un pago haya fallado, pero sí crea exposición innecesaria del cifrado y riesgo de indisponibilidad del checkout.
+
+La corrección asigna `checkout_options` a las preferencias públicas y `checkout_provider` a las credenciales cifradas. Ambos lectores aceptan la fila antigua solo como respaldo de lectura durante el despliegue gradual. La respuesta pública se reconstruye con los tres campos permitidos y nunca devuelve el JSON original. Las actualizaciones escriben únicamente en la clave nueva de cada dominio. Las pruebas cubren una fila antigua de proveedor, una antigua de preferencias, la convivencia de ambas claves, la escritura del panel, la conservación de secretos Wompi y el flujo existente de webhooks/reembolsos.
+
+Tras desplegar, verificar sin imprimir valores secretos: que `/api/v1/checkout/options` solo contiene `paymentMode`, `whatsappNumber` y `whatsappMessageTemplate`; que Integrations conserva Wompi en modo sandbox; y que cambiar «Settings > Checkout» no cambia la preparación del proveedor. La fila antigua puede retirarse en una migración posterior, una vez que no queden Workers antiguos y se haya confirmado la copia de las preferencias o credenciales que contenga. No eliminarla durante esta transición.

@@ -598,7 +598,7 @@ describe("ADMIN_CHAT_SYSTEM_PROMPT", () => {
   });
 
   it("describes the current AI-assisted product creation flow", () => {
-    expect(ADMIN_CHAT_SYSTEM_PROMPT.version).toBe("2026-10-reversible-currency-v18");
+    expect(ADMIN_CHAT_SYSTEM_PROMPT.version).toBe("2026-10-checkout-settings-isolation-v19");
     expect(ADMIN_CHAT_SYSTEM_PROMPT.text).toMatch(
       /new-product screen begins with the product name and full description/i
     );
