@@ -61,6 +61,22 @@ describe("catalog.normalizeRow", () => {
     expect(product.category.name).toBe("Mobile Accessories");
   });
 
+  it("normalizes SQLite UTC timestamps without changing existing ISO dates", () => {
+    const product = normalizeRow(testEnv, makeProductRow({
+      created_at: "2025-03-10T00:00:00.000Z",
+      updated_at: "2026-10-10 00:41:10"
+    }), "COP");
+
+    expect(product.createdAt).toBe("2025-03-10T00:00:00.000Z");
+    expect(product.updatedAt).toBe("2026-10-10T00:41:10Z");
+    expect(product.lastSyncedAt).toBe(product.updatedAt);
+    expect(product.currency).toBe("COP");
+  });
+
+  it("still rejects malformed product timestamps", () => {
+    expect(() => normalizeRow(testEnv, makeProductRow({ updated_at: "not-a-date" }))).toThrow();
+  });
+
   it("keeps final_price_cents as an integer-cents finalPrice", () => {
     const product = normalizeRow(testEnv, makeProductRow({ final_price_cents: 1900 }));
     expect(product.finalPrice).toBe(1900);
