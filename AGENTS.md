@@ -61,6 +61,12 @@ un changeset pendiente para hacer pasar CI. Los cambios de infraestructura,
 migraciones y contratos deben incluir sus pruebas y ser compatibles con el
 despliegue gradual.
 
+Al modificar `products.created_at` o `products.updated_at` mediante SQL,
+escribir fechas ISO 8601 UTC: `strftime('%Y-%m-%dT%H:%M:%fZ', 'now')`.
+`CURRENT_TIMESTAMP` produce `YYYY-MM-DD HH:MM:SS` y rompe la validación del
+catálogo público. Ver `database/core/README.md` y cubrir toda migración masiva
+de productos con una prueba de lectura del catálogo.
+
 Antes de abrir cada PR, crear un archivo nuevo `.changeset/<nombre>.md` para
 cada cambio que modifique un paquete público de `packages/*` y listar todos los
 paquetes públicos afectados con el nivel `patch`, `minor` o `major` adecuado.

@@ -77,8 +77,19 @@ function flagsFor(row: ProductRow): Product["flags"] {
   return flags;
 }
 
+// SQLite's CURRENT_TIMESTAMP uses "YYYY-MM-DD HH:MM:SS" in UTC, while the
+// public Product contract requires ISO 8601. Accept legacy database values at
+// the read boundary so an SQL maintenance update cannot take down the entire
+// catalog before its migration has reached every environment.
+function normalizeProductTimestamp(value: string): string {
+  const sqliteUtc = /^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2}(?:\.\d+)?)$/.exec(value);
+  return sqliteUtc ? `${sqliteUtc[1]}T${sqliteUtc[2]}Z` : value;
+}
+
 function normalizeRow(env: Env, row: ProductRow, currency: "USD" | "COP" = "USD"): Product {
   const details = JSON.parse(row.details_json) as ProductDetails;
+  const createdAt = normalizeProductTimestamp(row.created_at);
+  const updatedAt = normalizeProductTimestamp(row.updated_at);
   const finalPrice = row.final_price_cents;
   const price = row.compare_at_price_cents ?? finalPrice;
   const discountPercentage = row.compare_at_price_cents
@@ -176,15 +187,15 @@ function normalizeRow(env: Env, row: ProductRow, currency: "USD" | "COP" = "USD"
     seoDescription: details.seoDescription || details.shortDescription.slice(0, 150),
     catalogSource: "local",
     externalStock: null,
-    lastSyncedAt: row.updated_at,
+    lastSyncedAt: updatedAt,
     shippingInformation: null,
     warrantyInformation: null,
     returnPolicy: null,
     minimumOrderQuantity: null,
     weight: null,
     dimensions: null,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at
+    createdAt,
+    updatedAt
   });
 }
 
