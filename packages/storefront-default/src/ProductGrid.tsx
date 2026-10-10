@@ -116,6 +116,8 @@ export function ProductGrid({
 
   const [products, setProducts] = useState<Product[]>(initialProducts ?? []);
   const [loading, setLoading] = useState(!initialProducts);
+  const [catalogError, setCatalogError] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
   const [brands, setBrands] = useState<string[]>([]);
   const [categories, setCategories] = useState<Array<{ slug: string; name: string }>>([]);
   const [addingIds, setAddingIds] = useState<string[]>([]);
@@ -181,8 +183,10 @@ export function ProductGrid({
 
   useEffect(() => {
     const controller = new AbortController();
+    let active = true;
     const timeout = window.setTimeout(() => controller.abort(), catalogApiTimeoutMs);
     setLoading(!initialProducts);
+    setCatalogError(false);
 
     const params = new URLSearchParams({
       page: String(page),
@@ -203,20 +207,28 @@ export function ProductGrid({
     fetch(`${apiBaseUrl}/api/v1/catalog/products?${params.toString()}`, {
       signal: controller.signal
     })
-      .then((response) => response.json())
+      .then((response) => {
+        if (!response.ok) throw new Error("Catalog request failed");
+        return response.json();
+      })
       .then((payload: ApiProducts) => {
-        if (!payload.success) return;
+        if (!active) return;
+        if (!payload.success || !Array.isArray(payload.data)) throw new Error("Invalid catalog response");
         const data = excludeSlug ? payload.data.filter((product) => product.slug !== excludeSlug) : payload.data;
         setProducts(data);
         setPagination(payload.pagination ?? { page, pageSize, total: data.length, pageCount: 1 });
       })
       .catch(() => {
-        // Keep any server-rendered products on a refresh failure. When no
-        // live data exists, the empty state is rendered instead of demo data.
+        // Keep any server-rendered products, but identify the refresh failure
+        // so shoppers never mistake an outage for an empty catalog.
+        if (active) setCatalogError(true);
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (active) setLoading(false);
+      });
 
     return () => {
+      active = false;
       window.clearTimeout(timeout);
       controller.abort();
     };
@@ -237,7 +249,8 @@ export function ProductGrid({
     inStock,
     excludeSlug,
     apiBaseUrl,
-    initialProducts
+    initialProducts,
+    retryKey
   ]);
 
   const favoriteIds = useMemo(() => favorites.map((product) => product.id), [favorites]);
@@ -469,7 +482,17 @@ export function ProductGrid({
         ) : null}
 
         <div>
-          {!compact ? <p className="mb-3 text-sm text-zinc-600">{t.resultsCount.replace("{count}", String(pagination.total))}</p> : null}
+          {!compact && (!catalogError || products.length > 0) ? <p className="mb-3 text-sm text-zinc-600">{t.resultsCount.replace("{count}", String(pagination.total))}</p> : null}
+
+          {catalogError ? (
+            <div role="alert" className="mb-4 rounded-lg border border-rose-200 bg-rose-50 p-6 text-rose-950">
+              <p className="text-lg font-semibold">{t.catalogUnavailableTitle}</p>
+              <p className="mt-2 text-sm">{t.catalogUnavailableDescription}</p>
+              <Button type="button" variant="outline" className="mt-4" onClick={() => setRetryKey((current) => current + 1)}>
+                {t.retry}
+              </Button>
+            </div>
+          ) : null}
 
           {loading && products.length === 0 ? (
             <div className={`grid gap-4 sm:grid-cols-2 ${compact ? "lg:grid-cols-4" : "lg:grid-cols-3 xl:grid-cols-4"}`}>
@@ -477,7 +500,7 @@ export function ProductGrid({
                 <ProductCardSkeleton key={index} />
               ))}
             </div>
-          ) : !loading && products.length === 0 ? (
+          ) : !loading && products.length === 0 && !catalogError ? (
             <div className="rounded-lg border border-zinc-200 bg-white p-8 text-center">
               <p className="text-lg font-semibold text-zinc-950">{t.noResultsTitle}</p>
               <p className="mt-2 text-sm text-zinc-600">{t.noResultsDescription}</p>
@@ -487,7 +510,7 @@ export function ProductGrid({
                 </Button>
               ) : null}
             </div>
-          ) : (
+          ) : products.length > 0 ? (
             <div className={`grid gap-4 sm:grid-cols-2 ${compact ? "lg:grid-cols-4" : "lg:grid-cols-3 xl:grid-cols-4"}`}>
               {products.map((product, index) => (
                 <ProductCard
@@ -507,7 +530,7 @@ export function ProductGrid({
                 />
               ))}
             </div>
-          )}
+          ) : null}
 
           {!compact && pagination.pageCount > 1 ? (
             <div className="mt-6 flex flex-col gap-3 border-t border-zinc-200 pt-5 sm:flex-row sm:items-center sm:justify-between">
