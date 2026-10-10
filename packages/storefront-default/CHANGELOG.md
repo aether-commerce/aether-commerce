@@ -1,5 +1,11 @@
 # @aether-commerce/storefront-default
 
+## 0.5.6
+
+### Patch Changes
+
+- 4379a26: Normalize legacy SQLite product timestamps, repair existing product dates, and distinguish catalog outages from empty search results.
+
 ## 0.5.5
 
 ### Patch Changes
