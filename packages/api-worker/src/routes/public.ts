@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { productQuerySchema } from "@aether-commerce/schemas";
-import { defaultCheckoutSettings, withStorefrontProductImages } from "@aether-commerce/core";
+import { withStorefrontProductImages } from "@aether-commerce/core";
 import { defaultShippingSettings } from "../defaults";
 import type { AppBindings } from "../types";
 import { collection, fail, ok } from "../http";
@@ -11,6 +11,7 @@ import { createPublicReviewService } from "../services/public-reviews";
 import { createShippingSettingsService } from "../services/shipping-settings";
 import { readBrandSettings } from "../services/brand-settings";
 import { getStoreConfig } from "../services/store-config";
+import { readStorefrontCheckoutOptions } from "../services/storefront-checkout-options";
 
 export const publicRoutes = new Hono<AppBindings>();
 
@@ -151,10 +152,7 @@ publicRoutes.get("/shipping/settings", async (c) => {
 // confidentiality risk - the storefront needs it to build the link
 // client-side.
 publicRoutes.get("/checkout/options", async (c) => {
-  const row = await c.env.DB.prepare("select value_json from application_settings where key = 'checkout'").first<{
-    value_json: string;
-  }>();
-  return ok(c, row ? JSON.parse(row.value_json) : defaultCheckoutSettings);
+  return ok(c, await readStorefrontCheckoutOptions(c.env.DB));
 });
 
 publicRoutes.get("/brand", async (c) => {

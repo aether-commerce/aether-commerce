@@ -134,9 +134,45 @@ export function createCartClient(apiBaseUrl: string) {
     return {
       id: cartId,
       items,
-      totals: calculateCartTotals(items),
+      totals: calculateCartTotals(items, undefined, 0, 0, items[0]?.currency || "USD"),
       updatedAt: new Date().toISOString()
     };
+  }
+
+  // Catalog prices can change while a browser keeps an older local cart.
+  // Refresh display prices from public product records without mutating the
+  // server cart; checkout still obtains its authoritative quote from the API.
+  async function refreshLocalCartPrices(): Promise<Cart> {
+    const items = readLocalItems();
+    if (items.length === 0) return readLocalCart();
+    const refreshed = await Promise.all(items.map(async (item) => {
+      try {
+        const response = await fetchCartApi(`${apiBaseUrl}/api/v1/catalog/products/${encodeURIComponent(item.slug)}`);
+        if (!response.ok) return null;
+        const payload = (await response.json()) as { success?: boolean; data?: Product };
+        if (!payload.success || !payload.data) return null;
+        const current = productToCartItem(payload.data, item.variantId);
+        return {
+          ...item,
+          name: current.name,
+          imageUrl: current.imageUrl,
+          unitPrice: current.unitPrice,
+          finalUnitPrice: current.finalUnitPrice,
+          lineTotal: current.finalUnitPrice * item.quantity,
+          currency: current.currency
+        };
+      } catch {
+        return null;
+      }
+    }));
+    // Keep the old cart intact if any item could not be repriced. Mixing COP
+    // and USD in one subtotal would be more misleading than a hidden total.
+    if (refreshed.some((item) => item === null)) return readLocalCart();
+    const currentItems = refreshed.filter((item): item is CartItem => item !== null);
+    if (currentItems.some((item, index) =>
+      item.currency !== items[index]?.currency || item.finalUnitPrice !== items[index]?.finalUnitPrice
+    )) writeLocalItems(currentItems);
+    return readLocalCart();
   }
 
   function saveLocalCartItem(product: Product, variantId?: string) {
@@ -352,6 +388,7 @@ export function createCartClient(apiBaseUrl: string) {
     getCartToken,
     readLocalCart,
     readLocalCartItems,
+    refreshLocalCartPrices,
     replaceLocalCartItems,
     addProductToCart,
     addProductReferenceToCart,

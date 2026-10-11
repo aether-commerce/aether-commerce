@@ -1,5 +1,11 @@
 # @aether-commerce/api-worker
 
+## 0.7.2
+
+### Patch Changes
+
+- 81aaa8f: Separate public checkout method options from encrypted payment-provider settings and prevent the public options route from exposing private settings records.
+
 ## 0.7.1
 
 ### Patch Changes

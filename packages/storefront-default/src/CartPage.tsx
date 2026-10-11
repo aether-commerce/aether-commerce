@@ -27,6 +27,8 @@ export function CartPage() {
     createCheckoutSession,
     readLocalCart,
     readLocalCartItems,
+    refreshLocalCartPrices,
+    replaceLocalCartItems,
     removeProductFromCart,
     syncLocalCartToApi,
     updateCartItemQuantity,
@@ -47,10 +49,14 @@ export function CartPage() {
 
   async function refresh() {
     const id = getCartId();
-    const localCart = readLocalCart(id);
+    const savedCart = readLocalCart(id);
+    const localCart = savedCart.items.some((item) => item.currency !== config.store.currency)
+      ? await refreshLocalCartPrices()
+      : savedCart;
     const hasLocalItems = localCart.items.length > 0;
+    const localCurrencyMatches = localCart.items.every((item) => item.currency === config.store.currency);
 
-    if (hasLocalItems) {
+    if (hasLocalItems && localCurrencyMatches) {
       setCart(localCart);
       setStatus(t.cartSavedLocal);
       setIsLoading(false);
@@ -87,9 +93,10 @@ export function CartPage() {
 
       const nextCart = payload.data?.items.length
         ? payload.data
-        : serverLocalCart.items.length
+        : serverLocalCart.items.length && serverLocalCart.items.every((item) => item.currency === config.store.currency)
           ? serverLocalCart
           : payload.data;
+      if (payload.data?.items.length) replaceLocalCartItems(payload.data.items);
       setCart(nextCart ?? null);
       setStatus(
         payload.data?.items.length
@@ -106,8 +113,9 @@ export function CartPage() {
   useEffect(() => {
     void refresh().catch(() => {
       const localCart = readLocalCart();
-      setCart(localCart);
-      setStatus(localCart.items.length ? t.cartSavedLocal : t.startApiSyncCart);
+      const currentCart = localCart.items.every((item) => item.currency === config.store.currency) ? localCart : null;
+      setCart(currentCart);
+      setStatus(currentCart?.items.length ? t.cartSavedLocal : t.startApiSyncCart);
       setIsLoading(false);
     });
     // Intentionally runs once on mount only - refresh() is stable across renders.

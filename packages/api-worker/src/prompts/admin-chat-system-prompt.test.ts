@@ -23,6 +23,7 @@ describe("admin currency guidance", () => {
     expect(ADMIN_CHAT_SYSTEM_PROMPT.text).toContain("switching back restores saved USD prices");
     expect(ADMIN_CHAT_SYSTEM_PROMPT.text).toContain("changing the currency alone activates Wompi");
     expect(ADMIN_CHAT_SYSTEM_PROMPT.text).toContain("Online payment uses whichever provider is active in Integrations");
+    expect(ADMIN_CHAT_SYSTEM_PROMPT.text).toContain("Checkout method options and provider credentials are saved independently");
     expect(ADMIN_CHAT_SYSTEM_PROMPT.text).toContain("pending, declined or unverifiable payment must never be described as confirmed");
   });
 });

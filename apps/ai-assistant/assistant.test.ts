@@ -62,11 +62,11 @@ function dbWithIntegrationSettings(valueJson: string | null): TestEnv["DB"] {
   } as unknown as TestEnv["DB"];
 }
 
-function assistantRequest(message: string, headers: Record<string, string> = {}) {
+function assistantRequest(message: string, headers: Record<string, string> = {}, currency?: "USD" | "COP") {
   return new Request("https://assistant.example.test/v1/assistant/messages", {
     method: "POST",
     headers: { "content-type": "application/json", ...headers },
-    body: JSON.stringify({ message, locale: "es-CO", privacy_consent: true })
+    body: JSON.stringify({ message, locale: "es-CO", currency, privacy_consent: true })
   });
 }
 
@@ -147,6 +147,78 @@ describe("LangGraph Worker orchestration", () => {
 });
 
 describe("interview regressions", () => {
+  const copProducts = [
+    { id: "cable_usb", slug: "cable-trenzado-usb-c-a-usb-c", name: "Cable Trenzado USB-C a USB-C", finalPrice: 4_900_000, currency: "COP", availableStock: 8, images: [] },
+    { id: "cable_lightning", slug: "cable-trenzado-usb-c-a-lightning", name: "Cable Trenzado USB-C a Lightning", finalPrice: 6_650_000, currency: "COP", availableStock: 5, images: [] }
+  ];
+
+  it("finds a named catalog product and preserves its COP price", async () => {
+    const response = await worker.fetch(
+      assistantRequest("¿Cuánto cuesta el Cable Trenzado USB-C a USB-C en COP? No uses USD.", {}, "COP"),
+      { ...env(() => Promise.resolve(Response.json({ success: true, data: copProducts, pagination: { pageCount: 1 } }))), GEMINI_API_KEY: "test-key" }
+    );
+    const payload = await response.json<{ intent: string; message: string; products: Array<{ currency: string; price: string; product_url: string }> }>();
+    expect(payload.intent).toBe("GET_PRODUCT_DETAILS");
+    expect(payload.products).toEqual([expect.objectContaining({ currency: "COP", price: "49000", product_url: "/products/cable-trenzado-usb-c-a-usb-c/" })]);
+    expect(payload.message).toContain("49.000 COP");
+  });
+
+  it("completes the storefront's streaming response for a named COP product", async () => {
+    const response = await worker.fetch(
+      new Request("https://assistant.example.test/v1/assistant/messages/stream", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ message: "¿Cuánto cuesta el Cable Trenzado USB-C a USB-C en COP?", locale: "es-CO", currency: "COP", privacy_consent: true })
+      }),
+      { ...env(() => Promise.resolve(Response.json({ success: true, data: copProducts, pagination: { pageCount: 1 } }))), GEMINI_API_KEY: "test-key" }
+    );
+    expect(response.status).toBe(200);
+    const stream = await response.text();
+    expect(stream).toContain("event: assistant.completed");
+    expect(stream).toContain('"currency":"COP"');
+    expect(stream).toContain("49.000 COP");
+  });
+
+  it("compares both named products and their exact COP total", async () => {
+    const response = await worker.fetch(
+      assistantRequest("Compara Cable Trenzado USB-C a USB-C con Cable Trenzado USB-C a Lightning. Dime el precio COP de ambos y cuánto suman.", {}, "COP"),
+      { ...env(() => Promise.resolve(Response.json({ success: true, data: copProducts, pagination: { pageCount: 1 } }))), GEMINI_API_KEY: "test-key" }
+    );
+    const payload = await response.json<{ intent: string; message: string; products: Array<{ product_id: string }> }>();
+    expect(payload.intent).toBe("COMPARE_PRODUCTS");
+    expect(payload.products.map((product) => product.product_id)).toEqual(["cable_usb", "cable_lightning"]);
+    expect(payload.message).toContain("115.500 COP");
+  });
+
+  it("uses a COP budget for the sum of two different available items", async () => {
+    const response = await worker.fetch(
+      assistantRequest("Tengo máximo 200.000 COP para dos accesorios distintos. Recomiéndame una pareja disponible y dime el total.", {}, "COP"),
+      { ...env((request) => {
+        const url = new URL(request instanceof Request ? request.url : String(request));
+        expect(url.searchParams.get("maxPrice")).toBe("20000000");
+        expect(url.searchParams.get("category")).toBe("mobile-accessories");
+        expect(url.searchParams.get("sort")).toBe("price_asc");
+        return Promise.resolve(Response.json({ success: true, data: copProducts }));
+      }), GEMINI_API_KEY: "test-key" }
+    );
+    const payload = await response.json<{ intent: string; message: string; products: Array<{ product_id: string }> }>();
+    expect(payload.intent).toBe("RECOMMEND_PRODUCTS");
+    expect(payload.products.map((product) => product.product_id)).toEqual(["cable_usb", "cable_lightning"]);
+    expect(payload.message).toContain("115.500 COP");
+  });
+
+  it("asks for the store currency before comparing a USD budget to COP prices", async () => {
+    let calls = 0;
+    const response = await worker.fetch(
+      assistantRequest("Recomiéndame un accesorio por menos de US$50", {}, "COP"),
+      { ...env(() => { calls += 1; return Promise.resolve(Response.json({ success: true, data: copProducts })); }), GEMINI_API_KEY: "test-key" }
+    );
+    const payload = await response.json<{ message: string; products: unknown[] }>();
+    expect(payload.message).toContain("presupuesto en COP");
+    expect(payload.products).toEqual([]);
+    expect(calls).toBe(0);
+  });
+
   it.each([
     ["Busca el pedido 5001", "GET_ORDER", "es"],
     ["Estado de mi Compra", "GET_ORDER_STATUS", "es"],

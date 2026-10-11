@@ -98,6 +98,22 @@ describe("admin routes integration (real middleware chain, mocked D1)", () => {
     vi.clearAllMocks();
   });
 
+  it("stores public checkout options under a key separate from provider credentials", async () => {
+    await mockVerifiedActor(["admin"]);
+    const { env, statements } = fakeEnv([{ first: null }]);
+    const response = await worker.fetch(adminRequest("/settings/checkout", {
+      method: "PATCH",
+      token: "tok",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ paymentMode: "whatsapp", whatsappNumber: "573001234567" })
+    }), env, ctx);
+
+    expect(response.status).toBe(200);
+    const saved = statements.find(({ sql }) => sql.includes("insert into application_settings"));
+    expect(saved?.args[0]).toBe("checkout_options");
+    expect(statements.some(({ sql, args }) => sql.includes("insert into application_settings") && args[0] === "checkout")).toBe(false);
+  });
+
   it("returns 403 for an unauthenticated request to a protected admin route", async () => {
     const { env, db } = fakeEnv();
     const response = await worker.fetch(adminRequest("/orders"), env, ctx);
@@ -644,7 +660,6 @@ describe("admin routes integration (real middleware chain, mocked D1)", () => {
         { first: null }, // no pending provider refund
         {}, // expire old idempotency claims
         {}, // reserve this refund operation
-        { first: null }, // checkout settings fall back to env
         { first: { id: "pay_1", amount: 5000 } },
         { first: null }, // provider refund not yet recorded
         { first: { amount: 0 } }
@@ -707,7 +722,6 @@ describe("admin routes integration (real middleware chain, mocked D1)", () => {
         { first: null },
         {}, // expire old idempotency claims
         {}, // reserve this refund operation
-        { first: null },
         { first: { id: "pay_2", amount: 5000 } },
         { first: null },
         { first: { amount: 0 } }

@@ -1,5 +1,6 @@
 import { CheckoutSettingsService, type CheckoutProviderCredentials, type CheckoutSettings, type CheckoutSettingsRepository } from "@aether-commerce/api-core";
 import { decryptSecret, encryptSecret } from "@aether-commerce/core";
+import { LEGACY_CHECKOUT_SETTINGS_KEY, PROVIDER_CHECKOUT_SETTINGS_KEY } from "./checkout-settings-keys";
 
 type StoredCredentials = { secretKey?: string; webhookSecret?: string };
 type StoredSettings = { mode?: string; stripe?: StoredCredentials; wompi?: StoredCredentials };
@@ -41,20 +42,32 @@ async function decryptCredentials(passphrase: string, stored: StoredCredentials 
 export function createCheckoutSettingsService(db: D1Database, encryptionKey: string | undefined): CheckoutSettingsService {
   const repository: CheckoutSettingsRepository = {
     async read() {
-      const row = await db.prepare("select value_json from application_settings where key = 'checkout'").first<{ value_json: string }>();
-      if (!row) return null;
       if (!encryptionKey) {
         console.error("AETHER_SETTINGS_ENCRYPTION_KEY is not configured; ignoring stored checkout settings.");
         return null;
       }
 
-      const stored = JSON.parse(row.value_json) as StoredSettings;
-      const mode = stored.mode === "wompi" ? "wompi" : "stripe";
-      return {
-        mode,
-        stripe: await decryptCredentials(encryptionKey, stored.stripe),
-        wompi: await decryptCredentials(encryptionKey, stored.wompi)
-      } satisfies CheckoutSettings;
+      // Read the new private key first. The legacy key is read-only for a
+      // gradual rollout; it may contain public storefront options instead.
+      for (const key of [PROVIDER_CHECKOUT_SETTINGS_KEY, LEGACY_CHECKOUT_SETTINGS_KEY]) {
+        const row = await db.prepare("select value_json from application_settings where key = ?")
+          .bind(key)
+          .first<{ value_json: string }>();
+        if (!row) continue;
+        let stored: StoredSettings;
+        try {
+          stored = JSON.parse(row.value_json) as StoredSettings;
+        } catch {
+          continue;
+        }
+        if (stored?.mode !== "stripe" && stored?.mode !== "wompi") continue;
+        return {
+          mode: stored.mode,
+          stripe: await decryptCredentials(encryptionKey, stored.stripe),
+          wompi: await decryptCredentials(encryptionKey, stored.wompi)
+        } satisfies CheckoutSettings;
+      }
+      return null;
     },
 
     async write(settings) {
@@ -69,10 +82,10 @@ export function createCheckoutSettingsService(db: D1Database, encryptionKey: str
       };
       await db
         .prepare(
-          `insert into application_settings (key, value_json, updated_at) values ('checkout', ?, CURRENT_TIMESTAMP)
+          `insert into application_settings (key, value_json, updated_at) values (?, ?, CURRENT_TIMESTAMP)
            on conflict(key) do update set value_json = excluded.value_json, updated_at = excluded.updated_at`
         )
-        .bind(JSON.stringify(stored))
+        .bind(PROVIDER_CHECKOUT_SETTINGS_KEY, JSON.stringify(stored))
         .run();
     }
   };

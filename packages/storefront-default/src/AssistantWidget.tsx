@@ -184,7 +184,17 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
   // Keeps a persistent cart total pinned in the footer (see PASO 3 bug #4) instead
   // of only recapping the cart inline whenever the assistant happens to mention it.
   useEffect(() => {
-    const syncFooterCart = () => setFooterCart(cartClient.readLocalCart());
+    const syncFooterCart = () => {
+      const cart = cartClient.readLocalCart();
+      if (cart.items.some((item) => item.currency !== config.store.currency)) {
+        setFooterCart(null);
+        void cartClient.refreshLocalCartPrices().then((updated) => {
+          if (updated.items.every((item) => item.currency === config.store.currency)) setFooterCart(updated);
+        }).catch(() => { /* Keep the stale amount hidden until a later refresh. */ });
+      } else {
+        setFooterCart(cart);
+      }
+    };
     syncFooterCart();
     window.addEventListener("aether-cart-changed", syncFooterCart);
     window.addEventListener("storage", syncFooterCart);
@@ -192,7 +202,7 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
       window.removeEventListener("aether-cart-changed", syncFooterCart);
       window.removeEventListener("storage", syncFooterCart);
     };
-  }, [cartClient]);
+  }, [cartClient, config.store.currency]);
 
   const footerItemCount = footerCart?.items.reduce((total, item) => total + item.quantity, 0) ?? 0;
   const footerTotal = footerCart?.totals.total ?? 0;

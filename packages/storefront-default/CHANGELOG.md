@@ -1,5 +1,11 @@
 # @aether-commerce/storefront-default
 
+## 0.5.7
+
+### Patch Changes
+
+- e7586d7: Refresh locally saved cart prices from the current catalog after a store currency change and keep the assistant cart summary aligned with the active currency.
+
 ## 0.5.6
 
 ### Patch Changes
