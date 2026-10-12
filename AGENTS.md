@@ -104,6 +104,10 @@ ningún paquete público, no hace falta crear uno.
    (`/api/v1/health`), asistente (`/healthz`), administración y portfolio.
    Confirmar que la revisión desplegada coincide con el SHA fusionado en
    `main`.
+6. Después de cada promoción, sincronizar el commit de merge resultante de `main`
+   de vuelta a `develop` mediante un PR de historial y esperar su check real.
+   Esto mantiene actualizada la base de la siguiente promoción sin hacer pushes
+   directos a las ramas protegidas.
 
 ## Paquetes y release automatizado
 
