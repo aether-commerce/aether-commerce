@@ -1,5 +1,11 @@
 # @aether-commerce/storefront-default
 
+## 0.5.10
+
+### Patch Changes
+
+- a1c6bd8: Clear the local cart after a confirmed checkout only when it still matches the paid checkout attempt, preserving changes made in other tabs.
+
 ## 0.5.9
 
 ### Patch Changes
