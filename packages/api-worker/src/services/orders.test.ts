@@ -84,7 +84,7 @@ function fakeCart(overrides: Partial<Cart> = {}): Cart {
   };
 }
 
-async function mockActiveSnapshot(cart = fakeCart(), status: "active" | "expired" = "active") {
+async function mockActiveSnapshot(cart = fakeCart(), status: "active" | "expired" = "active", sessionId = "cs_1") {
   const { loadCheckoutSnapshot } = await import("./checkout-snapshots");
   vi.mocked(loadCheckoutSnapshot).mockResolvedValueOnce({
     id: "chk_1",
@@ -95,7 +95,7 @@ async function mockActiveSnapshot(cart = fakeCart(), status: "active" | "expired
     amountTotal: cart.totals.total,
     currency: cart.totals.currency,
     status,
-    providerSessionId: "cs_1",
+    providerSessionId: sessionId,
     expiresAt: new Date(Date.now() + (status === "expired" ? -60_000 : 60_000)).toISOString()
   });
 }
@@ -160,6 +160,36 @@ describe("orderWithCurrentData", () => {
 });
 
 describe("createManualOrder", () => {
+  it("keeps WhatsApp order numbers unique when two orders are placed in the same millisecond", async () => {
+    const { getProductById } = await import("./catalog");
+    vi.mocked(getProductById).mockResolvedValue({
+      id: "prd_0001",
+      sku: "SKU-1",
+      slug: "funda-slim-grip",
+      name: "Funda Slim Grip",
+      thumbnail: "",
+      finalPrice: 1900
+    } as never);
+    const now = vi.spyOn(Date, "now").mockReturnValue(1791806657000);
+    try {
+      const { env } = fakeEnv();
+      const input = {
+        email: "buyer@example.com",
+        items: [{ productId: "prd_0001", quantity: 1 }],
+        actorId: "usr_admin",
+        requestId: "req_1"
+      };
+      const first = await createManualOrder(env, input);
+      const second = await createManualOrder(env, { ...input, requestId: "req_2" });
+
+      if (!("order" in first) || !("order" in second)) throw new Error("expected orders");
+      expect(first.order.number).toMatch(/^AETH-WA-[A-F0-9]{32}$/);
+      expect(first.order.number).not.toBe(second.order.number);
+    } finally {
+      now.mockRestore();
+    }
+  });
+
   it("returns empty_items without touching the database when items is empty", async () => {
     const { env, db } = fakeEnv();
     const result = await createManualOrder(env, { email: "a@example.com", items: [], actorId: "usr_1", requestId: "req_1" });
@@ -300,6 +330,21 @@ describe("createManualOrder", () => {
 });
 
 describe("createOrderFromPaidSession", () => {
+  it("creates distinct customer-facing numbers for consecutive Wompi payments", async () => {
+    const numbers: string[] = [];
+    const cart = fakeCart();
+    cart.totals.currency = "COP";
+    for (const id of ["12218690-1791798920-82343", "12218690-1791806657-49578"]) {
+      await mockActiveSnapshot(cart, "active", id);
+      const { env } = fakeEnv([{ first: null }, { all: [{ id: "prd_1", sku: "SKU-1" }] }]);
+      const result = await createOrderFromPaidSession(env, paidSession({ id, currency: "COP" }), "wompi");
+      numbers.push((result.order as { number: string }).number);
+    }
+
+    expect(numbers[0]).toMatch(/^AETH-[A-F0-9]{32}$/);
+    expect(numbers[0]).not.toBe(numbers[1]);
+  });
+
   it("short-circuits on an existing order without decrementing stock again (idempotency)", async () => {
     const { buildStockDecrementStatements } = await import("./inventory");
 
@@ -309,6 +354,33 @@ describe("createOrderFromPaidSession", () => {
     expect(result.created).toBe(false);
     expect(db.batch).not.toHaveBeenCalled();
     expect(buildStockDecrementStatements).not.toHaveBeenCalled();
+  });
+
+  it("returns the committed order when the webhook wins a concurrent confirmation", async () => {
+    await mockActiveSnapshot();
+    const savedOrder = { id: "ord_cs_1", number: "AETH-EXISTING" };
+    const { env, db } = fakeEnv([
+      { first: null },
+      { all: [{ id: "prd_1", sku: "SKU-1" }] },
+      ...Array.from({ length: 30 }, () => ({ first: { payload_json: JSON.stringify(savedOrder) } }))
+    ]);
+    db.batch.mockRejectedValueOnce(new Error("UNIQUE constraint failed: payments.id"));
+
+    const result = await createOrderFromPaidSession(env, paidSession(), "stripe");
+
+    expect(result).toEqual({ order: savedOrder, created: false });
+  });
+
+  it("preserves database failures when no concurrent order was committed", async () => {
+    await mockActiveSnapshot();
+    const { env, db } = fakeEnv([
+      { first: null },
+      { all: [{ id: "prd_1", sku: "SKU-1" }] },
+      { first: null }
+    ]);
+    db.batch.mockRejectedValueOnce(new Error("D1 unavailable"));
+
+    await expect(createOrderFromPaidSession(env, paidSession(), "stripe")).rejects.toThrow("D1 unavailable");
   });
 
   it("decrements stock, converts reservations, and clears the catalog cache on real creation", async () => {
