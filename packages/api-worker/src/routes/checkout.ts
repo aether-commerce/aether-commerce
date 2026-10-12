@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { isCheckoutSessionPaid } from "@aether-commerce/api-core";
+import { OBSERVABILITY_EVENTS } from "@aether-commerce/core";
 import { addressSchema } from "@aether-commerce/schemas";
 import type { AppBindings } from "../types";
 import { fail, ok } from "../http";
@@ -17,6 +18,7 @@ import { getStoreConfig } from "../services/store-config";
 import { createShippingSettingsService } from "../services/shipping-settings";
 import { defaultShippingSettings } from "../defaults";
 import { withIdempotency } from "../services/idempotency";
+import { getLogger } from "../services/observability";
 
 export const checkoutRoutes = new Hono<AppBindings>();
 
@@ -144,11 +146,15 @@ checkoutRoutes.post(
       const result = await createOrderFromPaidSession(c.env, session, mode);
       return ok(c, { order: result.order, created: result.created }, result.created ? 201 : 200);
     } catch (error) {
+      getLogger(c.env).error(OBSERVABILITY_EVENTS.orderUpdateFailed, {
+        metadata: { reason: "checkout_confirmation_failed", provider: mode },
+        error
+      });
       return fail(
         c,
         500,
         "CHECKOUT_CONFIRM_FAILED",
-        error instanceof Error ? error.message : "Checkout confirmation failed."
+        "Checkout confirmation failed. Your payment may still be approved; contact support with the transaction ID before paying again."
       );
     }
   }

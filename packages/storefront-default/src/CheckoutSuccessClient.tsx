@@ -83,7 +83,7 @@ export function CheckoutSuccessClient() {
           : state === "missing-session"
           ? "Unable to verify payment"
             : state === "error"
-              ? "Payment not confirmed"
+              ? "Order not yet confirmed"
               : "Checkout status";
 
   const body =
@@ -96,7 +96,7 @@ export function CheckoutSuccessClient() {
           : state === "missing-session"
             ? "The payment provider returned without a transaction ID. Check your order history before trying again."
             : state === "error"
-              ? "We could not verify the payment or save the order. Check your order history before trying again."
+              ? "Your payment may already be approved, but we could not confirm the order yet. Refresh this page to retry without paying again. If it still fails, contact support with your transaction ID."
               : "Your order status will appear here after the payment provider returns.";
 
   return (

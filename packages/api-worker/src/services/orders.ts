@@ -1,5 +1,5 @@
 import { canTransitionOrder, OBSERVABILITY_EVENTS } from "@aether-commerce/core";
-import type { CheckoutProviderId, PaidCheckoutSession } from "@aether-commerce/api-core";
+import { createOrderNumber, type CheckoutProviderId, type PaidCheckoutSession } from "@aether-commerce/api-core";
 import { orderStateSchema } from "@aether-commerce/schemas";
 import type { Address, Cart, CartItem, OrderState } from "@aether-commerce/schemas";
 import type { Env } from "../types";
@@ -57,11 +57,6 @@ export function orderWithCurrentData(row: StoredOrderRow): Record<string, unknow
     paymentStatus: row.payment_status,
     fulfillmentStatus: row.fulfillment_status
   };
-}
-
-function orderNumber(sessionId: string) {
-  const suffix = sessionId.replace(/^cs_(test|live)_/, "").slice(0, 10).toUpperCase();
-  return `AETH-${suffix}`;
 }
 
 // Only reached when the shopper's cart never carried a real shippingAddress
@@ -152,7 +147,7 @@ export async function createOrderFromPaidSession(env: Env, session: PaidCheckout
   const now = new Date().toISOString();
   const order = {
     id: `ord_${session.id}`,
-    number: orderNumber(session.id),
+    number: createOrderNumber(session.id, "AETH"),
     userId: cart.userId ?? session.metadata?.userId,
     email,
     state: "paid",
@@ -206,31 +201,42 @@ export async function createOrderFromPaidSession(env: Env, session: PaidCheckout
   // channel/payment_status/fulfillment_status are additive columns
   // (migration 0015) - every other column and the idempotent
   // on-conflict-do-nothing insert are unchanged from before that migration.
-  await env.DB.batch([
-    env.DB.prepare(
-      `insert into orders (id, number, user_id, email, state, channel, payment_status, fulfillment_status, payload_json, total, currency, created_at, updated_at)
-       values (?, ?, ?, ?, 'paid', ?, 'paid', 'unfulfilled', ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-       on conflict(id) do nothing`
-    ).bind(order.id, order.number, order.userId ?? null, order.email, provider, JSON.stringify(order), total, currency),
-    env.DB.prepare(
-      `insert into payments (id, order_id, provider, provider_ref, status, amount, currency, created_at, updated_at)
-       values (?, ?, ?, ?, 'paid', ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
-    ).bind(`pay_${session.id}`, order.id, provider, session.providerReference ?? session.id, total, currency),
-    env.DB.prepare(
-      `insert into order_status_history (id, order_id, previous_state, new_state, actor_id, reason, request_id)
-       values (?, ?, null, 'paid', ?, 'checkout.session.completed', ?)`
-    ).bind(crypto.randomUUID(), order.id, provider, session.id),
-    ...cart.items.map((item) =>
+  try {
+    await env.DB.batch([
       env.DB.prepare(
-        `insert into order_items (id, order_id, product_id, sku, payload_json, created_at)
-         values (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`
-      ).bind(crypto.randomUUID(), order.id, item.productId, item.variantId ?? item.productId, JSON.stringify(item))
-    ),
-    convertCartReservations(env, cartId),
-    ...buildStockDecrementStatements(env, stockItems, { actorId: provider, requestId: session.id, reason: `order:${order.id}` }),
-    completeCheckoutSnapshotStatement(env, snapshotId, session.id),
-    clearCartIfUnchangedStatement(env, cart, originalCartPayloadJson)
-  ]);
+        `insert into orders (id, number, user_id, email, state, channel, payment_status, fulfillment_status, payload_json, total, currency, created_at, updated_at)
+         values (?, ?, ?, ?, 'paid', ?, 'paid', 'unfulfilled', ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+         on conflict(id) do nothing`
+      ).bind(order.id, order.number, order.userId ?? null, order.email, provider, JSON.stringify(order), total, currency),
+      env.DB.prepare(
+        `insert into payments (id, order_id, provider, provider_ref, status, amount, currency, created_at, updated_at)
+         values (?, ?, ?, ?, 'paid', ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+      ).bind(`pay_${session.id}`, order.id, provider, session.providerReference ?? session.id, total, currency),
+      env.DB.prepare(
+        `insert into order_status_history (id, order_id, previous_state, new_state, actor_id, reason, request_id)
+         values (?, ?, null, 'paid', ?, 'checkout.session.completed', ?)`
+      ).bind(crypto.randomUUID(), order.id, provider, session.id),
+      ...cart.items.map((item) =>
+        env.DB.prepare(
+          `insert into order_items (id, order_id, product_id, sku, payload_json, created_at)
+           values (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`
+        ).bind(crypto.randomUUID(), order.id, item.productId, item.variantId ?? item.productId, JSON.stringify(item))
+      ),
+      convertCartReservations(env, cartId),
+      ...buildStockDecrementStatements(env, stockItems, { actorId: provider, requestId: session.id, reason: `order:${order.id}` }),
+      completeCheckoutSnapshotStatement(env, snapshotId, session.id),
+      clearCartIfUnchangedStatement(env, cart, originalCartPayloadJson)
+    ]);
+  } catch (error) {
+    // The browser confirmation and the provider webhook can reach this batch
+    // together. If the other request committed first, treat this as the same
+    // paid order; D1 rolls back a failed batch in full.
+    const concurrentlyCreated = await readOrderBySession(env, session.id);
+    if (concurrentlyCreated) {
+      return { order: JSON.parse(concurrentlyCreated.payload_json) as Record<string, unknown>, created: false };
+    }
+    throw error;
+  }
 
   await clearCatalogCache(env);
 
@@ -302,7 +308,7 @@ export async function createManualOrder(
 
   const subtotal = items.reduce((sum, item) => sum + item.lineTotal, 0);
   const id = `ord_wa_${crypto.randomUUID()}`;
-  const number = `AETH-WA-${Date.now().toString(36).toUpperCase()}`;
+  const number = createOrderNumber(id, "AETH-WA");
   const now = new Date().toISOString();
 
   const order = {

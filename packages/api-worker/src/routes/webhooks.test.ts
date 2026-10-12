@@ -1,6 +1,7 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Env } from "../types";
 import type * as ObservabilityModule from "../services/observability";
+import { createOrderFromPaidSession } from "../services/orders";
 import { createApiApp } from "../index";
 
 const worker = createApiApp();
@@ -90,9 +91,9 @@ function stripeRequest(body: string, signature: string) {
   });
 }
 
-async function signedWompiEvent(reference: string) {
+async function signedWompiEvent(reference: string, status = "APPROVED") {
   const timestamp = Math.floor(Date.now() / 1000);
-  const transaction = { id: "txn_sandbox_1", status: "APPROVED", reference };
+  const transaction = { id: "txn_sandbox_1", status, amount_in_cents: 9500, currency: "COP", reference, customer_email: "buyer@example.test" };
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${transaction.id}${transaction.status}${timestamp}test_events_1`));
   const checksum = [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
   return JSON.stringify({ event: "transaction.updated", data: { transaction }, timestamp,
@@ -120,10 +121,80 @@ describe("POST /webhooks/wompi sandbox routing", () => {
     const body = (await signedWompiEvent("d_chk_12345678-1234-1234-1234-123456789abc")).replace("APPROVED", "DECLINED");
     const relay = vi.fn();
     vi.stubGlobal("fetch", relay);
-    const { env } = fakeEnv([], { AETHER_ENV: "production", WOMPI_EVENTS_SECRET: "test_events_1" });
+    const { env, db } = fakeEnv([], { AETHER_ENV: "production", WOMPI_EVENTS_SECRET: "test_events_1" });
     const response = await worker.fetch(new Request("https://api.example.com/api/v1/webhooks/wompi", { method: "POST", body }), env, ctx);
     expect(response.status).toBe(401);
     expect(relay).not.toHaveBeenCalled();
+    expect(db.prepare).not.toHaveBeenCalled();
+  });
+
+  it("creates an order from an approved signed sandbox event and marks it processed", async () => {
+    const snapshotId = "chk_12345678-1234-1234-1234-123456789abc";
+    const cart = { id: "cart_1", userId: "user_1", items: [{ productId: "prd_1" }], totals: { total: 9500, currency: "COP" } };
+    const body = await signedWompiEvent(`p_${snapshotId}`);
+    const { env, statements } = fakeEnv([
+      { run: { changes: 1 } }, // recordWebhookReceived
+      { run: { changes: 1 } }, // markWebhookProcessing
+      { first: {
+        id: snapshotId,
+        cart_id: "cart_1",
+        user_id: "user_1",
+        cart_payload_json: JSON.stringify(cart),
+        amount_total: 9500,
+        currency: "COP",
+        status: "active",
+        provider_session_id: null,
+        expires_at: new Date(Date.now() + 60_000).toISOString()
+      } }, // loadCheckoutSnapshot
+      { run: { changes: 1 } } // markWebhookProcessed
+    ], { AETHER_ENV: "production", WOMPI_EVENTS_SECRET: "test_events_1" });
+
+    const response = await worker.fetch(new Request("https://api.example.com/api/v1/webhooks/wompi", { method: "POST", body }), env, ctx);
+    const responseBody = await response.json<{ success: boolean; data: { orderCreated: boolean } }>();
+
+    expect(response.status).toBe(200);
+    expect(responseBody.data.orderCreated).toBe(true);
+    expect(createOrderFromPaidSession).toHaveBeenCalledWith(env, expect.objectContaining({
+      id: "txn_sandbox_1",
+      status: "paid",
+      amountTotal: 9500,
+      currency: "COP",
+      customerEmail: "buyer@example.test",
+      metadata: { cartId: "cart_1", userId: "user_1", checkoutSnapshotId: snapshotId }
+    }), "wompi");
+    expect(statements.some((statement) => statement.sql.includes("insert into webhook_events"))).toBe(true);
+    expect(statements.some((statement) => statement.sql.includes("status = 'processed'"))).toBe(true);
+  });
+
+  it("acknowledges a duplicate signed Wompi delivery without creating another order", async () => {
+    const body = await signedWompiEvent("cart_1::user_1");
+    const { env, statements } = fakeEnv([
+      { run: { changes: 0 } }, // recordWebhookReceived found the unique event
+      { run: { changes: 0 } } // reclaim did not claim a processed event
+    ], { AETHER_ENV: "production", WOMPI_EVENTS_SECRET: "test_events_1" });
+
+    const response = await worker.fetch(new Request("https://api.example.com/api/v1/webhooks/wompi", { method: "POST", body }), env, ctx);
+    const responseBody = await response.json<{ success: boolean; data: { duplicate: boolean } }>();
+
+    expect(response.status).toBe(200);
+    expect(responseBody.data.duplicate).toBe(true);
+    expect(createOrderFromPaidSession).not.toHaveBeenCalled();
+    expect(statements.some((statement) => statement.sql.includes("set status = 'processing'"))).toBe(false);
+  });
+
+  it("records non-approved transactions without creating a paid order", async () => {
+    const body = await signedWompiEvent("cart_1::user_1", "DECLINED");
+    const { env, statements } = fakeEnv([
+      { run: { changes: 1 } }, // recordWebhookReceived
+      { run: { changes: 1 } }, // markWebhookProcessing
+      { run: { changes: 1 } } // markWebhookProcessed
+    ], { AETHER_ENV: "production", WOMPI_EVENTS_SECRET: "test_events_1" });
+
+    const response = await worker.fetch(new Request("https://api.example.com/api/v1/webhooks/wompi", { method: "POST", body }), env, ctx);
+
+    expect(response.status).toBe(200);
+    expect(createOrderFromPaidSession).not.toHaveBeenCalled();
+    expect(statements.some((statement) => statement.sql.includes("status = 'processed'"))).toBe(true);
   });
 });
 
