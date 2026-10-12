@@ -1,5 +1,11 @@
 # @aether-commerce/admin-default
 
+## 0.5.1
+
+### Patch Changes
+
+- bdd03bf: Show and filter Wompi orders under their correct payment channel in the admin order list.
+
 ## 0.5.0
 
 ### Minor Changes
