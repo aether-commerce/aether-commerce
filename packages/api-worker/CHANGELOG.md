@@ -1,5 +1,11 @@
 # @aether-commerce/api-worker
 
+## 0.7.5
+
+### Patch Changes
+
+- bdd03bf: Show and filter Wompi orders under their correct payment channel in the admin order list.
+
 ## 0.7.4
 
 ### Patch Changes
