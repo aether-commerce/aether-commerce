@@ -17,3 +17,12 @@ the public catalog normalization and preserve the original price records when
 changing currencies. Migration `0034_product_timestamps_iso.sql` repairs
 existing SQL-formatted product timestamps; the API also tolerates them during
 gradual deployment.
+
+
+## Payment providers and order channels
+
+`orders.channel` is constrained by a database check as well as the application
+payment-provider contract. When adding a provider, add its channel in a new
+forward migration and test that existing Stripe and WhatsApp orders and their
+payment rows survive the migration. Never edit the already-applied
+`0015_order_channel_status.sql` migration.
