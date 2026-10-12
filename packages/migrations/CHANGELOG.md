@@ -1,5 +1,11 @@
 # @aether-commerce/migrations
 
+## 0.4.2
+
+### Patch Changes
+
+- 453a164: Allow Wompi as an order channel in a forward database migration while preserving existing orders.
+
 ## 0.4.1
 
 ### Patch Changes
