@@ -129,6 +129,29 @@ export function createCartClient(apiBaseUrl: string) {
     writeLocalItems(items);
   }
 
+  // The server clears the paid cart when it saves the order. Clear the local
+  // cache only if it still matches the checkout that redirected this tab, so
+  // edits made in another tab while payment was pending are preserved.
+  function clearConfirmedCheckoutCart(cartId: string) {
+    if (!cartId || window.localStorage.getItem(cartIdKey) !== cartId) return false;
+
+    let attempt: { signature?: string } | null = null;
+    let checkout: { cartId?: string; items?: CartItem[] } | null = null;
+    try {
+      const raw = window.sessionStorage.getItem(checkoutAttemptKey);
+      attempt = raw ? JSON.parse(raw) as { signature?: string } : null;
+      checkout = attempt?.signature ? JSON.parse(attempt.signature) as { cartId?: string; items?: CartItem[] } : null;
+    } catch {
+      return false;
+    }
+    if (checkout?.cartId !== cartId || !Array.isArray(checkout.items)) return false;
+    if (JSON.stringify(readLocalItems()) !== JSON.stringify(checkout.items)) return false;
+
+    writeLocalItems([]);
+    window.sessionStorage.removeItem(checkoutAttemptKey);
+    return true;
+  }
+
   function readLocalCart(cartId = getCartId()): Cart {
     const items = readLocalItems();
     return {
@@ -390,6 +413,7 @@ export function createCartClient(apiBaseUrl: string) {
     readLocalCartItems,
     refreshLocalCartPrices,
     replaceLocalCartItems,
+    clearConfirmedCheckoutCart,
     addProductToCart,
     addProductReferenceToCart,
     removeProductFromCart,
