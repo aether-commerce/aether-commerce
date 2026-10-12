@@ -21,7 +21,7 @@ type AdminOrderSummary = {
   number: string;
   email: string;
   state: string;
-  channel: "stripe" | "whatsapp";
+  channel: "stripe" | "wompi" | "whatsapp";
   payment_status: "pending" | "paid" | "failed" | "refunded" | "partially_refunded";
   fulfillment_status: "unfulfilled" | "processing" | "shipped" | "delivered" | "cancelled";
   total: number;
@@ -53,6 +53,12 @@ function readFiltersFromUrl() {
 
 function money(cents: number, currency: string, locale: string) {
   return formatMoney(cents, currency, locale === "es" ? "es-ES" : "en-US");
+}
+
+function channelLabel(t: AdminDictionary, channel: AdminOrderSummary["channel"]): string {
+  if (channel === "wompi") return t.ordersPage.channelWompi;
+  if (channel === "whatsapp") return t.ordersPage.channelWhatsapp;
+  return t.ordersPage.channelStripe;
 }
 
 const paymentTone: Record<AdminOrderSummary["payment_status"], StatusTone> = {
@@ -101,7 +107,7 @@ export function OrdersListPage() {
   if (filters.channel)
     chips.push({
       key: "channel",
-      label: t.ordersPage.channelChip.replace("{value}", filters.channel === "whatsapp" ? t.ordersPage.channelWhatsapp : t.ordersPage.channelStripe),
+      label: t.ordersPage.channelChip.replace("{value}", channelLabel(t, filters.channel as AdminOrderSummary["channel"])),
       onRemove: () => updateFilter("channel", "")
     });
   if (filters.paymentStatus)
@@ -135,7 +141,7 @@ export function OrdersListPage() {
       render: (order) => (
         <span className="inline-flex items-center gap-1.5 text-ink-muted">
           {order.channel === "whatsapp" ? <MessageCircle size={13} aria-hidden /> : null}
-          {order.channel === "whatsapp" ? t.ordersPage.channelWhatsapp : t.ordersPage.channelStripe}
+          {channelLabel(t, order.channel)}
         </span>
       )
     },
@@ -194,6 +200,7 @@ export function OrdersListPage() {
               >
                 <option value="">{t.ordersPage.allChannels}</option>
                 <option value="stripe">{t.ordersPage.channelStripe}</option>
+                <option value="wompi">{t.ordersPage.channelWompi}</option>
                 <option value="whatsapp">{t.ordersPage.channelWhatsapp}</option>
               </select>
               <select
