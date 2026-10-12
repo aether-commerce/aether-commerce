@@ -148,6 +148,54 @@ describe("wompi adapter", () => {
       .rejects.toThrow("requires COP");
   });
 
+  it("retrieves an approved sandbox PSE transaction with the sandbox private key", async () => {
+    const fetchMock = vi.fn((url: string, init: RequestInit) => {
+      expect(url).toBe("https://sandbox.wompi.co/v1/transactions/txn_pse_test");
+      expect((init.headers as Record<string, string>).authorization).toBe("Bearer prv_test_ci");
+      return Promise.resolve(new Response(JSON.stringify({ data: {
+        id: "txn_pse_test",
+        status: "APPROVED",
+        amount_in_cents: 9500,
+        currency: "COP",
+        reference: "cart_1::user_1",
+        customer_email: "buyer@example.test",
+        payment_method_type: "PSE"
+      } })));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const session = await createWompiCheckoutProvider({ AETHER_ENV: "development" } as Env, { secretKey: "prv_test_ci" })
+      .retrieveCheckoutSession("txn_pse_test");
+
+    expect(session).toEqual({
+      id: "txn_pse_test",
+      status: "paid",
+      amountTotal: 9500,
+      currency: "COP",
+      customerEmail: "buyer@example.test",
+      metadata: { cartId: "cart_1", userId: "user_1" },
+      providerReference: "txn_pse_test"
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects a production checkout reference in development before loading its snapshot", async () => {
+    const fetchMock = vi.fn(() => Promise.resolve(new Response(JSON.stringify({ data: {
+      id: "txn_prod_test",
+      status: "APPROVED",
+      amount_in_cents: 9500,
+      currency: "COP",
+      reference: "p_chk_12345678-1234-1234-1234-123456789abc"
+    } }))));
+    vi.stubGlobal("fetch", fetchMock);
+    const prepareMock = vi.fn();
+    const env = { AETHER_ENV: "development", DB: { prepare: prepareMock } } as unknown as Env;
+
+    await expect(createWompiCheckoutProvider(env, { secretKey: "prv_test_ci" })
+      .retrieveCheckoutSession("txn_prod_test")).rejects.toThrow("belongs to another environment");
+    expect(prepareMock).not.toHaveBeenCalled();
+  });
+
   it("accepts a signed transaction path and rejects changed data or absent properties", async () => {
     if (typeof crypto.subtle.timingSafeEqual !== "function") {
       crypto.subtle.timingSafeEqual = (a: BufferSource, b: BufferSource) => {
