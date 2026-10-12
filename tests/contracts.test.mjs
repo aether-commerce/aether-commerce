@@ -484,22 +484,23 @@ test("admin security policy permits signed Cloudinary image uploads", () => {
   assert.match(headers, /img-src[^;]*https:\/\/res\.cloudinary\.com/);
 });
 
-test("storefront resolves product slugs and metadata at request time", () => {
-  for (const path of [
-    "apps/storefront/app/products/[slug]/page.tsx",
-    "templates/client/apps/storefront/app/products/[slug]/page.tsx"
-  ]) {
-    const page = read(path);
-    assert.match(page, /force-dynamic/);
-    assert.match(page, /fetchProductBySlug/);
-    assert.match(page, /initialProduct/);
-    assert.match(page, /notFound/);
-  }
+test("storefront pre-generates catalog routes and caches product lookups", () => {
+  const page = read("apps/storefront/app/products/[slug]/page.tsx");
+  assert.match(page, /revalidate = 300/);
+  assert.match(page, /generateStaticParams/);
+  assert.match(page, /fetchAllCatalogProducts/);
+  assert.match(page, /fetchProductBySlug/);
+  assert.match(page, /initialProduct/);
+  assert.match(page, /notFound/);
+
+  const clientTemplatePage = read("templates/client/apps/storefront/app/products/[slug]/page.tsx");
+  assert.match(clientTemplatePage, /force-dynamic/);
+  assert.match(clientTemplatePage, /fetchProductBySlug/);
 
   const serverLoader = read("packages/storefront-default/src/product-detail-server.ts");
   assert.match(serverLoader, /cache\(\s*async/);
   assert.match(serverLoader, /products\/slug/);
-  assert.match(serverLoader, /cache: "no-store"/);
+  assert.match(serverLoader, /revalidate: 300/);
 });
 
 test("storefront catalog has no bundled product seed or demo fallback", () => {

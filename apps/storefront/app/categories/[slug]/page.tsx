@@ -2,13 +2,19 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import {
   fetchCatalogCategoryBySlug,
+  fetchCatalogCategories,
   fetchCatalogProducts,
   ProductGrid
 } from "@aether-commerce/storefront-default";
 import { apiBaseUrl } from "../../../components/config";
 import { pageMetadata } from "../../seo-config";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
+
+export async function generateStaticParams() {
+  const categories = await fetchCatalogCategories(apiBaseUrl);
+  return (categories ?? []).map(({ slug }) => ({ slug }));
+}
 
 async function categoryForSlug(slug: string) {
   const lookup = await fetchCatalogCategoryBySlug(apiBaseUrl, slug);

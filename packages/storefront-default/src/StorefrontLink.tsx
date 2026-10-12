@@ -27,7 +27,7 @@ export function StorefrontLink({ href, children, className, onClick, role, targe
   };
 
   return (
-    <Link href={storefrontPath(href)} {...linkProps}>
+    <Link href={storefrontPath(href)} prefetch={false} {...linkProps}>
       {children}
     </Link>
   );
