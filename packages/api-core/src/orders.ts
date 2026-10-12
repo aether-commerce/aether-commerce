@@ -1,4 +1,6 @@
 import type { Address, Cart, Order } from "@aether-commerce/schemas";
+import { sha256 } from "@noble/hashes/sha2";
+import { bytesToHex } from "@noble/hashes/utils";
 
 export type CompletedPaymentSession = {
   id: string;
@@ -18,10 +20,11 @@ export type CreatePaidOrderInput = {
   now?: string;
 };
 
-/** Derives a stable, customer-facing number without coupling it to a payment provider. */
+/** Keeps order numbers stable and short without exposing or truncating the provider ID. */
 export function createOrderNumber(sessionId: string, prefix: string): string {
-  const suffix = sessionId.replace(/^cs_(test|live)_/, "").slice(0, 10).toUpperCase();
-  return `${prefix}-${suffix}`;
+  const digest = sha256(new TextEncoder().encode(sessionId));
+  // 128 bits leaves ample room for unique numbers even across many checkouts.
+  return `${prefix}-${bytesToHex(digest).slice(0, 32).toUpperCase()}`;
 }
 
 /**

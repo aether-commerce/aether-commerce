@@ -395,6 +395,9 @@ importers:
       '@aether-commerce/schemas':
         specifier: workspace:*
         version: link:../schemas
+      '@noble/hashes':
+        specifier: 1.8.0
+        version: 1.8.0
     devDependencies:
       typescript:
         specifier: ^5.9.0

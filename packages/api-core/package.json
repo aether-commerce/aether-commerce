@@ -31,7 +31,8 @@
   },
   "dependencies": {
     "@aether-commerce/core": "workspace:*",
-    "@aether-commerce/schemas": "workspace:*"
+    "@aether-commerce/schemas": "workspace:*",
+    "@noble/hashes": "1.8.0"
   },
   "devDependencies": {
     "typescript": "^5.9.0"
