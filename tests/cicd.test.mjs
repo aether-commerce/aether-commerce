@@ -49,6 +49,18 @@ test("deployments wait for a successful CI run and deploy its exact SHA", () => 
   }
 });
 
+test("Worker deployments retry only transient Cloudflare API failures", () => {
+  for (const environment of ["production", "development"]) {
+    const workflow = read(`.github/workflows/deploy-${environment}.yml`);
+    for (const worker of ["api", "ai-assistant", "storefront"]) {
+      assert.match(workflow, new RegExp(`retry-cloudflare-command\\.mjs pnpm exec wrangler deploy --config apps/${worker}/wrangler\\.${environment}\\.json`));
+    }
+    for (const worker of ["api", "ai-assistant"]) {
+      assert.match(workflow, new RegExp(`retry-cloudflare-command\\.mjs pnpm exec wrangler secret bulk \\.${worker === "api" ? "api" : "ai"}-secrets\\.json --config apps/${worker}/wrangler\\.${environment}\\.json`));
+    }
+  }
+});
+
 test("development deployment never defaults its D1 binding to production", () => {
   const workflow = read(".github/workflows/deploy-development.yml");
   const apiConfig = read("scripts/write-api-wrangler-config.mjs");
