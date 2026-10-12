@@ -21,6 +21,11 @@ describe("admin Wompi environment guidance", () => {
     expect(ADMIN_CHAT_SYSTEM_PROMPT.text).toContain("check webhook activity and system health before advising a retry");
     expect(ADMIN_CHAT_SYSTEM_PROMPT.text).toContain("older orders can have shorter numbers");
   });
+
+  it("keeps Wompi orders distinct in the Orders channel filter", () => {
+    expect(ADMIN_CHAT_SYSTEM_PROMPT.text).toContain("the channel filter distinguishes Stripe, Wompi, and WhatsApp");
+    expect(ADMIN_CHAT_SYSTEM_PROMPT.text).toContain("labeled and filtered as Wompi, not Stripe");
+  });
 });
 
 describe("admin currency guidance", () => {

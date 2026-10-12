@@ -48,7 +48,7 @@ type OrderDetail = {
   number: string;
   email: string;
   state: string;
-  channel: "stripe" | "whatsapp";
+  channel: "stripe" | "wompi" | "whatsapp";
   paymentStatus: PaymentStatus;
   refundedAmount: number;
   fulfillmentStatus: FulfillmentStatus;

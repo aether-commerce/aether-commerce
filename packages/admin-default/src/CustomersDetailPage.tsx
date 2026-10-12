@@ -42,7 +42,7 @@ type CustomerOrder = {
   id: string;
   number: string;
   state: string;
-  channel: "stripe" | "whatsapp";
+  channel: "stripe" | "wompi" | "whatsapp";
   paymentStatus: string;
   fulfillmentStatus: string;
   totals: { total: number; currency: string };
