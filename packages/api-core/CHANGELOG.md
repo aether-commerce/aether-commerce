@@ -1,5 +1,11 @@
 # @aether-commerce/api-core
 
+## 0.2.6
+
+### Patch Changes
+
+- 865ca1f: Generate deterministic order numbers from the complete checkout identifier so repeated Wompi sandbox payments and manual orders cannot reuse an earlier customer-facing number. Recover safely when the webhook and browser confirm the same payment concurrently, and clarify the checkout recovery message.
+
 ## 0.2.5
 
 ### Patch Changes
