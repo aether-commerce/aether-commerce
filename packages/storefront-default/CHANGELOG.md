@@ -1,5 +1,11 @@
 # @aether-commerce/storefront-default
 
+## 0.5.8
+
+### Patch Changes
+
+- 1a3fa0b: Disable automatic route prefetching in storefront links and cache product details so catalog routes can be generated at build time. This reduces unnecessary Worker renders on the Free plan while keeping new catalog routes available through revalidation.
+
 ## 0.5.7
 
 ### Patch Changes
