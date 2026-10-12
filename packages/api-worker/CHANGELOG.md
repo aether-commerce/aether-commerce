@@ -1,5 +1,11 @@
 # @aether-commerce/api-worker
 
+## 0.7.3
+
+### Patch Changes
+
+- c69dd04: Allow browser requests to save the active checkout provider.
+
 ## 0.7.2
 
 ### Patch Changes

@@ -21,7 +21,7 @@ export function aetherCors() {
       "x-idempotency-key",
       "x-aether-cart-token"
     ],
-    allowMethods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     credentials: true,
     maxAge: 600
   });
