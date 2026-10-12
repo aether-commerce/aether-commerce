@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useStorefrontConfig } from "./AetherStorefrontProvider";
 import { useAetherAuth } from "./AetherAuthProvider";
+import { createCartClient } from "./cart-client";
 
 type ConfirmState = "idle" | "confirming" | "created" | "existing" | "missing-session" | "error";
 
@@ -11,6 +12,7 @@ export function CheckoutSuccessClient() {
   const { getToken, isLoaded, isSignedIn } = useAetherAuth();
   const [state, setState] = useState<ConfirmState>("idle");
   const [orderNumber, setOrderNumber] = useState<string>("");
+  const cartClient = useMemo(() => createCartClient(apiBaseUrl), [apiBaseUrl]);
 
   // Stripe returns session_id (from the {CHECKOUT_SESSION_ID} template in the
   // success_url); Wompi's checkout redirect appends the transaction id as
@@ -24,6 +26,10 @@ export function CheckoutSuccessClient() {
     }
     const params = new URLSearchParams(window.location.search);
     return params.get("session_id") ?? params.get("id") ?? params.get("transaction_id") ?? "";
+  }, []);
+  const checkoutCartId = useMemo(() => {
+    if (typeof window === "undefined") return "";
+    return new URLSearchParams(window.location.search).get("cart") ?? "";
   }, []);
 
   useEffect(() => {
@@ -55,11 +61,12 @@ export function CheckoutSuccessClient() {
         if (!active) {
           return;
         }
-        if (!payload.success) {
+        if (!payload.success || !payload.data?.order?.number) {
           setState("error");
           return;
         }
-        setOrderNumber(payload.data?.order?.number ?? "");
+        cartClient.clearConfirmedCheckoutCart(checkoutCartId);
+        setOrderNumber(payload.data.order.number);
         setState(payload.data?.created ? "created" : "existing");
       })
       .catch(() => {
@@ -71,7 +78,7 @@ export function CheckoutSuccessClient() {
     return () => {
       active = false;
     };
-  }, [getToken, isLoaded, isSignedIn, sessionId, apiBaseUrl]);
+  }, [getToken, isLoaded, isSignedIn, sessionId, apiBaseUrl, cartClient, checkoutCartId]);
 
   const label =
     state === "confirming"
