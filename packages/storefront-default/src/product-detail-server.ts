@@ -22,7 +22,7 @@ export const fetchProductBySlug = cache(
 
     try {
       const response = await fetch(apiUrl(apiBaseUrl, slug), {
-        cache: "no-store",
+        next: { revalidate: 300 },
         headers: { accept: "application/json" },
         signal: AbortSignal.timeout(12000)
       });

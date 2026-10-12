@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import {
   absoluteStorefrontUrl,
   buildProductJsonLd,
+  fetchAllCatalogProducts,
   fetchProductBySlug,
   ProductDetailClient,
   StorefrontJsonLd
@@ -11,7 +12,12 @@ import {
 import { apiBaseUrl, storefrontBasePath } from "../../../components/config";
 import { storefrontSiteUrl } from "../../seo-config";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
+
+export async function generateStaticParams() {
+  const products = await fetchAllCatalogProducts(apiBaseUrl);
+  return (products ?? []).map(({ slug }) => ({ slug }));
+}
 
 async function productForRequest(slug: string) {
   const lookup = await fetchProductBySlug(apiBaseUrl, slug);
