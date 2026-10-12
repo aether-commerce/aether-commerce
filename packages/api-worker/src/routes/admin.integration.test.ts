@@ -353,6 +353,18 @@ describe("admin routes integration (real middleware chain, mocked D1)", () => {
   it("reflects the admin origin on CORS preflight but omits it for an unrecognized origin", async () => {
     const { env, db } = fakeEnv();
 
+    const putAllowed = await worker.fetch(
+      new Request("https://api.example.com/api/v1/admin/checkout-settings", {
+        method: "OPTIONS",
+        headers: { origin: "https://admin.example.com", "access-control-request-method": "PUT" }
+      }),
+      env,
+      ctx
+    );
+    expect(putAllowed.status).toBe(204);
+    expect(putAllowed.headers.get("access-control-allow-origin")).toBe("https://admin.example.com");
+    expect(putAllowed.headers.get("access-control-allow-methods")).toContain("PUT");
+
     const allowed = await worker.fetch(
       new Request("https://api.example.com/api/v1/admin/orders", {
         method: "OPTIONS",
