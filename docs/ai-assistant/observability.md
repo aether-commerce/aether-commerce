@@ -51,7 +51,9 @@ Production should page or notify on:
 
 Set the positive integer GitHub Actions environment variable `AI_DAILY_REQUEST_BUDGET` in the `production` and/or `development` environment to enable a project-wide daily ceiling. Leave it unset to disable that ceiling; per-session and short-window rate limits still apply. The deployment config generator rejects zero, negative, fractional, and non-numeric values.
 
-The ceiling counts accepted shopper messages before assistant processing. It protects the deployment from unbounded request volume, but it is not a dollar-cost estimate: one message can trigger multiple model calls and tool calls. Cost reporting must use provider token usage when available; the token metrics remain zero until the configured LangChain/Gemini response includes supported usage metadata. The ceiling is shared by the whole deployment, not apportioned per merchant or plan.
+The deployment variables are defaults. Operators with `settings.manage` can override the minute, hour, anonymous daily, project-wide daily, and concurrency limits in Admin > Assistant limits. The setting is stored in the environment's own `application_settings` database, so development and production remain isolated. Each limit can use the deployment default, a positive custom value, or no limit. With no admin setting, existing deployment behavior is preserved.
+
+The project-wide daily ceiling counts accepted shopper messages before assistant processing. It protects the deployment from unbounded request volume, but it is not a dollar-cost estimate: one message can trigger multiple model calls and tool calls. Cost reporting must use provider token usage when available; the token metrics remain zero until the configured LangChain/Gemini response includes supported usage metadata. The ceiling is shared by the whole deployment, not apportioned per merchant or plan.
 
 ## Structured Logs
 

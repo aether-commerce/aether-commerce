@@ -88,6 +88,12 @@ when available, or the connecting IP as a public fallback. For a production
 store with real customer traffic, add Cloudflare WAF/API Shield rules at the
 zone level as a second layer.
 
+The storefront AI assistant's rate and concurrency settings are managed from
+the dedicated Assistant limits page with `settings.manage`. They are stored
+as a separate `application_settings` key in each environment's own D1
+database; the AI Worker reads that same environment database. If the row is
+missing or invalid, the Worker falls back to its deployment defaults.
+
 ## Data minimization
 
 Demo data should be anonymous. Public admin mode reads seeded records only and

@@ -33,6 +33,7 @@
 | Select/Listbox  | `@aether-commerce/ui` and packaged field controls | DESIGN + UX contract   | native for fixed sets / authored for search  | keyboard + popup review             |
 | Date            | `@aether-commerce/ui` and packaged field controls | UX contract            | native / typed / authored                    | locale + keyboard review            |
 | Form            | `@aether-commerce/ui` plus packaged form screens  | UX contract            | create / edit                                | component tests + client validation |
+| Assistant limits | `admin-default` assistant limits page + API Worker | `settings.manage` + deployment defaults | per-environment request limits | API, Worker, page and navigation tests |
 | Scrollbar       | admin and storefront global stylesheets           | DESIGN + runtime CSS   | global baseline / geometry exception         | computed-style review               |
 | Toast           | app-owned packaged status components              | UX contract            | success / warning / info / error             | live-region test                    |
 | CRUD            | packaged admin pages + API Worker routes          | API + this UX contract | pessimistic mutation / recoverable AI assist | integration tests                   |
@@ -48,6 +49,7 @@
 - Store operators curate the storefront hero from the product form: only products marked as featured are eligible, and an optional position from 1 to 4 controls the exact hero slot. Unpositioned featured products fill remaining slots by rating.
 - Native `alert`, `confirm` and `prompt` are prohibited; use the canonical dialog/sheet and inline validation.
 - Permission-denied data is hidden or replaced by an explicit 403/recovery message; secrets never appear in clipboard feedback or logs.
+- Assistant limits are editable only with `settings.manage`. The page can inherit deployment values, set a positive integer, or disable each limit; settings are isolated by the environment's D1 database and do not modify secrets or deployment variables.
 - Desktop sidebars become mobile drawers. Floating layers restore focus and must not be obscured by sticky navigation.
 - Merchant identity and financial formatting always resolve from runtime/client configuration. Aether is an internal platform namespace.
 

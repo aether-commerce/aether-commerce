@@ -114,6 +114,66 @@ describe("admin routes integration (real middleware chain, mocked D1)", () => {
     expect(statements.some(({ sql, args }) => sql.includes("insert into application_settings") && args[0] === "checkout")).toBe(false);
   });
 
+  it("reads and saves validated assistant limits under their dedicated setting", async () => {
+    await mockVerifiedActor(["admin"]);
+    const limits = {
+      messagesPerMinute: { mode: "custom", limit: 12 },
+      messagesPerHour: { mode: "deployment" },
+      anonymousMessagesPerDay: { mode: "unlimited" },
+      dailyRequestBudget: { mode: "custom", limit: 500 },
+      maxConcurrentRequests: { mode: "custom", limit: 25 }
+    };
+    const { env, statements } = fakeEnv([{ first: null }]);
+
+    const response = await worker.fetch(
+      adminRequest("/assistant-limits", {
+        method: "PUT",
+        token: "tok",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(limits)
+      }),
+      env,
+      ctx
+    );
+    const body = await response.json<{ success: boolean; data: typeof limits }>();
+
+    expect(response.status).toBe(200);
+    expect(body.data).toEqual(limits);
+    const write = statements.find(({ sql }) => sql.includes("insert into application_settings"));
+    expect(write?.args[0]).toBe("assistant_limits");
+    expect(JSON.parse(String(write?.args[1]))).toEqual(limits);
+  });
+
+  it("rejects invalid assistant limits and protects them with settings.manage", async () => {
+    await mockVerifiedActor(["admin"]);
+    const { env } = fakeEnv([{ first: null }]);
+    const invalid = await worker.fetch(
+      adminRequest("/assistant-limits", {
+        method: "PUT",
+        token: "tok",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          messagesPerMinute: { mode: "custom", limit: 0 },
+          messagesPerHour: { mode: "deployment" },
+          anonymousMessagesPerDay: { mode: "deployment" },
+          dailyRequestBudget: { mode: "deployment" },
+          maxConcurrentRequests: { mode: "deployment" }
+        })
+      }),
+      env,
+      ctx
+    );
+    expect(invalid.status).toBe(400);
+
+    await mockVerifiedActor(["customer"]);
+    const forbidden = await worker.fetch(
+      adminRequest("/assistant-limits", { token: "tok" }),
+      env,
+      ctx
+    );
+    expect(forbidden.status).toBe(403);
+  });
+
   it("returns 403 for an unauthenticated request to a protected admin route", async () => {
     const { env, db } = fakeEnv();
     const response = await worker.fetch(adminRequest("/orders"), env, ctx);

@@ -348,6 +348,83 @@ describe("LangGraph Worker orchestration", () => {
     expect(metrics).toContain("ai_daily_budget_requests_remaining 20");
     expect(metrics).toContain("ai_daily_budget_threshold_70_reached 1");
   });
+
+  it("uses the admin-configured daily request budget instead of the deploy default", async () => {
+    const limits = {
+      messagesPerMinute: { mode: "deployment" },
+      messagesPerHour: { mode: "deployment" },
+      anonymousMessagesPerDay: { mode: "deployment" },
+      dailyRequestBudget: { mode: "custom", limit: 50 },
+      maxConcurrentRequests: { mode: "deployment" }
+    };
+    const db = {
+      prepare: (sql: string) => {
+        const statement = {
+          bind: () => statement,
+          first: () => Promise.resolve(sql.includes("ai_rate_limit_buckets") ? { count: 0 } : null),
+          all: () => Promise.resolve({
+            results: sql.includes("ai_usage_daily")
+              ? [{ user_or_session_hash: "project", request_count: 80, llm_call_count: 0, tool_call_count: 0 }]
+              : []
+          }),
+          run: () => Promise.resolve({ meta: { changes: 1 } })
+        };
+        if (sql.includes("assistant_limits")) {
+          return { ...statement, first: () => Promise.resolve({ value_json: JSON.stringify(limits) }) };
+        }
+        return statement;
+      },
+      batch: () => Promise.resolve([])
+    } as unknown as NonNullable<TestEnv["DB"]>;
+    const response = await worker.fetch(
+      new Request("https://assistant.example.test/metrics", {
+        headers: { "x-aether-operations-token": "operations-secret" }
+      }),
+      { ...env(), DB: db, AI_OPERATIONS_TOKEN: "operations-secret", AI_DAILY_REQUEST_BUDGET: "100" }
+    );
+
+    const metrics = await response.text();
+    expect(metrics).toContain("ai_daily_budget_limit_requests 50");
+    expect(metrics).toContain("ai_daily_budget_usage_ratio 1");
+    expect(metrics).toContain("ai_daily_budget_requests_remaining 0");
+  });
+
+  it("blocks a message at the admin-configured project-wide daily limit", async () => {
+    const limits = {
+      messagesPerMinute: { mode: "unlimited" },
+      messagesPerHour: { mode: "unlimited" },
+      anonymousMessagesPerDay: { mode: "unlimited" },
+      dailyRequestBudget: { mode: "custom", limit: 10 },
+      maxConcurrentRequests: { mode: "deployment" }
+    };
+    const db = {
+      prepare: (sql: string) => {
+        const statement = {
+          bind: (...args: unknown[]) => ({
+            first: () => Promise.resolve(
+              sql.includes("ai_usage_daily") && args[1] === "project" ? { request_count: 10 } : null
+            ),
+            all: () => Promise.resolve({ results: [] }),
+            run: () => Promise.resolve({ meta: { changes: 1 } })
+          }),
+          first: () => Promise.resolve(null),
+          all: () => Promise.resolve({ results: [] }),
+          run: () => Promise.resolve({ meta: { changes: 1 } })
+        };
+        return sql.includes("assistant_limits")
+          ? { ...statement, first: () => Promise.resolve({ value_json: JSON.stringify(limits) }) }
+          : statement;
+      },
+      batch: () => Promise.resolve([])
+    } as unknown as NonNullable<TestEnv["DB"]>;
+    const response = await worker.fetch(
+      assistantRequest("Hola", {}, "USD"),
+      { ...env(), DB: db, AI_DAILY_REQUEST_BUDGET: "100" }
+    );
+
+    expect(response.status).toBe(429);
+    await expect(response.json()).resolves.toMatchObject({ error: { code: "daily_budget_exceeded" } });
+  });
 });
 
 describe("interview regressions", () => {

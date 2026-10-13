@@ -76,6 +76,25 @@ type Env = {
   AI_STORE_DEMO_MODE?: string;
 };
 
+type AssistantLimitSetting =
+  | { mode: "deployment" }
+  | { mode: "unlimited" }
+  | { mode: "custom"; limit: number };
+type AssistantLimits = {
+  messagesPerMinute: AssistantLimitSetting;
+  messagesPerHour: AssistantLimitSetting;
+  anonymousMessagesPerDay: AssistantLimitSetting;
+  dailyRequestBudget: AssistantLimitSetting;
+  maxConcurrentRequests: AssistantLimitSetting;
+};
+const DEFAULT_ASSISTANT_LIMITS: AssistantLimits = {
+  messagesPerMinute: { mode: "deployment" },
+  messagesPerHour: { mode: "deployment" },
+  anonymousMessagesPerDay: { mode: "deployment" },
+  dailyRequestBudget: { mode: "deployment" },
+  maxConcurrentRequests: { mode: "deployment" }
+};
+
 type D1Database = {
   prepare(query: string): D1PreparedStatement;
   batch(statements: D1PreparedStatement[]): Promise<unknown[]>;
@@ -270,9 +289,10 @@ export default {
       if (consentBody.privacy_consent !== true) {
         return json(request, env, { success: false, error: { code: "CONSENT_REQUIRED", message: "Privacy consent is required before using the assistant." } }, 422);
       }
-      const limit = await enforceMessageUsage(request, env);
+      const limits = await resolveAssistantLimits(env);
+      const limit = await enforceMessageUsage(request, env, limits);
       if (limit) return json(request, env, limit.payload, limit.status);
-      const slot = await acquireConcurrencySlot(request, env);
+      const slot = await acquireConcurrencySlot(request, env, limits);
       if (!slot.ok) return json(request, env, slot.result.payload, slot.result.status);
       // Captured before handleAssistant() reads the body below - Request.clone()
       // throws once bodyUsed is true, so this can't be recomputed inside the catch.
@@ -324,9 +344,10 @@ export default {
       if (consentBody.privacy_consent !== true) {
         return json(request, env, { success: false, error: { code: "CONSENT_REQUIRED", message: "Privacy consent is required before using the assistant." } }, 422);
       }
-      const limit = await enforceMessageUsage(request, env);
+      const limits = await resolveAssistantLimits(env);
+      const limit = await enforceMessageUsage(request, env, limits);
       if (limit) return json(request, env, limit.payload, limit.status);
-      const slot = await acquireConcurrencySlot(request, env);
+      const slot = await acquireConcurrencySlot(request, env, limits);
       if (!slot.ok) return json(request, env, slot.result.payload, slot.result.status);
       const deadline = AbortSignal.timeout(requestTimeoutMs(env));
       try {
@@ -561,7 +582,8 @@ async function getAuditEvents(request: Request, env: Env, url: URL): Promise<Ass
 
 async function enforceMessageUsage(
   request: Request,
-  env: Env
+  env: Env,
+  limits: AssistantLimits
 ): Promise<AssistantHttpResult | null> {
   if (env.AI_ASSISTANT_ENABLED === "false") return null;
   const body = (await request
@@ -594,8 +616,8 @@ async function enforceMessageUsage(
       "anonymous"
   );
   const scopeHashes = await rateLimitScopes(request, sessionHash, body.thread_id || null);
-  const minuteLimit = numberEnv(env.AI_RATE_LIMIT_MESSAGES_PER_MINUTE);
-  const hourLimit = numberEnv(env.AI_RATE_LIMIT_MESSAGES_PER_HOUR);
+  const minuteLimit = resolveLimit(limits.messagesPerMinute, env.AI_RATE_LIMIT_MESSAGES_PER_MINUTE);
+  const hourLimit = resolveLimit(limits.messagesPerHour, env.AI_RATE_LIMIT_MESSAGES_PER_HOUR);
   const shortLimit = await enforceShortWindowLimits(
     env,
     scopeHashes,
@@ -610,8 +632,8 @@ async function enforceMessageUsage(
   const day = usageDay();
   // The downstream Aether API validates Clerk tokens for order tools. Until a token has
   // been verified there, merely presenting a Bearer value must not unlock a higher quota.
-  const sessionLimit = numberEnv(env.AI_RATE_LIMIT_ANONYMOUS_PER_DAY);
-  const projectLimit = numberEnv(env.AI_DAILY_REQUEST_BUDGET);
+  const sessionLimit = resolveLimit(limits.anonymousMessagesPerDay, env.AI_RATE_LIMIT_ANONYMOUS_PER_DAY);
+  const projectLimit = resolveLimit(limits.dailyRequestBudget, env.AI_DAILY_REQUEST_BUDGET);
   const sessionUsage = await getDailyUsage(env, day, sessionHash);
   if (sessionLimit !== null && sessionUsage >= sessionLimit) {
     await incrementDailyUsage(env, day, "rate_limit_errors", { request_count: 1 });
@@ -766,9 +788,10 @@ async function pruneExpiredRateBuckets(env: Env): Promise<void> {
 // doesn't permanently hold a slot.
 async function acquireConcurrencySlot(
   request: Request,
-  env: Env
+  env: Env,
+  limits: AssistantLimits
 ): Promise<{ ok: true; id: string } | { ok: false; result: AssistantHttpResult }> {
-  const limit = numberEnv(env.AI_MAX_CONCURRENT_REQUESTS);
+  const limit = resolveLimit(limits.maxConcurrentRequests, env.AI_MAX_CONCURRENT_REQUESTS);
   if (!env.DB || limit === null) return { ok: true, id: "" };
   const body = (await request
     .clone()
@@ -823,6 +846,53 @@ async function releaseConcurrencySlot(env: Env, id: string): Promise<void> {
   }
 }
 
+async function resolveAssistantLimits(env: Env): Promise<AssistantLimits> {
+  if (!env.DB) return DEFAULT_ASSISTANT_LIMITS;
+  try {
+    const row = await env.DB.prepare(
+      "select value_json from application_settings where key = 'assistant_limits'"
+    ).first<{ value_json: string }>();
+    if (!row) return DEFAULT_ASSISTANT_LIMITS;
+    const parsed: unknown = JSON.parse(row.value_json);
+    if (!isAssistantLimits(parsed)) {
+      console.error("Stored assistant limits are invalid; using deployment defaults");
+      return DEFAULT_ASSISTANT_LIMITS;
+    }
+    return parsed;
+  } catch (error) {
+    console.error("Could not read admin-configured assistant limits; using deployment defaults", {
+      error: error instanceof Error ? error.name : "unknown"
+    });
+    return DEFAULT_ASSISTANT_LIMITS;
+  }
+}
+
+function isAssistantLimits(value: unknown): value is AssistantLimits {
+  if (!value || typeof value !== "object") return false;
+  const limits = value as Record<string, unknown>;
+  const keys = [
+    "messagesPerMinute",
+    "messagesPerHour",
+    "anonymousMessagesPerDay",
+    "dailyRequestBudget",
+    "maxConcurrentRequests"
+  ];
+  return keys.every((key) => {
+    const setting = limits[key];
+    if (!setting || typeof setting !== "object") return false;
+    const candidate = setting as Record<string, unknown>;
+    if (candidate.mode === "deployment" || candidate.mode === "unlimited") return true;
+    const maximum = key === "maxConcurrentRequests" ? 1_000 : 1_000_000;
+    return candidate.mode === "custom" && Number.isSafeInteger(candidate.limit) && Number(candidate.limit) > 0 && Number(candidate.limit) <= maximum;
+  });
+}
+
+function resolveLimit(setting: AssistantLimitSetting, deploymentValue: string | undefined): number | null {
+  if (setting.mode === "deployment") return numberEnv(deploymentValue);
+  if (setting.mode === "unlimited") return null;
+  return setting.limit;
+}
+
 async function renderMetrics(env: Env): Promise<string> {
   if (!env.DB) return "aether_ai_worker_ready 1\nai_requests_total 0\n";
   const day = usageDay();
@@ -868,7 +938,8 @@ async function renderMetrics(env: Env): Promise<string> {
     .filter((row) => row.execution_status === "blocked")
     .reduce((total, row) => total + Number(row.count || 0), 0);
   const activeBuckets = await getActiveRateLimitBuckets(env);
-  const dailyBudget = numberEnv(env.AI_DAILY_REQUEST_BUDGET);
+  const limits = await resolveAssistantLimits(env);
+  const dailyBudget = resolveLimit(limits.dailyRequestBudget, env.AI_DAILY_REQUEST_BUDGET);
   const dailyBudgetConfigured = dailyBudget === null ? 0 : 1;
   const budgetRatio =
     dailyBudget && dailyBudget > 0 ? Math.min(1, projectRequests / dailyBudget) : 0;
