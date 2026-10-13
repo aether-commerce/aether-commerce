@@ -137,7 +137,7 @@ describe("LangGraph Worker orchestration", () => {
       return new Promise<Response>((_resolve, reject) => {
         signal?.addEventListener("abort", () => {
           modelCallAborted = true;
-          reject(new Error("stalled model request aborted"));
+          reject(new DOMException("stalled model request aborted", "AbortError"));
         }, { once: true });
       });
     }) as typeof fetch;
@@ -660,9 +660,16 @@ describe("interview regressions", () => {
     // and Gemini's endpoint is never touched to get it.
     let geminiCalled = false;
     const originalFetch = global.fetch.bind(global);
-    global.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+    global.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = input instanceof Request ? input.url : String(input);
-      if (url.includes("generativelanguage.googleapis.com")) geminiCalled = true;
+      if (url.includes("generativelanguage.googleapis.com")) {
+        // A previous timed-out turn may still be unwinding when this test
+        // starts. Only count a model call made for this request.
+        const body = input instanceof Request
+          ? await input.clone().text()
+          : typeof init?.body === "string" ? init.body : "";
+        if (body.includes("Ver mis pedidos")) geminiCalled = true;
+      }
       return originalFetch(input, init);
     }) as typeof fetch;
 
