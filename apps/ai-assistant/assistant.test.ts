@@ -232,6 +232,19 @@ describe("interview regressions", () => {
     { id: "cable_usb", slug: "cable-trenzado-usb-c-a-usb-c", name: "Cable Trenzado USB-C a USB-C", finalPrice: 4_900_000, currency: "COP", availableStock: 8, images: [] },
     { id: "cable_lightning", slug: "cable-trenzado-usb-c-a-lightning", name: "Cable Trenzado USB-C a Lightning", finalPrice: 6_650_000, currency: "COP", availableStock: 5, images: [] }
   ];
+  const support = {
+    id: "desk_support",
+    slug: "soporte-plegable-de-escritorio",
+    name: "Soporte Plegable de Escritorio",
+    finalPrice: 6_650_000,
+    currency: "COP",
+    availableStock: 4,
+    images: [],
+    specifications: [
+      { key: "Material", value: "Aluminio anodizado" },
+      { key: "Compatibilidad", value: "Celulares y tablets pequeñas" }
+    ]
+  };
 
   it("finds a named catalog product and preserves its COP price", async () => {
     const response = await worker.fetch(
@@ -271,6 +284,48 @@ describe("interview regressions", () => {
     expect(payload.message).toContain("115.500 COP");
   });
 
+  it("compares both product specifications and states their documented differences", async () => {
+    const chargers = [
+      { id: "gan", slug: "cargador-gan-65w", name: "Cargador GaN 65W", finalPrice: 18_900_000, currency: "COP", availableStock: 2, images: [], specifications: [{ key: "Potencia", value: "65 W" }, { key: "Conexión", value: "USB-C" }] },
+      { id: "wireless", slug: "cargador-inalambrico-15w", name: "Cargador Inalámbrico 15W", finalPrice: 13_650_000, currency: "COP", availableStock: 3, images: [], specifications: [{ key: "Potencia", value: "15 W" }, { key: "Conexión", value: "Qi" }] }
+    ];
+    const response = await worker.fetch(
+      assistantRequest("Compara Cargador GaN 65W con Cargador Inalámbrico 15W y dime las diferencias.", {}, "COP"),
+      { ...env(() => Promise.resolve(Response.json({ success: true, data: chargers, pagination: { pageCount: 1 } }))), GEMINI_API_KEY: "test-key" }
+    );
+    const payload = await response.json<{ intent: string; message: string; products: Array<{ product_id: string; specifications: unknown[] }> }>();
+    expect(payload.intent).toBe("COMPARE_PRODUCTS");
+    expect(payload.products.map((product) => product.product_id)).toEqual(["gan", "wireless"]);
+    expect(payload.message).toContain("Potencia: Cargador GaN 65W 65 W; Cargador Inalámbrico 15W 15 W");
+    expect(payload.message).toContain("Conexión:");
+    expect(payload.products[0]?.specifications).toContainEqual({ key: "Potencia", value: "65 W" });
+  });
+
+  it("does not present one resolved item as a completed comparison", async () => {
+    const response = await worker.fetch(
+      assistantRequest("Compara Cargador GaN 65W con otro cargador", {}, "COP"),
+      { ...env(() => Promise.resolve(Response.json({ success: true, data: [{ id: "gan", slug: "cargador-gan-65w", name: "Cargador GaN 65W", finalPrice: 18_900_000, currency: "COP", availableStock: 2, images: [] }], pagination: { pageCount: 1 } }))), GEMINI_API_KEY: "test-key" }
+    );
+    const payload = await response.json<{ intent: string; message: string; action: { type: string; status: string }; products: unknown[] }>();
+    expect(payload.intent).toBe("COMPARE_PRODUCTS");
+    expect(payload.action).toMatchObject({ type: "ASK_CLARIFICATION", status: "PENDING" });
+    expect(payload.products).toEqual([]);
+    expect(payload.message).toContain("otro producto");
+  });
+
+  it("uses the listed compatibility to decline an unsupported laptop claim", async () => {
+    const response = await worker.fetch(
+      assistantRequest("¿El Soporte Plegable de Escritorio sostiene una laptop de 17 pulgadas? Usa sus especificaciones.", {}, "COP"),
+      { ...env(() => Promise.resolve(Response.json({ success: true, data: [support], pagination: { pageCount: 1 } }))), GEMINI_API_KEY: "test-key" }
+    );
+    const payload = await response.json<{ intent: string; message: string; products: Array<{ specifications: unknown[] }> }>();
+    expect(payload.intent).toBe("GET_PRODUCT_DETAILS");
+    expect(payload.message).toContain("Celulares y tablets pequeñas");
+    expect(payload.message).toContain("laptop de 17 pulgadas");
+    expect(payload.message).not.toContain("reseñas");
+    expect(payload.products[0]?.specifications).toContainEqual({ key: "Compatibilidad", value: "Celulares y tablets pequeñas" });
+  });
+
   it("uses a COP budget for the sum of two different available items", async () => {
     const response = await worker.fetch(
       assistantRequest("Tengo máximo 200.000 COP para dos accesorios distintos. Recomiéndame una pareja disponible y dime el total.", {}, "COP"),
@@ -286,6 +341,21 @@ describe("interview regressions", () => {
     expect(payload.intent).toBe("RECOMMEND_PRODUCTS");
     expect(payload.products.map((product) => product.product_id)).toEqual(["cable_usb", "cable_lightning"]);
     expect(payload.message).toContain("115.500 COP");
+    expect(payload.message).toContain("Envío e impuestos no calculados");
+  });
+
+  it("recognizes a currency after the amount without a preceding budget word", async () => {
+    const response = await worker.fetch(
+      assistantRequest("Tengo 200.000 COP para dos accesorios distintos; su total debe caber en ese dinero.", {}, "COP"),
+      { ...env((request) => {
+        const url = new URL(request instanceof Request ? request.url : String(request));
+        expect(url.searchParams.get("maxPrice")).toBe("20000000");
+        return Promise.resolve(Response.json({ success: true, data: copProducts }));
+      }), GEMINI_API_KEY: "test-key" }
+    );
+    const payload = await response.json<{ intent: string; products: Array<{ product_id: string }> }>();
+    expect(payload.intent).toBe("RECOMMEND_PRODUCTS");
+    expect(payload.products.map((product) => product.product_id)).toEqual(["cable_usb", "cable_lightning"]);
   });
 
   it("asks for the store currency before comparing a USD budget to COP prices", async () => {
@@ -298,6 +368,26 @@ describe("interview regressions", () => {
     expect(payload.message).toContain("presupuesto en COP");
     expect(payload.products).toEqual([]);
     expect(calls).toBe(0);
+  });
+
+  it("uses the currency next to the budget even when the message also mentions the store currency", async () => {
+    const response = await worker.fetch(
+      assistantRequest("Tengo 50 USD para comprar en la tienda COP", {}, "COP"),
+      { ...env(() => Promise.resolve(Response.json({ success: true, data: copProducts }))), GEMINI_API_KEY: "test-key" }
+    );
+    const payload = await response.json<{ message: string; products: unknown[] }>();
+    expect(payload.message).toContain("presupuesto en COP");
+    expect(payload.products).toEqual([]);
+  });
+
+  it("checks catalog currency when the client omitted its currency", async () => {
+    const response = await worker.fetch(
+      assistantRequest("Tengo 50 USD para un accesorio"),
+      { ...env(() => Promise.resolve(Response.json({ success: true, data: copProducts }))), GEMINI_API_KEY: "test-key" }
+    );
+    const payload = await response.json<{ message: string; products: unknown[] }>();
+    expect(payload.message).toContain("presupuesto en COP");
+    expect(payload.products).toEqual([]);
   });
 
   it.each([
@@ -327,18 +417,33 @@ describe("interview regressions", () => {
   });
 
   it("treats an explicit recommendation budget as a catalog ceiling", async () => {
+    const requestedMaxPrices: Array<string | null> = [];
     const response = await worker.fetch(
       assistantRequest("Recomiéndame una laptop por menos de US$1,000"),
       env((request) => {
         const url = new URL(request instanceof Request ? request.url : request instanceof URL ? request.href : request);
         expect(url.pathname).toBe("/api/v1/catalog/products");
-        expect(url.searchParams.get("maxPrice")).toBe("100000");
-        return Promise.resolve(Response.json({ success: true, data: [{ id: "laptop_1", slug: "laptop_1", name: "Laptop under budget", finalPrice: 99999, availableStock: 3, images: [] }] }));
+        requestedMaxPrices.push(url.searchParams.get("maxPrice"));
+        return Promise.resolve(Response.json({ success: true, data: [{ id: "laptop_1", slug: "laptop_1", name: "Laptop under budget", finalPrice: 99999, currency: "USD", availableStock: 3, images: [] }] }));
       })
     );
     const payload = await response.json<{ intent: string; products: Array<{ price: string }> }>();
     expect(payload.intent).toBe("RECOMMEND_PRODUCTS");
     expect(payload.products).toEqual([expect.objectContaining({ price: "999.99" })]);
+    expect(requestedMaxPrices).toContain("100000");
+  });
+
+  it("filters an over-budget product even if the catalog ignores maxPrice", async () => {
+    const response = await worker.fetch(
+      assistantRequest("Recomiéndame un regalo por menos de 50 USD", {}, "USD"),
+      env(() => Promise.resolve(Response.json({ success: true, data: [
+        { id: "affordable", slug: "affordable", name: "Affordable gift", finalPrice: 4900, currency: "USD", availableStock: 2, images: [] },
+        { id: "expensive", slug: "expensive", name: "Expensive gift", finalPrice: 8900, currency: "USD", availableStock: 2, images: [] }
+      ] })))
+    );
+    const payload = await response.json<{ intent: string; products: Array<{ product_id: string }> }>();
+    expect(payload.intent).toBe("RECOMMEND_PRODUCTS");
+    expect(payload.products.map((product) => product.product_id)).toEqual(["affordable"]);
   });
 
   it("ranks a birthday gift by stated interests, preferred color, and budget without embeddings", async () => {
