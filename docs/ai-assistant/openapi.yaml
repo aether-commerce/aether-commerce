@@ -456,6 +456,19 @@ components:
           type: array
           items:
             type: string
+        links:
+          type: array
+          description: Optional same-store links for policy and human-contact guidance.
+          items:
+            type: object
+            required:
+              - label
+              - href
+            properties:
+              label:
+                type: string
+              href:
+                type: string
     OrderSummary:
       type: object
       required: [id, number, state, item_count, total, currency, created_at]

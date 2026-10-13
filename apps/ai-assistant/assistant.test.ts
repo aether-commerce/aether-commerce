@@ -33,6 +33,7 @@ function env(
   return {
     AETHER_API_BASE_URL: "https://aether-api.example.test",
     AI_ASSISTANT_ENABLED: "true",
+    AI_STORE_DEMO_MODE: "true",
     AI_CORS_ALLOWED_ORIGINS: "https://store.example.test",
     AI_MUTATIONS_ENABLED: "true",
     ...(apiFetch ? { AETHER_API: { fetch: apiFetch } } : {})
@@ -104,6 +105,85 @@ function withMockedGeminiTextReply<T>(text: string, run: () => Promise<T>): Prom
 }
 
 describe("LangGraph Worker orchestration", () => {
+  it("answers demo shipping questions with the published policy and a clickable link", async () => {
+    const response = await worker.fetch(assistantRequest("¿Cómo funciona el envío?"), env());
+    const payload = await response.json<{ intent: string; message: string; links?: Array<{ href: string }> }>();
+    expect(payload.intent).toBe("GENERAL_STORE_QUESTION");
+    expect(payload.message).toMatch(/tienda demo/i);
+    expect(payload.message).toMatch(/no se envían productos/i);
+    expect(payload.links).toContainEqual(expect.objectContaining({ href: "/shipping/" }));
+    expect(payload.links).toContainEqual(expect.objectContaining({ href: "/contact/" }));
+  });
+
+  it("offers human contact for shoppers asking for an advisor", async () => {
+    const response = await worker.fetch(assistantRequest("Quiero hablar con un asesor"), env());
+    const payload = await response.json<{ message: string; links?: Array<{ href: string }> }>();
+    expect(payload.message).toMatch(/formulario de contacto/i);
+    expect(payload.links).toContainEqual(expect.objectContaining({ href: "/contact/" }));
+  });
+
+  it("uses configured per-product policy for a non-demo store without inventing terms", async () => {
+    const response = await worker.fetch(
+      assistantRequest("¿Cuál es el envío del Wireless Mouse?"),
+      {
+        ...env((request) => {
+          const url = new URL(request instanceof Request ? request.url : String(request));
+          expect(url.pathname).toBe("/api/v1/catalog/products");
+          return Promise.resolve(Response.json({
+            success: true,
+            data: [{
+              id: "prod-mouse",
+              slug: "wireless-mouse",
+              name: "Wireless Mouse",
+              finalPrice: 2500,
+              currency: "USD",
+              availableStock: 2,
+              shippingInformation: "Ships in 2 business days.",
+              images: []
+            }],
+            pagination: { pageCount: 1 }
+          }));
+        }),
+        AI_STORE_DEMO_MODE: "false"
+      }
+    );
+    const payload = await response.json<{ message: string }>();
+    expect(payload.message).toBe("Ships in 2 business days.");
+  });
+
+  it("explains when a specifically named catalog product is out of stock", async () => {
+    const product = {
+      id: "prod-mouse",
+      slug: "wireless-mouse",
+      name: "Wireless Mouse",
+      finalPrice: 2500,
+      currency: "USD",
+      availableStock: 0,
+      rating: { average: 4.7, count: 21 },
+      images: []
+    };
+    const response = await worker.fetch(
+      assistantRequest("Busca Wireless Mouse"),
+      env((request) => {
+        const url = new URL(request instanceof Request ? request.url : String(request));
+        if (url.searchParams.get("inStock") === "true") {
+          return Promise.resolve(Response.json({ success: true, data: [] }));
+        }
+        return Promise.resolve(Response.json({ success: true, data: [product], pagination: { pageCount: 1 } }));
+      })
+    );
+    const payload = await response.json<{ message: string; products: Array<{ name: string; available: boolean }> }>();
+    expect(payload.message).toMatch(/agotado/i);
+    expect(payload.products).toEqual([expect.objectContaining({ name: "Wireless Mouse", available: false })]);
+  });
+
+  it("does not mistake a return request for a general returns-policy question", async () => {
+    const response = await worker.fetch(assistantRequest("Quiero devolver mi pedido"), env());
+    const payload = await response.json<{ intent: string; links?: unknown[] }>();
+    expect(payload.intent).toBe("REQUEST_RETURN");
+    expect(payload.links).toBeUndefined();
+  });
+
   it("ends a stalled store request at the shared deadline instead of hanging", async () => {
     let aborted = false;
     const stalledApi = (_input: RequestInfo | URL, init?: RequestInit) =>

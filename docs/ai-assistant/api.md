@@ -40,9 +40,15 @@ Response:
     "entity_id": null,
     "message": null
   },
-  "suggested_replies": []
+  "suggested_replies": [],
+  "links": [
+    { "label": "Política de envíos", "href": "/shipping/" },
+    { "label": "Contactar a Aether", "href": "/contact/" }
+  ]
 }
 ```
+
+`links` is optional. The assistant uses it for localized, same-store policy and contact links.
 
 ## Streaming
 
