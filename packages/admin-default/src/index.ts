@@ -40,6 +40,7 @@ export { SettingsPage } from "./SettingsPage";
 export { CheckoutProviderSettings } from "./CheckoutProviderSettings";
 export { IntegrationSecretsSettings } from "./IntegrationSecretsSettings";
 export { SettingsIntegrationsPage } from "./SettingsIntegrationsPage";
+export { SettingsAssistantLimitsPage } from "./SettingsAssistantLimitsPage";
 export { PlatformSettingsPage } from "./PlatformSettingsPage";
 export { SettingsPlatformPage } from "./SettingsPlatformPage";
 export { OrdersNewPage } from "./OrdersNewPage";

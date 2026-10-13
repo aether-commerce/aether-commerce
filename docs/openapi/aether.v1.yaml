@@ -471,6 +471,31 @@ paths:
           description: Private summary
         "403":
           $ref: "#/components/responses/Error"
+  /admin/assistant-limits:
+    get:
+      tags: [Admin]
+      summary: Read assistant request limits
+      description: Requires settings.manage. Values are stored per environment and can inherit deployment defaults, use a custom positive integer, or disable the limit.
+      security:
+        - bearerAuth: []
+      responses:
+        "200": { description: Assistant limits }
+        "403": { $ref: "#/components/responses/Error" }
+    put:
+      tags: [Admin]
+      summary: Save assistant request limits
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssistantLimits"
+      responses:
+        "200": { description: Saved assistant limits }
+        "400": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
   /webhooks/stripe:
     post:
       summary: Stripe signed webhook
@@ -501,6 +526,36 @@ components:
           schema:
             $ref: "#/components/schemas/Error"
   schemas:
+    AssistantLimitSetting:
+      oneOf:
+        - type: object
+          required: [mode]
+          properties:
+            mode: { type: string, enum: [deployment, unlimited] }
+        - type: object
+          required: [mode, limit]
+          properties:
+            mode: { type: string, enum: [custom] }
+            limit: { type: integer, minimum: 1, maximum: 1000000 }
+    AssistantLimits:
+      type: object
+      required: [messagesPerMinute, messagesPerHour, anonymousMessagesPerDay, dailyRequestBudget, maxConcurrentRequests]
+      properties:
+        messagesPerMinute: { $ref: "#/components/schemas/AssistantLimitSetting" }
+        messagesPerHour: { $ref: "#/components/schemas/AssistantLimitSetting" }
+        anonymousMessagesPerDay: { $ref: "#/components/schemas/AssistantLimitSetting" }
+        dailyRequestBudget: { $ref: "#/components/schemas/AssistantLimitSetting" }
+        maxConcurrentRequests:
+          oneOf:
+            - type: object
+              required: [mode]
+              properties:
+                mode: { type: string, enum: [deployment, unlimited] }
+            - type: object
+              required: [mode, limit]
+              properties:
+                mode: { type: string, enum: [custom] }
+                limit: { type: integer, minimum: 1, maximum: 1000 }
     Success:
       type: object
       required: [success, data, meta]

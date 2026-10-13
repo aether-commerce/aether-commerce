@@ -1513,6 +1513,56 @@ const storeSettingsSchema = z.object({
   copPerUsd: z.number().int().min(1).max(100_000).optional()
 });
 
+const assistantLimitSettingSchema = z.discriminatedUnion("mode", [
+  z.object({ mode: z.literal("deployment") }).strict(),
+  z.object({ mode: z.literal("unlimited") }).strict(),
+  z.object({ mode: z.literal("custom"), limit: z.number().int().min(1).max(1_000_000) }).strict()
+]);
+const assistantConcurrencyLimitSchema = z.discriminatedUnion("mode", [
+  z.object({ mode: z.literal("deployment") }).strict(),
+  z.object({ mode: z.literal("unlimited") }).strict(),
+  z.object({ mode: z.literal("custom"), limit: z.number().int().min(1).max(1_000) }).strict()
+]);
+const assistantLimitsSchema = z.object({
+  messagesPerMinute: assistantLimitSettingSchema,
+  messagesPerHour: assistantLimitSettingSchema,
+  anonymousMessagesPerDay: assistantLimitSettingSchema,
+  dailyRequestBudget: assistantLimitSettingSchema,
+  maxConcurrentRequests: assistantConcurrencyLimitSchema
+}).strict();
+const ASSISTANT_LIMITS_SETTING_KEY = "assistant_limits";
+const defaultAssistantLimits = {
+  messagesPerMinute: { mode: "deployment" as const },
+  messagesPerHour: { mode: "deployment" as const },
+  anonymousMessagesPerDay: { mode: "deployment" as const },
+  dailyRequestBudget: { mode: "deployment" as const },
+  maxConcurrentRequests: { mode: "deployment" as const }
+};
+
+adminRoutes.get("/assistant-limits", requirePermission("settings.manage"), async (c) => {
+  const row = await c.env.DB.prepare(
+    "select value_json from application_settings where key = ?"
+  ).bind(ASSISTANT_LIMITS_SETTING_KEY).first<{ value_json: string }>();
+  let parsed;
+  try {
+    parsed = row ? assistantLimitsSchema.safeParse(JSON.parse(row.value_json)) : null;
+  } catch {
+    parsed = null;
+  }
+  return ok(c, parsed?.success ? parsed.data : defaultAssistantLimits);
+});
+
+adminRoutes.put(
+  "/assistant-limits",
+  requirePermission("settings.manage"),
+  zValidator("json", assistantLimitsSchema),
+  async (c) => {
+    const value = c.req.valid("json");
+    await saveApplicationSetting(c, ASSISTANT_LIMITS_SETTING_KEY, value);
+    return ok(c, value);
+  }
+);
+
 adminRoutes.patch(
   "/settings/store",
   requirePermission("settings.manage"),
