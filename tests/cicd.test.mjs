@@ -72,6 +72,16 @@ test("development deployment never defaults its D1 binding to production", () =>
   assert.doesNotMatch(workflow, /AETHER_D1_DATABASE_NAME:.*aether-production['\"]?\s*\}\}/);
 });
 
+test("assistant daily request budget is environment-configurable and validated", () => {
+  const configWriter = read("scripts/write-ai-wrangler-config.mjs");
+  for (const environment of ["production", "development"]) {
+    const workflow = read(`.github/workflows/deploy-${environment}.yml`);
+    assert.match(workflow, /AI_DAILY_REQUEST_BUDGET: \$\{\{ vars\.AI_DAILY_REQUEST_BUDGET \}\}/);
+  }
+  assert.match(configWriter, /AI_DAILY_REQUEST_BUDGET: dailyRequestBudget \|\| config\.vars\.AI_DAILY_REQUEST_BUDGET/);
+  assert.match(configWriter, /AI_DAILY_REQUEST_BUDGET must be a positive integer/);
+});
+
 test("Wompi sandbox stays isolated to production", () => {
   const config = read("scripts/write-api-wrangler-config.mjs");
   const webhook = read("packages/api-worker/src/routes/webhooks.ts");
