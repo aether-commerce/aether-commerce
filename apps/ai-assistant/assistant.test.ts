@@ -70,6 +70,11 @@ function assistantRequest(message: string, headers: Record<string, string> = {},
   });
 }
 
+function isGeminiRequest(input: RequestInfo | URL): boolean {
+  const url = new URL(input instanceof Request ? input.url : String(input), "https://assistant.example.test");
+  return url.hostname === "generativelanguage.googleapis.com";
+}
+
 // Stubs global fetch so a call to Gemini returns a fixed plain-text reply
 // with no tool call, as if the model answered conversationally instead of
 // invoking a tool - lets tests assert on finalizeAgentResponseNode's language
@@ -89,8 +94,7 @@ function withMockedGeminiTextReply<T>(text: string, run: () => Promise<T>): Prom
   };
   const originalFetch = global.fetch.bind(global);
   global.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
-    const url = input instanceof Request ? input.url : String(input);
-    if (url.includes("generativelanguage.googleapis.com"))
+    if (isGeminiRequest(input))
       return Promise.resolve(Response.json(geminiPayload));
     return originalFetch(input, init);
   }) as typeof fetch;
@@ -129,8 +133,7 @@ describe("LangGraph Worker orchestration", () => {
     let modelCallStarted = false;
     let modelSignalPresent = false;
     global.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
-      const url = input instanceof Request ? input.url : String(input);
-      if (!url.includes("generativelanguage.googleapis.com")) return originalFetch(input, init);
+      if (!isGeminiRequest(input)) return originalFetch(input, init);
       modelCallStarted = true;
       const signal = input instanceof Request ? input.signal : init?.signal;
       modelSignalPresent = Boolean(signal);
@@ -661,8 +664,7 @@ describe("interview regressions", () => {
     let geminiCalled = false;
     const originalFetch = global.fetch.bind(global);
     global.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = input instanceof Request ? input.url : String(input);
-      if (url.includes("generativelanguage.googleapis.com")) {
+      if (isGeminiRequest(input)) {
         // A previous timed-out turn may still be unwinding when this test
         // starts. Only count a model call made for this request.
         const body = input instanceof Request
@@ -718,8 +720,7 @@ describe("interview regressions", () => {
     let geminiCalled = false;
     const originalFetch = global.fetch.bind(global);
     global.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
-      const url = input instanceof Request ? input.url : String(input);
-      if (url.includes("generativelanguage.googleapis.com")) {
+      if (isGeminiRequest(input)) {
         geminiCalled = true;
         return Promise.resolve(
           Response.json({
