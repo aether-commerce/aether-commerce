@@ -73,6 +73,7 @@ type Env = {
   // dispatcher branches on GEMINI_API_KEY presence alone. Left wired in the
   // deploy config as a no-op rather than torn out.
   AI_TOOL_CALLING_ENABLED?: string;
+  AI_STORE_DEMO_MODE?: string;
 };
 
 type D1Database = {
@@ -100,6 +101,10 @@ type AssistantProduct = {
   color?: string | null;
   size?: string | null;
   rating: number | null;
+  rating_count?: number;
+  shipping_information?: string | null;
+  warranty_information?: string | null;
+  return_policy?: string | null;
   specifications: Array<{ key: string; value: string }>;
   recommendation_reason?: string | null;
 };
@@ -132,6 +137,7 @@ type AssistantResponse = {
   favorites: AssistantProduct[];
   action: { type: string; status: string; entity_id: string | null; message: string | null };
   suggested_replies: string[];
+  links?: Array<{ label: string; href: string }>;
 };
 
 type AssistantOrderSummary = {
@@ -2478,6 +2484,10 @@ function toAssistantProduct(input: unknown): AssistantProduct | null {
     color: primitiveString(attributes?.color) || null,
     size: primitiveString(attributes?.size) || null,
     rating: typeof rating?.average === "number" ? rating.average : null,
+    rating_count: typeof rating?.count === "number" ? rating.count : 0,
+    shipping_information: primitiveString(product.shippingInformation) || null,
+    warranty_information: primitiveString(product.warrantyInformation) || null,
+    return_policy: primitiveString(product.returnPolicy) || null,
     specifications
   };
 }
@@ -2724,6 +2734,7 @@ type ToolArtifact = {
   cart?: Record<string, unknown> | null;
   orders?: AssistantOrderSummary[];
   favorites?: AssistantProduct[];
+  links?: Array<{ label: string; href: string }>;
 };
 
 // Shared refusal copy for the cross-cutting preconditions every tool checks
@@ -3002,6 +3013,36 @@ async function runProductSearchTool(
   const searchText = args.deals_only ? `ofertas ${args.query}` : args.query;
   const products = await searchProducts(ctx.env, searchText, ctx.sessionHash, args.maximum_price_cents);
   if (products.length === 0) {
+    // Search endpoints intentionally return only in-stock products. If the
+    // shopper named a catalog item explicitly, check the full catalog once so
+    // an exhausted product is explained instead of appearing nonexistent.
+    const originalMessage = String(ctx.body.message || searchText).trim();
+    const possibleProductName = originalMessage
+      .replace(/^(?:please\s+)?(?:busca|buscar|mu[eé]strame|show|find|search)\s+/i, "")
+      .replace(/["'“”]/g, "")
+      .trim();
+    const explicitName = /^[A-Z0-9][\p{L}\p{N}-]*(?:\s+[A-Z0-9][\p{L}\p{N}-]*){0,5}$/u.test(possibleProductName)
+      && /[A-Z]/.test(possibleProductName);
+    const named = explicitName
+      ? namedProductsInMessage(originalMessage, await catalogProductsForNamedLookup(ctx.env))
+          .filter((product) => !product.available)
+      : [];
+    if (named.length > 0) {
+      const message = localize(ctx.language, {
+        es: ` encontré ${named.map((product) => product.name).join(" y ")}, pero ahora está agotado${named.length > 1 ? "s" : ""}. Puedo buscarte alternativas similares.`,
+        en: `I found ${named.map((product) => product.name).join(" and ")}, but ${named.length > 1 ? "they are" : "it is"} currently out of stock. I can look for similar alternatives.`,
+        fr: `J'ai trouvé ${named.map((product) => product.name).join(" et ")}, mais ${named.length > 1 ? "ils sont" : "il est"} actuellement en rupture de stock. Je peux chercher des alternatives similaires.`,
+        it: `Ho trovato ${named.map((product) => product.name).join(" e ")}, ma ${named.length > 1 ? "sono" : "è"} al momento esaurito${named.length > 1 ? "i" : ""}. Posso cercare alternative simili.`
+      }).trim();
+      return toolOutcome(
+        message,
+        intent,
+        "PRODUCTS_LISTED",
+        "SUCCEEDED",
+        { products: named },
+        `Named catalog products are currently unavailable: ${named.map((product) => product.name).join(", ")}`
+      );
+    }
     const emptyMessage = await composeEmptyResultReply(
       ctx.env,
       searchText,
@@ -4336,11 +4377,20 @@ const getProductReviewsTool = defineAssistantTool({
       return toolOutcome(localize(ctx.language, TOOL_ERROR_MESSAGES), "GET_PRODUCT_REVIEWS", "ASK_CLARIFICATION", "FAILED");
     }
     if (result.reviews.length === 0) {
+      const importedReviewCount = product.rating_count ?? 0;
       const message = localize(ctx.language, {
-        es: `${product.name} todavia no tiene reseñas.`,
-        en: `${product.name} has no reviews yet.`,
-        fr: `${product.name} n'a pas encore d'avis.`,
-        it: `${product.name} non ha ancora recensioni.`
+        es: importedReviewCount > 0
+          ? `${product.name} no tiene reseñas publicadas en Aether. La calificación del catálogo mostrada en la ficha proviene de ${importedReviewCount} reseñas importadas y no representa reseñas verificadas aquí.`
+          : `${product.name} todavía no tiene reseñas publicadas en Aether.`,
+        en: importedReviewCount > 0
+          ? `${product.name} has no reviews published on Aether. The catalog rating on its listing comes from ${importedReviewCount} imported reviews and does not represent reviews verified here.`
+          : `${product.name} has no reviews published on Aether yet.`,
+        fr: importedReviewCount > 0
+          ? `${product.name} n'a pas d'avis publiés sur Aether. La note du catalogue affichée sur sa fiche provient de ${importedReviewCount} avis importés et ne correspond pas à des avis vérifiés ici.`
+          : `${product.name} n'a pas encore d'avis publiés sur Aether.`,
+        it: importedReviewCount > 0
+          ? `${product.name} non ha recensioni pubblicate su Aether. La valutazione del catalogo mostrata nella scheda proviene da ${importedReviewCount} recensioni importate e non rappresenta recensioni verificate qui.`
+          : `${product.name} non ha ancora recensioni pubblicate su Aether.`
       });
       return toolOutcome(message, "GET_PRODUCT_REVIEWS", "PRODUCTS_LISTED", "SUCCEEDED", { products: [product] });
     }
@@ -4759,10 +4809,98 @@ async function catalogPurchaseShortCircuit(
   return null;
 }
 
+type StoreTrustTopic = "shipping" | "returns" | "warranty" | "contact";
+
+function storeTrustTopic(message: string): StoreTrustTopic | null {
+  const normalized = foldText(message);
+  const isTransaction = /\b(?:mi pedido|mi compra|pedido|order|solicitar|request|quiero devolver|devolver mi|quiero (?:un )?reembolso|refund my|cancelar|cancel)\b/.test(normalized);
+  if (/\b(?:contacto|contactar|contact|asesor|agente|agent|persona|humano|human|speak to someone|talk to someone|hablar con alguien)\b/.test(normalized)) return "contact";
+  if (isTransaction) return null;
+  if (/\b(?:envio|envios|shipping|delivery|entrega|entregas)\b/.test(normalized)) return "shipping";
+  if (/\b(?:devolucion|devoluciones|devolver|returns?|refund policy|reembolso|reembolsos)\b/.test(normalized)) return "returns";
+  if (/\b(?:garantia|garantias|warranty)\b/.test(normalized)) return "warranty";
+  return null;
+}
+
+async function storeTrustArtifact(
+  ctx: AgentGraphData,
+  message: string
+): Promise<ToolArtifact | null> {
+  const topic = storeTrustTopic(message);
+  if (!topic) return null;
+  const links = {
+    shipping: { es: "Política de envíos", en: "Shipping policy", fr: "Politique de livraison", it: "Politica di spedizione", href: "/shipping/" },
+    returns: { es: "Devoluciones", en: "Returns", fr: "Retours", it: "Resi", href: "/returns/" },
+    warranty: { es: "Garantía", en: "Warranty", fr: "Garantie", it: "Garanzia", href: "/returns/" },
+    contact: { es: "Contactar a Aether", en: "Contact Aether", fr: "Contacter Aether", it: "Contatta Aether", href: "/contact/" }
+  } as const;
+  const selected = links[topic];
+  const demo = ctx.env.AI_STORE_DEMO_MODE === "true";
+  let details: string;
+  if (topic === "contact") {
+    details = localize(ctx.language, {
+      es: "Puedes hablar con una persona del equipo desde el formulario de contacto.",
+      en: "You can reach a person on the team through the contact form.",
+      fr: "Vous pouvez joindre une personne de l'équipe via le formulaire de contact.",
+      it: "Puoi contattare una persona del team tramite il modulo di contatto."
+    });
+  } else if (demo) {
+    details = localize(ctx.language, {
+      es: topic === "shipping"
+        ? "Aether es una tienda demo: no se envían productos y los transportistas, costos, tiempos y seguimientos son ilustrativos."
+        : topic === "returns"
+          ? "Aether es una tienda demo: los pedidos y devoluciones son simulados; no se entrega un producto ni hay dinero real que reembolsar."
+          : "Aether es una tienda demo: no hay una venta ni una garantía real asociada a estos productos de muestra.",
+      en: topic === "shipping"
+        ? "Aether is a demo store: products are not shipped, and carriers, costs, timelines and tracking are illustrative."
+        : topic === "returns"
+          ? "Aether is a demo store: orders and returns are simulated; no product is delivered and no real money is refunded."
+          : "Aether is a demo store: sample products are not real sales and carry no real warranty.",
+      fr: topic === "shipping"
+        ? "Aether est une boutique de démonstration : aucun produit n'est expédié et les transporteurs, coûts, délais et suivis sont indicatifs."
+        : topic === "returns"
+          ? "Aether est une boutique de démonstration : les commandes et retours sont simulés, aucun produit n'est livré et aucun argent réel n'est remboursé."
+          : "Aether est une boutique de démonstration : les produits d'exemple ne constituent pas une vente réelle et n'ont pas de garantie réelle.",
+      it: topic === "shipping"
+        ? "Aether è un negozio demo: i prodotti non vengono spediti e corrieri, costi, tempi e tracciamento sono illustrativi."
+        : topic === "returns"
+          ? "Aether è un negozio demo: ordini e resi sono simulati; nessun prodotto viene consegnato e non viene rimborsato denaro reale."
+          : "Aether è un negozio demo: i prodotti di esempio non sono vendite reali e non hanno una garanzia reale."
+    });
+  } else {
+    const product = namedProductsInMessage(message, await catalogProductsForNamedLookup(ctx.env))[0];
+    const policy = topic === "shipping" ? product?.shipping_information : topic === "returns" ? product?.return_policy : product?.warranty_information;
+    details = policy || localize(ctx.language, {
+      es: product
+        ? "No tengo una condición específica configurada en la ficha de este producto. Revisa la política publicada o contacta a la tienda."
+        : "No tengo una política de tienda configurada para responder ese detalle. Revisa la política publicada o contacta a la tienda.",
+      en: product
+        ? "I do not have a specific condition configured on this product listing. Check the published policy or contact the store."
+        : "I do not have a store policy configured for that detail. Check the published policy or contact the store.",
+      fr: product
+        ? "Aucune condition spécifique n'est configurée sur la fiche de ce produit. Consultez la politique publiée ou contactez la boutique."
+        : "Aucune politique de boutique n'est configurée pour ce détail. Consultez la politique publiée ou contactez la boutique.",
+      it: product
+        ? "Non è configurata una condizione specifica nella scheda di questo prodotto. Consulta la policy pubblicata o contatta il negozio."
+        : "Non è configurata una policy del negozio per questo dettaglio. Consulta la policy pubblicata o contatta il negozio."
+    });
+  }
+  const link = { label: selected[ctx.language], href: selected.href };
+  const contactLink = topic === "contact" ? [] : [{ label: links.contact[ctx.language], href: links.contact.href }];
+  return {
+    intent: "GENERAL_STORE_QUESTION",
+    localizedMessage: details,
+    action: { type: "NONE", status: "NOT_REQUESTED", entity_id: null, message: null },
+    links: [link, ...contactLink]
+  };
+}
+
 async function tryHeuristicShortCircuit(
   ctx: AgentGraphData,
   message: string
 ): Promise<AssistantResponse | null> {
+  const trust = await storeTrustArtifact(ctx, message);
+  if (trust) return artifactToResponse(ctx.requestId, ctx.threadId, ctx.language, trust);
   const purchaseAnswer = await catalogPurchaseShortCircuit(ctx, message);
   if (purchaseAnswer) return purchaseAnswer;
   const heuristic = heuristicIntent(message, ctx.locale);
@@ -5046,6 +5184,7 @@ function artifactToResponse(
   );
   if (artifact.orders) response.orders = artifact.orders;
   if (artifact.favorites) response.favorites = artifact.favorites;
+  if (artifact.links) response.links = artifact.links;
   return response;
 }
 
@@ -5603,6 +5742,10 @@ async function handleAssistantHeuristicFallback(
       action: { type: "NONE", status: "NOT_REQUESTED", entity_id: null, message: null }
     };
   } else {
+    const trust = await storeTrustArtifact(ctx, message);
+    if (trust) {
+      artifact = trust;
+    } else {
     const { intent } = heuristicIntent(message, body.locale || "es-CO");
     const blocked = await checkToolPreconditions(
       ctx,
@@ -5708,6 +5851,7 @@ async function handleAssistantHeuristicFallback(
             action: { type: "NONE", status: "NOT_REQUESTED", entity_id: null, message: null }
           };
       }
+    }
     }
   }
 
