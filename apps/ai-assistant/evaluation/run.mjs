@@ -67,6 +67,7 @@ async function sendTurn(sessionId, threadId, turn) {
       thread_id: threadId,
       message: turn.input,
       locale: turn.locale,
+      currency: turn.currency,
       privacy_consent: true,
       privacy_version: "evaluation"
     })
@@ -80,7 +81,7 @@ async function sendTurn(sessionId, threadId, turn) {
 // only the final response. Single-turn cases (`input`) are just a one-turn
 // sequence.
 async function runCase(entry) {
-  const turns = entry.turns || [{ input: entry.input, locale: entry.locale }];
+  const turns = entry.turns || [{ input: entry.input, locale: entry.locale, currency: entry.currency }];
   const sessionId = `evaluation-${entry.id}`;
   const threadId = `evaluation-${entry.id}`;
   let payload;
@@ -91,6 +92,33 @@ async function runCase(entry) {
   const checks = [];
   if (entry.expected.intent) {
     checks.push({ name: "intent", pass: payload.intent === entry.expected.intent });
+  }
+  if (entry.expected.product_names) {
+    const actualNames = (payload.products || []).map((product) => product.name);
+    checks.push({
+      name: "named_products",
+      pass: entry.expected.product_names.every((name) => actualNames.includes(name))
+    });
+  }
+  if (entry.expected.currency) {
+    checks.push({
+      name: "product_currency",
+      pass: (payload.products?.length ?? 0) > 0 && payload.products.every((product) => product.currency === entry.expected.currency)
+    });
+  }
+  if (entry.expected.max_combined_price_cents != null) {
+    const products = payload.products || [];
+    const cents = products.map((product) => Math.round(Number(product.price) * 100));
+    checks.push({
+      name: "combined_budget",
+      pass: products.length >= 2 && cents.every(Number.isSafeInteger) && cents.reduce((sum, value) => sum + value, 0) <= entry.expected.max_combined_price_cents
+    });
+  }
+  if (entry.expected.message_contains) {
+    checks.push({
+      name: "grounded_message",
+      pass: entry.expected.message_contains.every((phrase) => (payload.message || "").toLocaleLowerCase().includes(phrase.toLocaleLowerCase()))
+    });
   }
   if (entry.expected.language) {
     const expectedFirstReply = FIRST_SUGGESTED_REPLY_BY_LANGUAGE[entry.expected.language];
