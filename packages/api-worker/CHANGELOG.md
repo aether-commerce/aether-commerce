@@ -1,5 +1,11 @@
 # @aether-commerce/api-worker
 
+## 0.8.0
+
+### Minor Changes
+
+- 6d4e954: Add an environment-isolated admin page for assistant request and concurrency limits, with validated API persistence and runtime enforcement.
+
 ## 0.7.5
 
 ### Patch Changes
