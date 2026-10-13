@@ -1,5 +1,11 @@
 # @aether-commerce/storefront-default
 
+## 0.5.11
+
+### Patch Changes
+
+- f20d31e: Keep the shopper's message when the assistant stalls or disconnects, let the shopper stop a pending response, and avoid replaying an uncertain cart or order action automatically.
+
 ## 0.5.10
 
 ### Patch Changes

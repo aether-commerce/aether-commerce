@@ -59,6 +59,10 @@ paths:
               description: Seconds to wait before retrying when active graph concurrency is saturated.
               schema:
                 type: integer
+        "503":
+          description: Assistant temporarily unavailable; the operation outcome may need checking before retry.
+        "504":
+          description: Assistant exceeded AI_REQUEST_TIMEOUT_SECONDS; check cart or order state before retrying a mutation.
   /v1/assistant/messages/stream:
     post:
       summary: Send a streaming assistant message
@@ -82,11 +86,15 @@ paths:
               $ref: "#/components/schemas/AssistantMessageRequest"
       responses:
         "200":
-          description: SSE stream.
+          description: SSE stream ending in assistant.completed or assistant.error. A client must not replay the message automatically after assistant.error or a broken stream.
           content:
             text/event-stream:
               schema:
                 type: string
+        "503":
+          description: Assistant unavailable before streaming began.
+        "504":
+          description: Assistant timed out before streaming began.
   /v1/assistant/conversations/{thread_id}:
     get:
       summary: Read conversation messages
