@@ -1,5 +1,11 @@
 # @aether-commerce/storefront-default
 
+## 0.5.13
+
+### Patch Changes
+
+- bbbb9fd: Add grounded trust-policy and human-contact links to the storefront assistant, clarify imported catalog ratings, and explain explicitly named out-of-stock products.
+
 ## 0.5.12
 
 ### Patch Changes
