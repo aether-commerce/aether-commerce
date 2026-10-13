@@ -59,9 +59,17 @@ export function CheckoutPage() {
   const [form, setForm] = useState<FormState>(emptyForm);
   const [status, setStatus] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [attemptedCheckout, setAttemptedCheckout] = useState(false);
   const [savedAddresses, setSavedAddresses] = useState<Address[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [saveAddress, setSaveAddress] = useState(true);
+  const addressIncomplete =
+    !form.fullName.trim() ||
+    !form.phone.trim() ||
+    !form.line1.trim() ||
+    !form.city.trim() ||
+    !form.region.trim();
+  const visibleStatus = status === t.checkoutAddressRequired && !addressIncomplete ? null : status;
 
   useEffect(() => {
     if (!customer) return;
@@ -149,8 +157,13 @@ export function CheckoutPage() {
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    if (!form.fullName.trim() || !form.phone.trim() || !form.line1.trim() || !form.city.trim() || !form.region.trim()) {
+    setAttemptedCheckout(true);
+    if (addressIncomplete) {
       setStatus(t.checkoutAddressRequired);
+      const checkoutForm = event.currentTarget;
+      window.requestAnimationFrame(() =>
+        checkoutForm.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
+      );
       return;
     }
 
@@ -221,7 +234,7 @@ export function CheckoutPage() {
       <p className="mt-2 max-w-xl text-sm text-zinc-600">{t.checkoutPageDescription}</p>
 
       <div className="mt-6 grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
-        <form onSubmit={(event) => void submit(event)} className="grid gap-3 rounded-lg border border-zinc-200 bg-white p-5">
+        <form noValidate onSubmit={(event) => void submit(event)} className="grid gap-3 rounded-lg border border-zinc-200 bg-white p-5">
           {savedAddresses.length > 0 ? (
             <div className="mb-1 grid gap-2">
               <span className="text-sm font-medium text-zinc-700">{t.savedAddresses}</span>
@@ -256,15 +269,15 @@ export function CheckoutPage() {
           ) : null}
           <label className="grid gap-1 text-sm">
             <span className="font-medium text-zinc-700">{t.shippingFullName}</span>
-            <input required value={form.fullName} onChange={(event) => updateField("fullName", event.target.value)} className={fieldClass()} />
+            <input required value={form.fullName} onChange={(event) => updateField("fullName", event.target.value)} aria-invalid={attemptedCheckout && !form.fullName.trim()} aria-describedby={attemptedCheckout && !form.fullName.trim() ? "checkout-status" : undefined} className={fieldClass()} />
           </label>
           <label className="grid gap-1 text-sm">
             <span className="font-medium text-zinc-700">{t.shippingPhone}</span>
-            <input required type="tel" value={form.phone} onChange={(event) => updateField("phone", event.target.value)} className={fieldClass()} />
+            <input required type="tel" value={form.phone} onChange={(event) => updateField("phone", event.target.value)} aria-invalid={attemptedCheckout && !form.phone.trim()} aria-describedby={attemptedCheckout && !form.phone.trim() ? "checkout-status" : undefined} className={fieldClass()} />
           </label>
           <label className="grid gap-1 text-sm">
             <span className="font-medium text-zinc-700">{t.shippingAddressLine1}</span>
-            <input required value={form.line1} onChange={(event) => updateField("line1", event.target.value)} className={fieldClass()} />
+            <input required value={form.line1} onChange={(event) => updateField("line1", event.target.value)} aria-invalid={attemptedCheckout && !form.line1.trim()} aria-describedby={attemptedCheckout && !form.line1.trim() ? "checkout-status" : undefined} className={fieldClass()} />
           </label>
           <label className="grid gap-1 text-sm">
             <span className="font-medium text-zinc-700">{t.shippingAddressLine2}</span>
@@ -273,11 +286,11 @@ export function CheckoutPage() {
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="grid gap-1 text-sm">
               <span className="font-medium text-zinc-700">{t.shippingCity}</span>
-              <input required value={form.city} onChange={(event) => updateField("city", event.target.value)} className={fieldClass()} />
+              <input required value={form.city} onChange={(event) => updateField("city", event.target.value)} aria-invalid={attemptedCheckout && !form.city.trim()} aria-describedby={attemptedCheckout && !form.city.trim() ? "checkout-status" : undefined} className={fieldClass()} />
             </label>
             <label className="grid gap-1 text-sm">
               <span className="font-medium text-zinc-700">{t.shippingRegion}</span>
-              <input required value={form.region} onChange={(event) => updateField("region", event.target.value)} className={fieldClass()} />
+              <input required value={form.region} onChange={(event) => updateField("region", event.target.value)} aria-invalid={attemptedCheckout && !form.region.trim()} aria-describedby={attemptedCheckout && !form.region.trim() ? "checkout-status" : undefined} className={fieldClass()} />
             </label>
           </div>
           <label className="grid gap-1 text-sm">
@@ -292,7 +305,7 @@ export function CheckoutPage() {
             </label>
           ) : null}
 
-          {status ? <p className="text-sm text-zinc-600">{status}</p> : null}
+          {visibleStatus ? <p id="checkout-status" role="status" aria-live="polite" className="text-sm text-zinc-600">{visibleStatus}</p> : null}
 
           <div className="mt-2 flex flex-wrap items-center gap-3">
             <Button type="submit" disabled={submitting}>

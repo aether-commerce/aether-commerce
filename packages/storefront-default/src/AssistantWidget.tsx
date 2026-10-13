@@ -61,7 +61,11 @@ type AssistantOrderSummary = {
 };
 
 type AssistantCartSummary = NonNullable<AssistantResponse["cart"]>;
-type AssistantStreamData = AssistantResponse | AssistantProduct[] | AssistantCartSummary | { message?: string; text?: string };
+type AssistantStreamData =
+  | AssistantResponse
+  | AssistantProduct[]
+  | AssistantCartSummary
+  | { message?: string; text?: string };
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -98,6 +102,7 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [addingProductId, setAddingProductId] = useState<string | null>(null);
   const [cartFeedback, setCartFeedback] = useState<string | null>(null);
+  const [cartVariantLabels, setCartVariantLabels] = useState<Record<string, string>>({});
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
@@ -105,7 +110,8 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const activeRequestRef = useRef<AbortController | null>(null);
   const enabled = config.features.aiAssistant && Boolean(aiAssistantUrl);
-  const formatUsd = (cents: number, displayLocale: string) => formatMoney(cents, config.store.currency, displayLocale);
+  const formatUsd = (cents: number, displayLocale: string) =>
+    formatMoney(cents, config.store.currency, displayLocale);
 
   const copy = useMemo(
     () =>
@@ -114,7 +120,8 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
             title: `Asistente ${config.brand.name}`,
             intro: "Preguntame por productos, tu carrito o tus pedidos.",
             greetingGuest: `¡Hola! Soy el asistente de ${config.brand.name}. Puedo buscar productos, revisar tu carrito y consultar tus pedidos.`,
-            greetingCustomer: "Hola {name}! Puedo buscar productos, revisar tu carrito y consultar tus pedidos.",
+            greetingCustomer:
+              "Hola {name}! Puedo buscar productos, revisar tu carrito y consultar tus pedidos.",
             suggestedStart: ["Ver carrito", "Buscar ofertas", "Ver mis pedidos"],
             placeholder: "Buscar tenis, regalos, ofertas...",
             send: "Enviar",
@@ -133,15 +140,20 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
             busy: "Buscando...",
             error: "No pude conectar con el asistente. La tienda sigue funcionando normalmente.",
             cancel: "Detener",
-            cancelled: "Detuve la respuesta. Revisa el carrito o tus pedidos antes de volver a enviar el mensaje.",
-            timedOut: "El asistente tardó demasiado. Revisa el carrito o tus pedidos antes de volver a enviar el mensaje.",
-            incomplete: "La respuesta se interrumpió. Revisa el carrito o tus pedidos antes de volver a enviar el mensaje.",
+            cancelled:
+              "Detuve la respuesta. Revisa el carrito o tus pedidos antes de volver a enviar el mensaje.",
+            timedOut:
+              "El asistente tardó demasiado. Revisa el carrito o tus pedidos antes de volver a enviar el mensaje.",
+            incomplete:
+              "La respuesta se interrumpió. Revisa el carrito o tus pedidos antes de volver a enviar el mensaje.",
             privacyQuestion: "¿Autorizas el tratamiento de este chat?",
-            privacyNotice: "Se guarda hasta 30 días y el mensaje puede enviarse a Gemini. No incluyas datos sensibles.",
+            privacyNotice:
+              "Se guarda hasta 30 días y el mensaje puede enviarse a Gemini. No incluyas datos sensibles.",
             privacyAccept: "Sí, continuar",
             privacyLink: "Privacidad",
             deleteChat: "Eliminar chat",
-            deleteError: "No pude eliminar el chat del servidor. Intenta de nuevo antes de cerrar esta pestaña."
+            deleteError:
+              "No pude eliminar el chat del servidor. Intenta de nuevo antes de cerrar esta pestaña."
           }
         : {
             title: `${config.brand.name} Assistant`,
@@ -166,11 +178,15 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
             busy: "Searching...",
             error: "I could not reach the assistant. The store still works normally.",
             cancel: "Stop",
-            cancelled: "I stopped the response. Check your cart or orders before sending the message again.",
-            timedOut: "The assistant took too long. Check your cart or orders before sending the message again.",
-            incomplete: "The response was interrupted. Check your cart or orders before sending the message again.",
+            cancelled:
+              "I stopped the response. Check your cart or orders before sending the message again.",
+            timedOut:
+              "The assistant took too long. Check your cart or orders before sending the message again.",
+            incomplete:
+              "The response was interrupted. Check your cart or orders before sending the message again.",
             privacyQuestion: "Do you authorize processing this chat?",
-            privacyNotice: "It is stored for up to 30 days and the message may be sent to Gemini. Please don't include sensitive data.",
+            privacyNotice:
+              "It is stored for up to 30 days and the message may be sent to Gemini. Please don't include sensitive data.",
             privacyAccept: "Yes, continue",
             privacyLink: "Privacy",
             deleteChat: "Delete chat",
@@ -182,6 +198,49 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
   const { customer } = useCustomerSession();
   const { getToken } = useAetherAuth();
   const [footerCart, setFooterCart] = useState<Cart | null>(null);
+
+  useEffect(() => {
+    const items = messages.flatMap((message) => message.cart?.items ?? []);
+    const slugs = [
+      ...new Set(
+        items.flatMap((item) => {
+          const slug = typeof item.slug === "string" ? item.slug : "";
+          const variantId = typeof item.variantId === "string" ? item.variantId : "";
+          return slug && variantId ? [slug] : [];
+        })
+      )
+    ];
+    if (slugs.length === 0) {
+      setCartVariantLabels({});
+      return;
+    }
+
+    let cancelled = false;
+    void Promise.all(
+      slugs.map((slug) =>
+        fetch(`${apiBaseUrl}/api/v1/catalog/products/${encodeURIComponent(slug)}`)
+          .then((response) => response.json())
+          .then(
+            (payload: {
+              success?: boolean;
+              data?: { variants?: Array<{ id: string; label: string }> };
+            }) =>
+              payload.success && payload.data?.variants
+                ? payload.data.variants.map(
+                    (variant) => [`${slug}:${variant.id}`, variant.label] as const
+                  )
+                : []
+          )
+          .catch(() => [])
+      )
+    ).then((entries) => {
+      if (!cancelled) setCartVariantLabels(Object.fromEntries(entries.flat()));
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [messages, apiBaseUrl]);
 
   // Lets other components (e.g. the Hero's "Talk to Aether AI" CTA) open the
   // widget without prop-drilling, matching the aether-cart-changed pattern.
@@ -198,9 +257,15 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
       const cart = cartClient.readLocalCart();
       if (cart.items.some((item) => item.currency !== config.store.currency)) {
         setFooterCart(null);
-        void cartClient.refreshLocalCartPrices().then((updated) => {
-          if (updated.items.every((item) => item.currency === config.store.currency)) setFooterCart(updated);
-        }).catch(() => { /* Keep the stale amount hidden until a later refresh. */ });
+        void cartClient
+          .refreshLocalCartPrices()
+          .then((updated) => {
+            if (updated.items.every((item) => item.currency === config.store.currency))
+              setFooterCart(updated);
+          })
+          .catch(() => {
+            /* Keep the stale amount hidden until a later refresh. */
+          });
       } else {
         setFooterCart(cart);
       }
@@ -232,7 +297,9 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
   }, [isOpen]);
 
   function greetingMessage(): ChatMessage {
-    const content = customer ? copy.greetingCustomer.replace("{name}", customer.name.split(" ")[0] || customer.name) : copy.greetingGuest;
+    const content = customer
+      ? copy.greetingCustomer.replace("{name}", customer.name.split(" ")[0] || customer.name)
+      : copy.greetingGuest;
     return { role: "assistant", content, suggestedReplies: copy.suggestedStart };
   }
 
@@ -248,9 +315,12 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
     let cancelled = false;
     void (async () => {
       try {
-        const response = await fetch(`${aiAssistantUrl.replace(/\/$/, "")}/v1/assistant/conversations/${encodeURIComponent(storedThreadId)}`, {
-          headers: await assistantRequestHeaders()
-        });
+        const response = await fetch(
+          `${aiAssistantUrl.replace(/\/$/, "")}/v1/assistant/conversations/${encodeURIComponent(storedThreadId)}`,
+          {
+            headers: await assistantRequestHeaders()
+          }
+        );
         if (!response.ok) return;
         const payload = (await response.json()) as {
           success?: boolean;
@@ -278,7 +348,8 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
               if (Array.isArray(stored.orders)) restoredMessage.orders = stored.orders;
               if (stored.cart) restoredMessage.cart = stored.cart;
               if (stored.action) restoredMessage.action = stored.action;
-              if (stored.suggested_replies) restoredMessage.suggestedReplies = stored.suggested_replies;
+              if (stored.suggested_replies)
+                restoredMessage.suggestedReplies = stored.suggested_replies;
               return restoredMessage;
             }
             return null;
@@ -350,7 +421,10 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
     const productMatch = window.location.pathname.match(/\/(?:store\/)?products\/([^/?#]+)/);
     const params = new URLSearchParams(window.location.search);
     const categorySlug = categoryMatch?.[1] ? decodeURIComponent(categoryMatch[1]) : null;
-    const productSlug = productMatch?.[1] && productMatch[1] !== "detail" ? decodeURIComponent(productMatch[1]) : params.get("slug");
+    const productSlug =
+      productMatch?.[1] && productMatch[1] !== "detail"
+        ? decodeURIComponent(productMatch[1])
+        : params.get("slug");
     return {
       current_path: path,
       current_category: categorySlug,
@@ -375,7 +449,10 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
     if (!message || isSending || !privacyAccepted) return;
     const controller = new AbortController();
     activeRequestRef.current = controller;
-    const timeout = window.setTimeout(() => controller.abort(new DOMException("Assistant request timed out", "TimeoutError")), 30_000);
+    const timeout = window.setTimeout(
+      () => controller.abort(new DOMException("Assistant request timed out", "TimeoutError")),
+      30_000
+    );
     setInput("");
     setIsSending(true);
     setStatusMessage(null);
@@ -388,9 +465,12 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
         ? (controller.signal.reason as { name?: string } | undefined)?.name === "TimeoutError"
           ? copy.timedOut
           : copy.cancelled
-        : err instanceof TypeError ? copy.incomplete
-        : err instanceof Error && err.message ? err.message : copy.error;
-      setInput((current) => current.trim() ? current : message);
+        : err instanceof TypeError
+          ? copy.incomplete
+          : err instanceof Error && err.message
+            ? err.message
+            : copy.error;
+      setInput((current) => (current.trim() ? current : message));
       setMessages((current) => [
         ...(current[current.length - 1]?.streaming ? current.slice(0, -1) : current),
         { role: "assistant", content: text, error: true }
@@ -440,7 +520,9 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
   async function readErrorMessage(response: Response): Promise<string> {
     try {
       const payload = (await response.clone().json()) as { error?: { message?: string } };
-      return typeof payload.error?.message === "string" && payload.error.message ? payload.error.message : copy.error;
+      return typeof payload.error?.message === "string" && payload.error.message
+        ? payload.error.message
+        : copy.error;
     } catch {
       return copy.error;
     }
@@ -449,12 +531,15 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
   async function sendMessageStream(message: string, signal: AbortSignal) {
     const headers = await assistantRequestHeaders();
     signal.throwIfAborted();
-    const response = await fetch(`${aiAssistantUrl.replace(/\/$/, "")}/v1/assistant/messages/stream`, {
-      method: "POST",
-      headers,
-      body: assistantRequestBody(message),
-      signal
-    });
+    const response = await fetch(
+      `${aiAssistantUrl.replace(/\/$/, "")}/v1/assistant/messages/stream`,
+      {
+        method: "POST",
+        headers,
+        body: assistantRequestBody(message),
+        signal
+      }
+    );
     if (!response.ok || !response.body) throw new Error(await readErrorMessage(response));
 
     const reader = response.body.getReader();
@@ -575,7 +660,10 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
         suggestedReplies: payload.suggested_replies
       };
       if (payload.orders?.length) nextMessage.orders = payload.orders;
-      if (current[current.length - 1]?.role === "assistant" && current[current.length - 1]?.streaming) {
+      if (
+        current[current.length - 1]?.role === "assistant" &&
+        current[current.length - 1]?.streaming
+      ) {
         return [...current.slice(0, -1), nextMessage];
       }
       return [...current, nextMessage];
@@ -584,7 +672,10 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
 
   function upsertAssistantDraft(partial: Partial<ChatMessage>) {
     setMessages((current) => {
-      const existing = current[current.length - 1]?.role === "assistant" && current[current.length - 1]?.streaming ? current[current.length - 1] : undefined;
+      const existing =
+        current[current.length - 1]?.role === "assistant" && current[current.length - 1]?.streaming
+          ? current[current.length - 1]
+          : undefined;
       const draft: ChatMessage = {
         role: "assistant",
         content: partial.content ?? existing?.content ?? statusMessage ?? copy.busy,
@@ -600,7 +691,10 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
       if (nextAction) draft.action = nextAction;
       if (nextSuggestedReplies) draft.suggestedReplies = nextSuggestedReplies;
 
-      if (current[current.length - 1]?.role === "assistant" && current[current.length - 1]?.streaming) {
+      if (
+        current[current.length - 1]?.role === "assistant" &&
+        current[current.length - 1]?.streaming
+      ) {
         return [...current.slice(0, -1), draft];
       }
       return [...current, draft];
@@ -612,10 +706,13 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
     if (threadId) {
       setIsDeleting(true);
       try {
-        const response = await fetch(`${aiAssistantUrl.replace(/\/$/, "")}/v1/assistant/conversations/${encodeURIComponent(threadId)}`, {
-          method: "DELETE",
-          headers: await assistantRequestHeaders()
-        });
+        const response = await fetch(
+          `${aiAssistantUrl.replace(/\/$/, "")}/v1/assistant/conversations/${encodeURIComponent(threadId)}`,
+          {
+            method: "DELETE",
+            headers: await assistantRequestHeaders()
+          }
+        );
         if (!response.ok && response.status !== 404) throw new Error("delete_failed");
       } catch {
         setStatusMessage(copy.deleteError);
@@ -690,7 +787,11 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
                 className="focus-ring grid h-9 w-9 place-items-center rounded-chat text-chat-text-muted hover:bg-chat-surface-alt hover:text-chat-text disabled:cursor-wait disabled:opacity-50"
                 aria-label={copy.deleteChat}
               >
-                {isDeleting ? <Loader2 size={16} className="animate-spin" aria-hidden /> : <Trash2 size={16} aria-hidden />}
+                {isDeleting ? (
+                  <Loader2 size={16} className="animate-spin" aria-hidden />
+                ) : (
+                  <Trash2 size={16} aria-hidden />
+                )}
               </button>
               <button
                 type="button"
@@ -714,14 +815,18 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
               </div>
             ) : null}
             {messages.length === 0 ? (
-              <div className="rounded-chat border border-dashed border-chat-border bg-chat-surface p-4 text-sm text-chat-text-muted">{copy.intro}</div>
+              <div className="rounded-chat border border-dashed border-chat-border bg-chat-surface p-4 text-sm text-chat-text-muted">
+                {copy.intro}
+              </div>
             ) : null}
             {messages.map((message, index) => (
               <div key={index} className={message.role === "user" ? "ml-8 text-right" : "mr-8"}>
                 <div
                   role={message.error ? "alert" : undefined}
                   className={`inline-block max-w-[85%] rounded-2xl px-3.5 py-2.5 text-left text-sm leading-6 ${
-                    message.role === "user" ? "rounded-tr-md bg-chat-accent text-white" : "rounded-tl-md bg-chat-surface text-chat-text"
+                    message.role === "user"
+                      ? "rounded-tr-md bg-chat-accent text-white"
+                      : "rounded-tl-md bg-chat-surface text-chat-text"
                   }`}
                 >
                   {message.content}
@@ -729,7 +834,10 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
                 {message.products?.length ? (
                   <div className="mt-2 grid gap-2 text-left">
                     {message.products.map((product) => (
-                      <div key={product.product_id} className="flex gap-3 rounded-2xl border border-chat-border bg-chat-surface p-3">
+                      <div
+                        key={product.product_id}
+                        className="flex gap-3 rounded-2xl border border-chat-border bg-chat-surface p-3"
+                      >
                         {product.image_url ? (
                           <ProductImage
                             src={product.image_url}
@@ -742,25 +850,37 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
                           <div className="h-16 w-16 shrink-0 rounded-xl bg-chat-surface-alt" />
                         )}
                         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                          <p className="line-clamp-2 text-[15px] font-semibold leading-snug text-chat-text">{product.name}</p>
+                          <p className="line-clamp-2 text-[15px] font-semibold leading-snug text-chat-text">
+                            {product.name}
+                          </p>
                           <p className="text-[15px] font-bold text-chat-success">
-                            {formatUsd(Math.round(Number(product.price) * 100), locale === "es" ? "es-CO" : "en-US")}
+                            {formatUsd(
+                              Math.round(Number(product.price) * 100),
+                              locale === "es" ? "es-CO" : "en-US"
+                            )}
                           </p>
                           {product.recommendation_reason ? (
-                            <p className="text-xs leading-5 text-chat-text-muted">{product.recommendation_reason}</p>
+                            <p className="text-xs leading-5 text-chat-text-muted">
+                              {product.recommendation_reason}
+                            </p>
                           ) : null}
                           <div className="flex flex-wrap gap-1">
                             <span
                               className={`inline-flex w-fit items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                                product.available ? "bg-chat-success-soft text-chat-success" : "bg-chat-surface-alt text-chat-text-muted"
+                                product.available
+                                  ? "bg-chat-success-soft text-chat-success"
+                                  : "bg-chat-surface-alt text-chat-text-muted"
                               }`}
                             >
-                              {product.available ? <Check size={11} strokeWidth={3} aria-hidden /> : null}
+                              {product.available ? (
+                                <Check size={11} strokeWidth={3} aria-hidden />
+                              ) : null}
                               {product.available ? copy.inStock : copy.outOfStock}
                             </span>
                             {product.color || product.size ? (
                               <span className="rounded-full bg-chat-surface-alt px-2 py-0.5 text-[11px] font-medium text-chat-text-muted">
-                                {copy.variant}: {[product.color, product.size].filter(Boolean).join(" / ")}
+                                {copy.variant}:{" "}
+                                {[product.color, product.size].filter(Boolean).join(" / ")}
                               </span>
                             ) : null}
                           </div>
@@ -775,7 +895,9 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
                             <button
                               type="button"
                               onClick={() => void addAssistantProduct(product)}
-                              disabled={!product.available || addingProductId === product.product_id}
+                              disabled={
+                                !product.available || addingProductId === product.product_id
+                              }
                               className="focus-ring rounded-chat bg-chat-accent px-3 py-1.5 text-[13px] font-semibold text-white transition-colors active:scale-[0.97] disabled:cursor-wait disabled:bg-chat-border disabled:text-chat-text-muted"
                             >
                               {addingProductId === product.product_id ? copy.adding : copy.add}
@@ -789,21 +911,31 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
                 {message.orders?.length ? (
                   <div className="mt-2 grid gap-2 text-left">
                     {message.orders.map((order) => (
-                      <div key={order.id} className="rounded-2xl border border-chat-border bg-chat-surface p-3">
+                      <div
+                        key={order.id}
+                        className="rounded-2xl border border-chat-border bg-chat-surface p-3"
+                      >
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
                             <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-chat-success">
                               <PackageCheck size={14} aria-hidden />
                               {order.state}
                             </p>
-                            <p className="mt-1 truncate text-sm font-semibold text-chat-text">{order.number}</p>
+                            <p className="mt-1 truncate text-sm font-semibold text-chat-text">
+                              {order.number}
+                            </p>
                             <p className="mt-0.5 text-xs text-chat-text-muted">
                               {order.item_count} {copy.items}
-                              {order.created_at ? ` · ${new Date(order.created_at).toLocaleDateString(locale === "es" ? "es-CO" : "en-US")}` : ""}
+                              {order.created_at
+                                ? ` · ${new Date(order.created_at).toLocaleDateString(locale === "es" ? "es-CO" : "en-US")}`
+                                : ""}
                             </p>
                           </div>
                           <p className="shrink-0 text-sm font-bold text-chat-text">
-                            {formatUsd(Math.round(Number(order.total) * 100), locale === "es" ? "es-CO" : "en-US")}
+                            {formatUsd(
+                              Math.round(Number(order.total) * 100),
+                              locale === "es" ? "es-CO" : "en-US"
+                            )}
                           </p>
                         </div>
                         <StorefrontLink
@@ -821,13 +953,18 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
                   <div className="mt-2 rounded-2xl border border-chat-border bg-chat-surface p-3 text-left">
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-chat-success">{copy.cart}</p>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-chat-success">
+                          {copy.cart}
+                        </p>
                         <p className="text-sm font-semibold text-chat-text">
                           {message.cart.item_count} {copy.items}
                         </p>
                       </div>
                       <p className="text-sm font-semibold text-chat-text">
-                        {formatUsd(Math.round(Number(message.cart.subtotal) * 100), locale === "es" ? "es-CO" : "en-US")}
+                        {formatUsd(
+                          Math.round(Number(message.cart.subtotal) * 100),
+                          locale === "es" ? "es-CO" : "en-US"
+                        )}
                       </p>
                     </div>
                     {message.cart.items.length > 0 ? (
@@ -835,10 +972,18 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
                         {message.cart.items.map((item, index) => {
                           const name = typeof item.name === "string" ? item.name : "";
                           const imageUrl = typeof item.imageUrl === "string" ? item.imageUrl : null;
+                          const slug = typeof item.slug === "string" ? item.slug : "";
+                          const variantId =
+                            typeof item.variantId === "string" ? item.variantId : "";
+                          const variantLabel =
+                            slug && variantId ? cartVariantLabels[`${slug}:${variantId}`] : null;
                           const quantity = Number(item.quantity ?? 1);
                           const lineTotal = Number(item.lineTotal ?? 0);
                           return (
-                            <li key={index} className="flex items-center gap-2 py-1.5 text-xs text-chat-text-muted">
+                            <li
+                              key={index}
+                              className="flex items-center gap-2 py-1.5 text-xs text-chat-text-muted"
+                            >
                               {imageUrl ? (
                                 <ProductImage
                                   src={imageUrl}
@@ -850,19 +995,30 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
                               ) : (
                                 <div className="h-9 w-9 shrink-0 rounded-lg bg-chat-surface-alt" />
                               )}
-                              <span className="min-w-0 flex-1 truncate">
-                                {quantity > 1 ? `${quantity}x ` : ""}
-                                {name}
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate">
+                                  {quantity > 1 ? `${quantity}x ` : ""}
+                                  {name}
+                                </span>
+                                {variantLabel ? (
+                                  <span className="mt-0.5 block text-[11px] text-chat-text-muted">
+                                    {locale === "es" ? "Opción:" : "Option:"} {variantLabel}
+                                  </span>
+                                ) : null}
                               </span>
                               <span className="shrink-0 font-medium text-chat-text">
-                                {formatUsd(Math.round(lineTotal), locale === "es" ? "es-CO" : "en-US")}
+                                {formatUsd(
+                                  Math.round(lineTotal),
+                                  locale === "es" ? "es-CO" : "en-US"
+                                )}
                               </span>
                             </li>
                           );
                         })}
                       </ul>
                     ) : null}
-                    {message.action?.type === "OPEN_CART" || message.action?.type?.startsWith("CART_") ? (
+                    {message.action?.type === "OPEN_CART" ||
+                    message.action?.type?.startsWith("CART_") ? (
                       <StorefrontLink
                         href="/cart"
                         onClick={() => setIsOpen(false)}
@@ -894,7 +1050,11 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
               <div className="mr-8 inline-flex items-center gap-2 rounded-2xl bg-chat-surface px-3.5 py-2.5 text-sm text-chat-text-muted">
                 <Loader2 size={15} className="animate-spin" aria-hidden />
                 {statusMessage || copy.busy}
-                <button type="button" onClick={() => activeRequestRef.current?.abort()} className="focus-ring ml-2 min-h-11 rounded-full border border-chat-border px-3 py-2 font-medium text-chat-text hover:border-chat-accent">
+                <button
+                  type="button"
+                  onClick={() => activeRequestRef.current?.abort()}
+                  className="focus-ring ml-2 min-h-11 rounded-full border border-chat-border px-3 py-2 font-medium text-chat-text hover:border-chat-accent"
+                >
                   {copy.cancel}
                 </button>
               </div>
@@ -910,7 +1070,9 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
                   {footerItemCount} {copy.items}
                 </span>
               </div>
-              <span className="text-sm font-bold text-chat-text">{formatUsd(footerTotal, locale === "es" ? "es-CO" : "en-US")}</span>
+              <span className="text-sm font-bold text-chat-text">
+                {formatUsd(footerTotal, locale === "es" ? "es-CO" : "en-US")}
+              </span>
             </div>
             {!privacyAccepted ? (
               <div className="border-b border-chat-border px-4 py-3 text-[11px] leading-4 text-chat-text-muted">

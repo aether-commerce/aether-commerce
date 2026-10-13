@@ -3,7 +3,9 @@ import { expect, test, type Page } from "@playwright/test";
 async function openAssistant(page: Page) {
   // The Next dev overlay is not part of the application and sits above fixed
   // controls on the mobile viewport. It is absent from production builds.
-  await page.locator("nextjs-portal").evaluateAll((portals) => portals.forEach((portal) => portal.remove()));
+  await page
+    .locator("nextjs-portal")
+    .evaluateAll((portals) => portals.forEach((portal) => portal.remove()));
   const trigger = page.getByRole("button", { name: /assistant|asistente/i });
   await expect(trigger).toBeVisible();
   await trigger.click();
@@ -287,8 +289,20 @@ test("assistant widget renders cart summary from streaming cart events", async (
     item_count: 1,
     subtotal: "79",
     currency: "USD",
-    items: [{ slug: "streamed-runner", quantity: 1 }]
+    items: [{ slug: "streamed-runner", variantId: "streamed-runner-blue-42", quantity: 1 }]
   };
+  await page.route("**/api/v1/catalog/products/streamed-runner", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: {
+          variants: [{ id: "streamed-runner-blue-42", label: "Blue / 42" }]
+        }
+      })
+    });
+  });
   await page.route("**/api/v1/cart/session", async (route) => {
     await route.fulfill({
       status: 200,
@@ -330,6 +344,7 @@ test("assistant widget renders cart summary from streaming cart events", async (
 
   await expect(assistant.getByText("Agregue el producto al carrito.")).toBeVisible();
   await expect(assistant.getByText(/1 (productos|items)/i)).toBeVisible();
+  await expect(assistant.getByText(/Option: Blue \/ 42|Opción: Blue \/ 42/i)).toBeVisible();
   await expect(assistant.getByRole("link", { name: /abrir carrito|open cart/i })).toHaveAttribute(
     "href",
     /\/cart/
@@ -660,7 +675,11 @@ test("assistant widget closes when a product's View link is clicked", async ({ p
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ success: true, data: { token: "test-cart-token" }, meta: { requestId: "req_cart_token" } })
+      body: JSON.stringify({
+        success: true,
+        data: { token: "test-cart-token" },
+        meta: { requestId: "req_cart_token" }
+      })
     });
   });
 
@@ -713,12 +732,18 @@ test("assistant widget closes when a product's View link is clicked", async ({ p
   await expect(page.getByRole("dialog", { name: /assistant|asistente/i })).toHaveCount(0);
 });
 
-test("assistant widget closes when the cart summary's Open cart link is clicked", async ({ page }) => {
+test("assistant widget closes when the cart summary's Open cart link is clicked", async ({
+  page
+}) => {
   await page.route("**/api/v1/cart/*/token", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ success: true, data: { token: "test-cart-token" }, meta: { requestId: "req_cart_token" } })
+      body: JSON.stringify({
+        success: true,
+        data: { token: "test-cart-token" },
+        meta: { requestId: "req_cart_token" }
+      })
     });
   });
 
@@ -762,7 +787,9 @@ test("assistant widget closes when the cart summary's Open cart link is clicked"
   await expect(page.getByRole("dialog", { name: /assistant|asistente/i })).toHaveCount(0);
 });
 
-test("interrupted assistant stream keeps the message without sending it twice", async ({ page }) => {
+test("interrupted assistant stream keeps the message without sending it twice", async ({
+  page
+}) => {
   let streamCalls = 0;
   let fallbackCalls = 0;
   await page.route("http://localhost:8090/v1/assistant/messages", async (route) => {
@@ -781,18 +808,24 @@ test("interrupted assistant stream keeps the message without sending it twice", 
   await assistant.getByRole("button", { name: /enviar|send/i }).click();
 
   await expect(input).toHaveValue("agrega un producto al carrito");
-  await expect(assistant.getByText(/respuesta se interrumpió|response was interrupted/i)).toBeVisible();
+  await expect(
+    assistant.getByText(/respuesta se interrumpió|response was interrupted/i)
+  ).toBeVisible();
   expect(streamCalls).toBe(1);
   expect(fallbackCalls).toBe(0);
 });
 
 test("shopper can stop a pending assistant response and recover the message", async ({ page }) => {
   let requested: (() => void) | undefined;
-  const requestStarted = new Promise<void>((resolve) => { requested = resolve; });
+  const requestStarted = new Promise<void>((resolve) => {
+    requested = resolve;
+  });
   await page.route("http://localhost:8090/v1/assistant/messages/stream", async (route) => {
     requested?.();
     await new Promise((resolve) => setTimeout(resolve, 1500));
-    await route.fulfill({ status: 200, contentType: "text/event-stream", body: "" }).catch(() => undefined);
+    await route
+      .fulfill({ status: 200, contentType: "text/event-stream", body: "" })
+      .catch(() => undefined);
   });
 
   await page.goto("/");
