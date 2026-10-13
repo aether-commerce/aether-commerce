@@ -315,7 +315,8 @@ test("CI uses deterministic guest auth and the assistant is a LangGraph Worker",
   assert.match(worker, /new URL\("\/api\/v1\/orders"/);
   assert.match(worker, /validBearerAuthorization/);
   assert.match(worker, /content-type,authorization,x-aether-cart-id/);
-  assert.match(worker, /numberEnv\(env\.AI_RATE_LIMIT_ANONYMOUS_PER_DAY\)/);
+  assert.match(worker, /resolveLimit\(limits\.anonymousMessagesPerDay, env\.AI_RATE_LIMIT_ANONYMOUS_PER_DAY\)/);
+  assert.match(worker, /key = 'assistant_limits'/);
   assert.doesNotMatch(worker, /AI_RATE_LIMIT_AUTHENTICATED_PER_DAY/);
   assert.match(widget, /useAetherAuth/);
   assert.match(widget, /const sessionToken = await getToken\(\)/);

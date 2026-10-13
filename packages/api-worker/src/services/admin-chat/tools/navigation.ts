@@ -4,7 +4,7 @@ import { getProductRow } from "../../products-admin";
 import { getCustomerDetail } from "../../customers";
 import { pick } from "../language";
 
-type NavModule = "home" | "orders" | "products" | "categories" | "inventory" | "reviews" | "coupons" | "customers" | "settings" | "integrations" | "platform" | "activity" | "system_health";
+type NavModule = "home" | "orders" | "products" | "categories" | "inventory" | "reviews" | "coupons" | "customers" | "settings" | "integrations" | "assistant_limits" | "platform" | "activity" | "system_health";
 
 const KNOWN_MODULES: Record<NavModule, string> = {
   home: "/",
@@ -17,6 +17,7 @@ const KNOWN_MODULES: Record<NavModule, string> = {
   customers: "/customers/",
   settings: "/settings/",
   integrations: "/settings/integrations/",
+  assistant_limits: "/settings/assistant-limits/",
   platform: "/settings/platform/",
   activity: "/activity/",
   system_health: "/system-health/"
@@ -33,6 +34,7 @@ const MODULE_LABELS: Record<NavModule, { en: string; es: string }> = {
   customers: { en: "Customers", es: "Clientes" },
   settings: { en: "Settings", es: "Configuración" },
   integrations: { en: "Integrations", es: "Integraciones" },
+  assistant_limits: { en: "Assistant limits", es: "Topes del asistente" },
   platform: { en: "Platform", es: "Plataforma" },
   activity: { en: "Activity", es: "Actividad" },
   system_health: { en: "System health", es: "Estado del sistema" }
@@ -41,9 +43,9 @@ const MODULE_LABELS: Record<NavModule, { en: string; es: string }> = {
 export const navigateToTool = defineAdminChatTool({
   name: "navigate_to",
   description:
-    "Builds a link to an admin panel module, optionally with filters already applied (e.g. products filtered to out-of-stock). Use Products for all product creation, editing, and catalog maintenance. Use categories for creating, editing, hiding, reordering, or deleting catalog categories instead of products. Use this instead of explaining where to click.",
+    "Builds a link to an admin panel module, optionally with filters already applied (e.g. products filtered to out-of-stock). Use Products for all product creation, editing, and catalog maintenance. Use categories for creating, editing, hiding, reordering, or deleting catalog categories instead of products. Use assistant_limits for request rate, daily budget, and concurrency settings. Use this instead of explaining where to click.",
   schema: z.object({
-    module: z.enum(["home", "orders", "products", "categories", "inventory", "reviews", "coupons", "customers", "settings", "integrations", "platform", "activity", "system_health"]),
+    module: z.enum(["home", "orders", "products", "categories", "inventory", "reviews", "coupons", "customers", "settings", "integrations", "assistant_limits", "platform", "activity", "system_health"]),
     // An array of pairs, not z.record() - Gemini's function-calling schema
     // (via LangChain's bindTools) rejects the "propertyNames" keyword zod's
     // JSON Schema output emits for record types, confirmed live (400

@@ -38,3 +38,11 @@ describe("admin currency guidance", () => {
     expect(ADMIN_CHAT_SYSTEM_PROMPT.text).toContain("pending, declined or unverifiable payment must never be described as confirmed");
   });
 });
+
+describe("admin assistant limits guidance", () => {
+  it("directs limit changes to their own section and explains deployment scope", () => {
+    expect(ADMIN_CHAT_SYSTEM_PROMPT.text).toContain("Settings > Assistant limits");
+    expect(ADMIN_CHAT_SYSTEM_PROMPT.text).toContain("daily deployment message budget");
+    expect(ADMIN_CHAT_SYSTEM_PROMPT.text).toContain("Navigate with assistant_limits");
+  });
+});

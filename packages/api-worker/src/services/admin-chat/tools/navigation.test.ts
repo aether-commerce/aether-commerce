@@ -22,12 +22,19 @@ describe("navigateToTool", () => {
     ["reviews", "/reviews/"],
     ["coupons", "/coupons/"],
     ["integrations", "/settings/integrations/"],
+    ["assistant_limits", "/settings/assistant-limits/"],
     ["platform", "/settings/platform/"],
     ["system_health", "/system-health/"]
   ] as const)("opens the dedicated %s module", async (module, href) => {
     const { env } = fakeEnv();
     const result = await navigateToTool.run({ module }, fakeContext(env));
     expect(result.artifact).toMatchObject({ type: "navigate", href });
+  });
+
+  it("labels assistant limits in Spanish", async () => {
+    const { env } = fakeEnv();
+    const result = await navigateToTool.run({ module: "assistant_limits" }, fakeContext(env, {}, { language: "es" }));
+    expect(result.artifact).toMatchObject({ type: "navigate", href: "/settings/assistant-limits/", label: "Topes del asistente" });
   });
 
   // filters is an array of {key, value} pairs, not a record - Gemini's
