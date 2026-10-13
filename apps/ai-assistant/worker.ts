@@ -65,6 +65,8 @@ type Env = {
   AI_DAILY_REQUEST_BUDGET?: string;
   AI_MAX_CONCURRENT_REQUESTS?: string;
   AI_REQUEST_TIMEOUT_SECONDS?: string;
+  // Per-request only; never configured or shared between requests.
+  requestSignal?: AbortSignal;
   OTEL_ENABLED?: string;
   // Dark-launch flag from the tool-calling migration - its job (gating the
   // agent graph vs. the now-deleted classify-then-route graph) is done, the
@@ -272,8 +274,11 @@ export default {
       )
         .toLowerCase()
         .startsWith("es");
+      const deadline = AbortSignal.timeout(requestTimeoutMs(env));
       try {
-        return json(request, env, await handleAssistant(request, await withResolvedGeminiKey(env)));
+        const resolvedEnv = await withResolvedGeminiKey(env);
+        deadline.throwIfAborted();
+        return json(request, env, await handleAssistant(request, { ...resolvedEnv, requestSignal: deadline }));
       } catch (error) {
         // Without this, an exhausted model+fallback (or any other uncaught
         // error) propagates out of fetch() unhandled - Cloudflare renders its
@@ -284,19 +289,24 @@ export default {
           type: "assistant_request_failed",
           error: error instanceof Error ? error.message : String(error)
         });
+        const timedOut = deadline.aborted;
         return json(
           request,
           env,
           {
             success: false,
             error: {
-              code: "assistant_unavailable",
-              message: spanish
-                ? "El asistente esta temporalmente ocupado. Intenta de nuevo en un momento."
-                : "The assistant is temporarily busy. Try again in a moment."
+              code: timedOut ? "assistant_timeout" : "assistant_unavailable",
+              message: timedOut
+                ? spanish
+                  ? "El asistente tardó demasiado. Revisa el carrito o tus pedidos antes de intentar de nuevo."
+                  : "The assistant took too long. Check your cart or orders before trying again."
+                : spanish
+                  ? "El asistente esta temporalmente ocupado. Intenta de nuevo en un momento."
+                  : "The assistant is temporarily busy. Try again in a moment."
             }
           },
-          503
+          timedOut ? 504 : 503
         );
       } finally {
         await releaseConcurrencySlot(env, slot.id);
@@ -311,7 +321,40 @@ export default {
       if (limit) return json(request, env, limit.payload, limit.status);
       const slot = await acquireConcurrencySlot(request, env);
       if (!slot.ok) return json(request, env, slot.result.payload, slot.result.status);
-      return streamAssistant(request, await withResolvedGeminiKey(env), () => releaseConcurrencySlot(env, slot.id));
+      const deadline = AbortSignal.timeout(requestTimeoutMs(env));
+      try {
+        const resolvedEnv = await withResolvedGeminiKey(env);
+        deadline.throwIfAborted();
+        const cancelled = new AbortController();
+        const signal = AbortSignal.any([deadline, request.signal, cancelled.signal]);
+        return streamAssistant(
+          request,
+          { ...resolvedEnv, requestSignal: signal },
+          () => releaseConcurrencySlot(env, slot.id),
+          cancelled
+        );
+      } catch (error) {
+        await releaseConcurrencySlot(env, slot.id);
+        logAgentObservability(env, {
+          type: "assistant_stream_setup_failed",
+          error: error instanceof Error ? error.message : String(error)
+        });
+        const timedOut = deadline.aborted;
+        const spanish = (consentBody.locale || "es-CO").toLowerCase().startsWith("es");
+        return json(request, env, {
+          success: false,
+          error: {
+            code: timedOut ? "assistant_timeout" : "assistant_unavailable",
+            message: timedOut
+              ? spanish
+                ? "El asistente tardó demasiado. Revisa el carrito o tus pedidos antes de intentar de nuevo."
+                : "The assistant took too long. Check your cart or orders before trying again."
+              : spanish
+                ? "El asistente esta temporalmente ocupado. Intenta de nuevo en un momento."
+                : "The assistant is temporarily busy. Try again in a moment."
+          }
+        }, timedOut ? 504 : 503);
+      }
     }
     const conversationMatch = url.pathname.match(/^\/v1\/assistant\/conversations\/([^/]+)$/);
     if (conversationMatch && request.method === "GET") {
@@ -1050,7 +1093,8 @@ function firstRecord(value: unknown): Record<string, unknown> | null {
   return Array.isArray(value) ? recordValue(value[0]) : null;
 }
 
-function streamAssistant(request: Request, env: Env, onDone: () => Promise<void>): Response {
+function streamAssistant(request: Request, env: Env, onDone: () => Promise<void>, cancelled: AbortController): Response {
+  let streamCancelled = false;
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       // Captured before the body is read further down (both
@@ -1066,6 +1110,7 @@ function streamAssistant(request: Request, env: Env, onDone: () => Promise<void>
         cloneBody.locale || "es-CO"
       );
       try {
+        env.requestSignal?.throwIfAborted();
         controller.enqueue(sse("assistant.status", { message: "Buscando..." }));
         if (env.GEMINI_API_KEY) {
           // Real incremental streaming - see streamAssistantWithToolCalling.
@@ -1087,20 +1132,31 @@ function streamAssistant(request: Request, env: Env, onDone: () => Promise<void>
           type: "assistant_stream_failed",
           error: error instanceof Error ? error.message : String(error)
         });
-        controller.enqueue(
+        if (!streamCancelled) controller.enqueue(
           sse("assistant.error", {
-            message: localize(language, {
-              es: "El asistente esta temporalmente ocupado.",
-              en: "The assistant is temporarily busy.",
-              fr: "L'assistant est temporairement occupe.",
-              it: "L'assistente e temporaneamente occupato."
-            })
+            message: env.requestSignal?.aborted
+              ? localize(language, {
+                  es: "El asistente tardó demasiado. Revisa el carrito o tus pedidos antes de intentar de nuevo.",
+                  en: "The assistant took too long. Check your cart or orders before trying again.",
+                  fr: "L'assistant a pris trop de temps. Verifiez votre panier ou vos commandes avant de reessayer.",
+                  it: "L'assistente ha impiegato troppo tempo. Controlla il carrello o gli ordini prima di riprovare."
+                })
+              : localize(language, {
+                  es: "El asistente esta temporalmente ocupado.",
+                  en: "The assistant is temporarily busy.",
+                  fr: "L'assistant est temporairement occupe.",
+                  it: "L'assistente e temporaneamente occupato."
+                })
           })
         );
       } finally {
         await onDone();
-        controller.close();
+        if (!streamCancelled) controller.close();
       }
+    },
+    cancel() {
+      streamCancelled = true;
+      cancelled.abort();
     }
   });
   return new Response(stream, {
@@ -1156,6 +1212,7 @@ async function extractSearchQuery(
       {
         method: "POST",
         headers: { "content-type": "application/json", "x-goog-api-key": env.GEMINI_API_KEY },
+        ...(env.requestSignal ? { signal: env.requestSignal } : {}),
         body: JSON.stringify({
           systemInstruction: {
             parts: [
@@ -1221,6 +1278,7 @@ async function composeEmptyResultReply(
       {
         method: "POST",
         headers: { "content-type": "application/json", "x-goog-api-key": env.GEMINI_API_KEY },
+        ...(env.requestSignal ? { signal: env.requestSignal } : {}),
         body: JSON.stringify({
           systemInstruction: {
             parts: [
@@ -1278,6 +1336,10 @@ function numberEnv(value: string | undefined): number | null {
   if (!value) return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function requestTimeoutMs(env: Env): number {
+  return Math.max(1, Math.min(60, numberEnv(env.AI_REQUEST_TIMEOUT_SECONDS) || 25)) * 1000;
 }
 
 function inputCharacterLimit(env: Env): number {
@@ -2481,7 +2543,10 @@ function fetchWithTimeout(
   init?: RequestInit,
   timeoutMs = 5000
 ): Promise<Response> {
-  return fetch(input, { ...init, signal: AbortSignal.timeout(timeoutMs) });
+  const signal = init?.signal
+    ? AbortSignal.any([init.signal, AbortSignal.timeout(timeoutMs)])
+    : AbortSignal.timeout(timeoutMs);
+  return fetch(input, { ...init, signal });
 }
 
 // Routes aether-api calls through the AETHER_API service binding when it is
@@ -2494,7 +2559,10 @@ function apiFetch(
   init?: RequestInit,
   timeoutMs = 5000
 ): Promise<Response> {
-  const requestInit = { ...init, signal: AbortSignal.timeout(timeoutMs) };
+  const signals = [AbortSignal.timeout(timeoutMs), env.requestSignal, init?.signal].filter(
+    (signal): signal is AbortSignal => Boolean(signal)
+  );
+  const requestInit = { ...init, signal: AbortSignal.any(signals) };
   // Calling fetch as a method off a plain wrapper object (e.g. `{ fetch }.fetch(...)`)
   // throws "Illegal invocation" because the global fetch loses its required `this`
   // binding, so the binding and no-binding cases are called directly rather than
@@ -2744,11 +2812,13 @@ function defineAssistantTool<Schema extends z.ZodType>(spec: {
           "FAILED"
         );
       }
+      ctx.env.requestSignal?.throwIfAborted();
       const blocked = await checkToolPreconditions(ctx, spec.name, spec.intent, spec.requires);
       if (blocked) return blocked;
       try {
         return await spec.run(args, ctx);
       } catch (error) {
+        if (ctx.env.requestSignal?.aborted) throw error;
         logAgentObservability(ctx.env, {
           type: "tool_exception",
           request_id: ctx.requestId,
@@ -4674,6 +4744,20 @@ function logAgentObservability(env: Env, event: Record<string, unknown>): void {
 
 type ModelInvoker = (messages: BaseMessage[]) => Promise<AIMessage>;
 
+function modelWithRequestDeadline(model: ChatGoogleGenerativeAI, signal?: AbortSignal): ChatGoogleGenerativeAI {
+  if (!signal) return model;
+  // @langchain/google-genai 2.2.0 passes options.signal to _generate(), but
+  // its non-streaming _generate() calls completionWithRetry(request) without
+  // those options. Keep this per-request model's underlying Gemini fetch
+  // abortable until the upstream method forwards the signal itself.
+  const complete = model.completionWithRetry.bind(model);
+  model.completionWithRetry = (request, options) => complete(request, {
+    ...options,
+    signal: options?.signal ? AbortSignal.any([signal, options.signal]) : signal
+  });
+  return model;
+}
+
 // Builds the fallback-aware invoker once (system prompt, reachable-tools
 // filter, and each candidate model's constructor args don't change within a
 // single request) so the agent<->tools loop can reuse it across every pass
@@ -4716,7 +4800,7 @@ function buildModelInvoker(env: Env, language: AssistantLanguage, requestId: str
   // reachableTools) change within one request.
   const boundModels = [primaryModel, ...modelNames].map((modelName) => ({
     modelName,
-    model: new ChatGoogleGenerativeAI({
+    model: modelWithRequestDeadline(new ChatGoogleGenerativeAI({
       apiKey,
       model: modelName,
       temperature: Number(env.GEMINI_TEMPERATURE || 0.1),
@@ -4729,7 +4813,7 @@ function buildModelInvoker(env: Env, language: AssistantLanguage, requestId: str
       // can't succeed. One retry left for genuine transient network blips,
       // since this loop doesn't retry non-quota errors at all.
       maxRetries: 1
-    }).bindTools(reachableTools)
+    }), env.requestSignal).bindTools(reachableTools)
   }));
 
   return async (messages: BaseMessage[]): Promise<AIMessage> => {
@@ -4737,10 +4821,11 @@ function buildModelInvoker(env: Env, language: AssistantLanguage, requestId: str
     for (const [index, { modelName, model }] of boundModels.entries()) {
       const startedAt = Date.now();
       try {
+        env.requestSignal?.throwIfAborted();
         const response = (await model.invoke([
           new SystemMessage(systemPrompt),
           ...messages
-        ])) as AIMessage;
+        ], env.requestSignal ? { signal: env.requestSignal } : {})) as AIMessage;
         logAgentObservability(env, {
           type: "model_invocation",
           request_id: requestId,
@@ -4755,6 +4840,7 @@ function buildModelInvoker(env: Env, language: AssistantLanguage, requestId: str
         });
         return response;
       } catch (error) {
+        if (env.requestSignal?.aborted) throw error;
         lastError = error;
         logAgentObservability(env, {
           type: "model_invocation",
@@ -4905,6 +4991,7 @@ async function persistAgentResponseNode({
   data: AgentGraphData;
 }): Promise<{ data: AgentGraphData }> {
   if (!data.response) return { data };
+  data.env.requestSignal?.throwIfAborted();
   await persistConversationMessage(
     data.env,
     data.threadId,
@@ -4922,6 +5009,7 @@ async function persistAgentResponseNode({
       privacy_version: String(data.body.privacy_version || "unrecorded").slice(0, 32)
     }
   );
+  data.env.requestSignal?.throwIfAborted();
   await persistConversationMessage(
     data.env,
     data.threadId,
@@ -5155,11 +5243,8 @@ type CheckpointRow = {
 
 const agentToolNode = new ToolNode(assistantTools);
 
-// See admin-chat/loop.ts's identical comment for the full reasoning: most
-// tool-level failures already turn into a graceful ToolArtifact via
-// defineAssistantTool's own try/catch (checkToolPreconditions, tool_exception
-// handling above) rather than a thrown exception, so this retryPolicy is a
-// safety net for what's left outside that boundary - not a replacement for it.
+// Tools can mutate carts, favorites, reviews and orders. An exception after
+// the API accepted a mutation must never trigger an automatic replay.
 
 // D1CheckpointSaver (above) is deliberately NOT wired in here. Tried it,
 // found a real problem via the eval suite: with a checkpointer active,
@@ -5181,7 +5266,7 @@ const agentToolNode = new ToolNode(assistantTools);
 export const agentGraph = new StateGraph(AgentGraphState)
   .addNode("validate_agent_request", validateAgentRequestNode)
   .addNode("agent", agentNode)
-  .addNode("tools", agentToolNode, { retryPolicy: { maxAttempts: 2 } })
+  .addNode("tools", agentToolNode)
   .addNode("finalize_agent_response", finalizeAgentResponseNode)
   .addNode("persist_agent_response", persistAgentResponseNode)
   .addEdge(START, "validate_agent_request")
@@ -5275,7 +5360,7 @@ async function handleAssistantWithToolCalling(
   const startedAt = Date.now();
   const result = await agentGraph.invoke(
     { data: initial, messages: [] },
-    { configurable: { modelInvoker } }
+    { configurable: { modelInvoker }, ...(env.requestSignal ? { signal: env.requestSignal } : {}) }
   );
   logAgentObservability(env, {
     type: "agent_request",
@@ -5305,11 +5390,12 @@ async function streamAssistantWithToolCalling(
   const startedAt = Date.now();
   const stream = await agentGraph.stream(
     { data: initial, messages: [] },
-    { configurable: { modelInvoker }, streamMode: "updates" }
+    { configurable: { modelInvoker }, streamMode: "updates", ...(env.requestSignal ? { signal: env.requestSignal } : {}) }
   );
   let steps = 0;
   let finalResponse: AssistantResponse | undefined;
   for await (const chunk of stream) {
+    env.requestSignal?.throwIfAborted();
     const toolsUpdate = (chunk as Record<string, { messages?: unknown[] } | undefined>).tools;
     for (const message of toolsUpdate?.messages || []) {
       if (!(message instanceof ToolMessage) || !message.artifact) continue;
@@ -5502,6 +5588,7 @@ async function handleAssistantHeuristicFallback(
   }
 
   const response = artifactToResponse(requestId, threadId, language, artifact);
+  env.requestSignal?.throwIfAborted();
   await persistConversationMessage(
     env,
     threadId,
