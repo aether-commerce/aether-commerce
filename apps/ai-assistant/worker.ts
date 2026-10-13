@@ -100,6 +100,7 @@ type AssistantProduct = {
   color?: string | null;
   size?: string | null;
   rating: number | null;
+  specifications: Array<{ key: string; value: string }>;
   recommendation_reason?: string | null;
 };
 
@@ -1648,28 +1649,48 @@ function isDealsQuery(message: string): boolean {
   return /(deal|oferta|descuento|discount)/i.test(message);
 }
 
-// Catalog prices are integer cents. Only an explicit currency/budget marker
-// creates a ceiling: an arbitrary number may be a model, size, or ID.
-function extractExplicitBudgetCents(message: string): number | undefined {
-  const normalized = foldText(message)
-    .replace(/\s+/g, " ")
-    .replace(/(us\$|usd|dolares?|dollars?)/g, "$ ");
-  const match = normalized.match(/(?:\$\s*|(?:hasta|menos de|under|below|up to|maximo|maximum|presupuesto(?: de)?)\s+)(\d+(?:[,.]\d+)*)/i);
-  if (!match) return undefined;
-  const rawValue = match[1];
-  if (!rawValue) return undefined;
-  const decimal = /[,.]\d{1,2}$/.test(rawValue) && !/^[\d]{1,3}(?:[,.]\d{3})+$/.test(rawValue);
+// Catalog prices are integer cents. A number becomes a ceiling only when it
+// has a budget word or an adjacent currency marker; model numbers and sizes
+// must never be interpreted as money.
+function extractExplicitBudget(message: string): { cents: number; currency: "USD" | "COP" | null } | null {
+  const normalized = foldText(message).replace(/\s+/g, " ");
+  const amount = "(\\d+(?:[,.]\\d+)*)";
+  const prefix = new RegExp(`(?:us\\$|\\$|\\b(?:cop|usd|pesos(?: colombianos?)?|dolares?|dollars?)\\b|\\b(?:hasta|menos de|under|below|up to|maximo|maximum|presupuesto(?: de)?)\\b\\s+)\\s*${amount}`, "i");
+  const suffix = new RegExp(`${amount}\\s*(?:mil\\s*)?(?:cop|usd|pesos(?: colombianos?)?|dolares?|dollars?|us\\$)\\b`, "i");
+  const match = normalized.match(prefix) || normalized.match(suffix);
+  const rawValue = match?.[1];
+  if (!match || !rawValue) return null;
+  const after = normalized.slice((match.index || 0) + match[0].length);
+  if (/^\s*(?:pulgadas?|inches?|cm|mm|kg|gb|tb|watts?|w)\b/.test(after)) return null;
+  const decimal = /[,.]\d{1,2}$/.test(rawValue) && !/^\d{1,3}(?:[,.]\d{3})+$/.test(rawValue);
   const value = Number(decimal
     ? rawValue.replace(/[,.](?=\d{3}(?:[,.]|$))/g, "").replace(",", ".")
     : rawValue.replace(/[,.]/g, ""));
-  return Number.isFinite(value) && value >= 0 ? Math.round(value * 100) : undefined;
+  const multiplier = /^\s*mil\b/.test(after) || /\bmil\s*(?:cop|pesos(?: colombianos?)?)\b/.test(match[0]) ? 1000 : 1;
+  const cents = Math.round(value * multiplier * 100);
+  if (!Number.isSafeInteger(cents) || cents < 0) return null;
+  const adjacentCurrency = after.match(/^\s*(?:en\s+)?(cop|usd|pesos(?: colombianos?)?|dolares?|dollars?|us\$)\b/i)?.[1] || "";
+  const marker = /\b(?:cop|usd|pesos(?: colombianos?)?|dolares?|dollars?)\b|us\$/i.test(match[0])
+    ? match[0]
+    : adjacentCurrency;
+  const cop = /\b(?:cop|pesos(?: colombianos?)?)\b/.test(marker);
+  const usd = /\b(?:usd|dolares?|dollars?)\b|us\$/.test(marker);
+  const currency = cop && !usd ? "COP" : usd && !cop ? "USD" : null;
+  return { cents, currency };
+}
+
+function extractExplicitBudgetCents(message: string): number | undefined {
+  return extractExplicitBudget(message)?.cents;
 }
 
 function explicitBudgetCurrency(message: string): "USD" | "COP" | null {
-  const normalized = foldText(message);
-  if (/\b(?:cop|pesos(?: colombianos?)?)\b/.test(normalized)) return "COP";
-  if (/\b(?:usd|dolares?|dollars?)\b|us\$/.test(normalized)) return "USD";
-  return null;
+  return extractExplicitBudget(message)?.currency || null;
+}
+
+function withinCatalogBudget(product: AssistantProduct, budgetCents: number | undefined): boolean {
+  if (budgetCents === undefined) return true;
+  const productCents = Math.round(Number(product.price) * 100);
+  return Number.isSafeInteger(productCents) && productCents >= 0 && productCents <= budgetCents;
 }
 
 async function searchProducts(
@@ -1709,13 +1730,13 @@ async function searchProducts(
       );
       const unique = new Map<string, AssistantProduct>();
       responses.flat().forEach((product) => unique.set(product.product_id, product));
-      return [...unique.values()].slice(0, 5);
+      return [...unique.values()].filter((product) => withinCatalogBudget(product, budgetCents)).slice(0, 5);
     } else {
       const query = await extractSearchQuery(message, env, sessionHash);
       if (query) baseUrl.searchParams.set("q", query);
     }
   }
-  return fetchAssistantProducts(env, baseUrl);
+  return (await fetchAssistantProducts(env, baseUrl)).filter((product) => withinCatalogBudget(product, budgetCents));
 }
 
 async function fetchAssistantProducts(env: Env, apiUrl: URL): Promise<AssistantProduct[]> {
@@ -1889,7 +1910,7 @@ async function fetchRecommendationCandidates(
   const candidates = new Map<string, RecommendationCandidate>();
   products.flat().forEach((item) => {
     const candidate = recommendationCandidate(item, criteria.preferredColor);
-    if (candidate) candidates.set(candidate.product.product_id, candidate);
+    if (candidate && withinCatalogBudget(candidate.product, criteria.maximumPriceCents)) candidates.set(candidate.product.product_id, candidate);
   });
   // A gift request commonly has no literal catalog term. In that case surface
   // well-rated, live products rather than reporting a false empty catalog.
@@ -1899,7 +1920,7 @@ async function fetchRecommendationCandidates(
       const payload = await fallback.json<{ data?: unknown[] }>();
       (payload.data || []).forEach((item) => {
         const candidate = recommendationCandidate(item, criteria.preferredColor);
-        if (candidate) candidates.set(candidate.product.product_id, candidate);
+        if (candidate && withinCatalogBudget(candidate.product, criteria.maximumPriceCents)) candidates.set(candidate.product.product_id, candidate);
       });
     }
   }
@@ -2434,6 +2455,15 @@ function toAssistantProduct(input: unknown): AssistantProduct | null {
   const attributes = recordValue(variant?.attributes);
   const image = firstRecord(product.images);
   const rating = recordValue(product.rating);
+  const specifications = (Array.isArray(product.specifications) ? product.specifications : [])
+    .map((entry) => {
+      const specification = recordValue(entry);
+      const key = primitiveString(specification?.key);
+      const value = primitiveString(specification?.value);
+      return key && value ? { key, value } : null;
+    })
+    .filter((entry): entry is { key: string; value: string } => entry !== null)
+    .slice(0, 12);
   return {
     product_id: primitiveString(product.id) || slug,
     variant_id: primitiveString(variant?.id) || null,
@@ -2447,7 +2477,8 @@ function toAssistantProduct(input: unknown): AssistantProduct | null {
     available: Number(product.availableStock || 0) > 0,
     color: primitiveString(attributes?.color) || null,
     size: primitiveString(attributes?.size) || null,
-    rating: typeof rating?.average === "number" ? rating.average : null
+    rating: typeof rating?.average === "number" ? rating.average : null,
+    specifications
   };
 }
 
@@ -4173,7 +4204,8 @@ const compareProductsTool = defineAssistantTool({
     );
     const products = resolutions
       .map((entry) => entry.product)
-      .filter((product): product is AssistantProduct => product !== null);
+      .filter((product): product is AssistantProduct => product !== null)
+      .filter((product, index, found) => found.findIndex((candidate) => candidate.product_id === product.product_id) === index);
     if (products.length < 2) {
       return toolOutcome(
         localize(ctx.language, {
@@ -4187,20 +4219,7 @@ const compareProductsTool = defineAssistantTool({
         "PENDING"
       );
     }
-    const message = localize(ctx.language, {
-      es: products
-        .map((product) => `${product.name}: ${product.price} ${product.currency}`)
-        .join(" vs. "),
-      en: products
-        .map((product) => `${product.name}: ${product.price} ${product.currency}`)
-        .join(" vs. "),
-      fr: products
-        .map((product) => `${product.name} : ${product.price} ${product.currency}`)
-        .join(" vs. "),
-      it: products
-        .map((product) => `${product.name}: ${product.price} ${product.currency}`)
-        .join(" vs. ")
-    });
+    const message = comparisonEvidence(products, ctx.locale, ctx.language, false);
     return toolOutcome(message, "COMPARE_PRODUCTS", "PRODUCTS_LISTED", "SUCCEEDED", { products });
   }
 });
@@ -4519,6 +4538,86 @@ function displayAvailability(available: boolean, language: AssistantLanguage): s
     : localize(language, { es: "Agotado", en: "Out of stock", fr: "Épuisé", it: "Esaurito" });
 }
 
+function comparisonEvidence(
+  products: AssistantProduct[],
+  locale: string,
+  language: AssistantLanguage,
+  includeTotal: boolean
+): string {
+  const specLabel = localize(language, { es: "Ficha", en: "Specifications", fr: "Fiche", it: "Scheda" });
+  const summaries = products.map((product) => {
+    const facts = product.specifications.slice(0, 4).map(({ key, value }) => `${key}: ${value}`).join(", ");
+    return `${product.name}: ${displayProductPrice(product, locale)} (${displayAvailability(product.available, language)})${facts ? `; ${specLabel}: ${facts}` : ""}`;
+  });
+  const keys = new Map<string, string>();
+  for (const product of products) {
+    for (const specification of product.specifications) {
+      keys.set(foldText(specification.key), specification.key);
+    }
+  }
+  const differences = [...keys]
+    .map(([normalizedKey, key]) => {
+      const values = products.map((product) => product.specifications.find((item) => foldText(item.key) === normalizedKey)?.value || null);
+      return new Set(values).size > 1
+        ? `${key}: ${values.map((value, index) => `${products[index]?.name} ${value || localize(language, { es: "no especificado", en: "not specified", fr: "non précisé", it: "non specificato" })}`).join("; ")}`
+        : null;
+    })
+    .filter((difference): difference is string => difference !== null)
+    .slice(0, 3);
+  const differenceText = differences.length
+    ? `${localize(language, { es: "Diferencias declaradas", en: "Listed differences", fr: "Différences indiquées", it: "Differenze dichiarate" })}: ${differences.join(". ")}.`
+    : localize(language, {
+        es: "Las fichas no muestran otras diferencias técnicas verificables.",
+        en: "The listings show no other verifiable technical differences.",
+        fr: "Les fiches ne montrent pas d'autres différences techniques vérifiables.",
+        it: "Le schede non mostrano altre differenze tecniche verificabili."
+      });
+  const sameCurrency = products.length > 0 && products.every((product) => product.currency === products[0]?.currency);
+  const totalCents = products.reduce((sum, product) => sum + Math.round(Number(product.price) * 100), 0);
+  const total = includeTotal && sameCurrency && Number.isSafeInteger(totalCents)
+    ? ` ${localize(language, { es: "Subtotal de estos productos", en: "Subtotal for these products", fr: "Sous-total de ces produits", it: "Subtotale di questi prodotti" })}: ${displayProductPrice({ ...products[0]!, price: String(totalCents / 100) }, locale)}. ${localize(language, { es: "Envío e impuestos no calculados.", en: "Shipping and taxes are not calculated.", fr: "Livraison et taxes non calculées.", it: "Spedizione e imposte non calcolate." })}`
+    : "";
+  return `${summaries.join(". ")}. ${differenceText}${total}`;
+}
+
+function isCompatibilityQuestion(message: string): boolean {
+  return /\b(?:compatib\w*|sirve para|funciona con|sostiene|soporta|support\w*|work(?:s)? with)\b/.test(foldText(message));
+}
+
+function compatibilityEvidence(product: AssistantProduct, message: string, language: AssistantLanguage): string {
+  const declared = product.specifications.filter(({ key }) => /compatib|dispositiv|device|soport/i.test(foldText(key)));
+  if (declared.length === 0) {
+    return localize(language, {
+      es: `La ficha de ${product.name} no indica compatibilidad; no puedo confirmarla.`,
+      en: `${product.name}'s listing does not state compatibility, so I cannot confirm it.`,
+      fr: `La fiche de ${product.name} ne précise pas la compatibilité ; je ne peux pas la confirmer.`,
+      it: `La scheda di ${product.name} non indica la compatibilità; non posso confermarla.`
+    });
+  }
+  const facts = declared.map(({ key, value }) => `${key}: ${value}`).join("; ");
+  const supportedText = foldText(declared.map(({ value }) => value).join(" "));
+  const asked = foldText(message);
+  const laptopAsked = /\b(?:laptop|portatil|notebook|computador(?:a)?|ordenador)\b/.test(asked);
+  const laptopListed = /\b(?:laptop|portatil|notebook|computador(?:a)?|ordenador)\b/.test(supportedText);
+  const size = asked.match(/\b(\d{1,2})\s*(?:pulgadas?|inches?|inch)\b/)?.[1];
+  const sizeListed = !size || new RegExp(`\\b${size}\\b`).test(supportedText);
+  const unsupported = (laptopAsked && !laptopListed) || (laptopAsked && !sizeListed);
+  if (unsupported) {
+    return localize(language, {
+      es: `La ficha de ${product.name} indica ${facts}. No hay datos que confirmen que sostenga una laptop${size ? ` de ${size} pulgadas` : ""}.`,
+      en: `${product.name}'s listing says ${facts}. It does not confirm support for a laptop${size ? ` of ${size} inches` : ""}.`,
+      fr: `La fiche de ${product.name} indique ${facts}. Elle ne confirme pas la prise en charge d'un ordinateur portable${size ? ` de ${size} pouces` : ""}.`,
+      it: `La scheda di ${product.name} indica ${facts}. Non conferma il supporto di un laptop${size ? ` da ${size} pollici` : ""}.`
+    });
+  }
+  return localize(language, {
+    es: `La ficha de ${product.name} indica ${facts}. Verifica el modelo y las medidas exactas antes de comprar.`,
+    en: `${product.name}'s listing says ${facts}. Check your exact model and dimensions before buying.`,
+    fr: `La fiche de ${product.name} indique ${facts}. Vérifiez le modèle et les dimensions exactes avant l'achat.`,
+    it: `La scheda di ${product.name} indica ${facts}. Verifica il modello e le dimensioni esatte prima dell'acquisto.`
+  });
+}
+
 async function catalogProductsForNamedLookup(env: Env): Promise<AssistantProduct[]> {
   const catalogPage = (page: number) => {
     const url = new URL("/api/v1/catalog/products", env.AETHER_API_BASE_URL);
@@ -4567,12 +4666,20 @@ async function catalogPurchaseShortCircuit(
   const budgetCents = extractExplicitBudgetCents(message);
   const storeCurrency = ctx.body.currency;
   const requestedCurrency = explicitBudgetCurrency(message);
-  if (budgetCents !== undefined && requestedCurrency && storeCurrency && requestedCurrency !== storeCurrency) {
+  let catalogCurrency = storeCurrency;
+  if (budgetCents !== undefined && requestedCurrency && !catalogCurrency) {
+    const currencyUrl = new URL("/api/v1/catalog/products", ctx.env.AETHER_API_BASE_URL);
+    currencyUrl.searchParams.set("page", "1");
+    currencyUrl.searchParams.set("pageSize", "1");
+    const observedCurrency = (await fetchAssistantProducts(ctx.env, currencyUrl))[0]?.currency;
+    catalogCurrency = observedCurrency === "USD" || observedCurrency === "COP" ? observedCurrency : undefined;
+  }
+  if (budgetCents !== undefined && requestedCurrency && catalogCurrency && requestedCurrency !== catalogCurrency) {
     const clarification = localize(ctx.language, {
-      es: `Los precios de esta tienda están en ${storeCurrency}. Indícame tu presupuesto en ${storeCurrency} para compararlo sin una conversión incierta.`,
-      en: `This store uses ${storeCurrency}. Please state your budget in ${storeCurrency} so I can compare it accurately.`,
-      fr: `Cette boutique utilise ${storeCurrency}. Indiquez votre budget en ${storeCurrency} pour une comparaison exacte.`,
-      it: `Questo negozio usa ${storeCurrency}. Indica il budget in ${storeCurrency} per un confronto corretto.`
+      es: `Los precios de esta tienda están en ${catalogCurrency}. Indícame tu presupuesto en ${catalogCurrency} para compararlo sin una conversión incierta.`,
+      en: `This store uses ${catalogCurrency}. Please state your budget in ${catalogCurrency} so I can compare it accurately.`,
+      fr: `Cette boutique utilise ${catalogCurrency}. Indiquez votre budget en ${catalogCurrency} pour une comparaison exacte.`,
+      it: `Questo negozio usa ${catalogCurrency}. Indica il budget in ${catalogCurrency} per un confronto corretto.`
     });
     return responsePayload(ctx.requestId, ctx.threadId, clarification, "SEARCH_PRODUCTS", ctx.language, [], null, "ASK_CLARIFICATION", "PENDING");
   }
@@ -4587,9 +4694,9 @@ async function catalogPurchaseShortCircuit(
     const category = matchCategorySynonym(message);
     if (category?.slugs.length === 1) url.searchParams.set("category", category.slugs[0] as string);
     const candidates = (await fetchAssistantProducts(ctx.env, url))
-      .filter((product) => product.available && (!storeCurrency || product.currency === storeCurrency));
+      .filter((product) => product.available && (!catalogCurrency || product.currency === catalogCurrency));
     const first = candidates[0];
-    const second = candidates.find((product) => product.product_id !== first?.product_id);
+    const second = candidates.find((product) => product.product_id !== first?.product_id && product.currency === first?.currency);
     const totalCents = first && second
       ? Math.round(Number(first.price) * 100) + Math.round(Number(second.price) * 100)
       : Infinity;
@@ -4604,28 +4711,45 @@ async function catalogPurchaseShortCircuit(
     }
     const total = displayProductPrice({ ...first, price: String(totalCents / 100) }, ctx.locale);
     const answer = localize(ctx.language, {
-      es: `${first.name}: ${displayProductPrice(first, ctx.locale)}; ${second.name}: ${displayProductPrice(second, ctx.locale)}. Total de ambos: ${total}.`,
-      en: `${first.name}: ${displayProductPrice(first, ctx.locale)}; ${second.name}: ${displayProductPrice(second, ctx.locale)}. Combined total: ${total}.`,
-      fr: `${first.name} : ${displayProductPrice(first, ctx.locale)} ; ${second.name} : ${displayProductPrice(second, ctx.locale)}. Total : ${total}.`,
-      it: `${first.name}: ${displayProductPrice(first, ctx.locale)}; ${second.name}: ${displayProductPrice(second, ctx.locale)}. Totale: ${total}.`
+      es: `${first.name}: ${displayProductPrice(first, ctx.locale)}; ${second.name}: ${displayProductPrice(second, ctx.locale)}. Subtotal de ambos: ${total}. Envío e impuestos no calculados.`,
+      en: `${first.name}: ${displayProductPrice(first, ctx.locale)}; ${second.name}: ${displayProductPrice(second, ctx.locale)}. Combined subtotal: ${total}. Shipping and taxes are not calculated.`,
+      fr: `${first.name} : ${displayProductPrice(first, ctx.locale)} ; ${second.name} : ${displayProductPrice(second, ctx.locale)}. Sous-total : ${total}. Livraison et taxes non calculées.`,
+      it: `${first.name}: ${displayProductPrice(first, ctx.locale)}; ${second.name}: ${displayProductPrice(second, ctx.locale)}. Subtotale: ${total}. Spedizione e imposte non calcolate.`
     });
     return responsePayload(ctx.requestId, ctx.threadId, answer, "RECOMMEND_PRODUCTS", ctx.language, [first, second]);
   }
 
   const comparison = /\b(?:compara|comparar|compare|versus|vs|diferencias?)\b/.test(normalized);
   const priceQuestion = /\b(?:precio|cuanto cuesta|cuanto vale|cost|price)\b/.test(normalized);
-  if (!comparison && !priceQuestion) return null;
+  const compatibilityQuestion = isCompatibilityQuestion(message);
+  if (!comparison && !priceQuestion && !compatibilityQuestion) return null;
   const products = namedProductsInMessage(message, await catalogProductsForNamedLookup(ctx.env));
   if (comparison && products.length >= 2) {
     const selected = products.slice(0, 3);
-    const details = selected.map((product) => `${product.name}: ${displayProductPrice(product, ctx.locale)} (${displayAvailability(product.available, ctx.language)})`).join("; ");
-    const totalCents = selected.reduce((sum, product) => sum + Math.round(Number(product.price) * 100), 0);
-    const totalLabel = localize(ctx.language, { es: "Total", en: "Total", fr: "Total", it: "Totale" });
-    const total = /\b(?:total|suman|sum|combined)\b/.test(normalized)
-      && selected.every((product) => product.currency === selected[0]?.currency)
-      ? ` ${totalLabel}: ${displayProductPrice({ ...selected[0]!, price: String(totalCents / 100) }, ctx.locale)}.`
-      : "";
-    return responsePayload(ctx.requestId, ctx.threadId, `${details}.${total}`, "COMPARE_PRODUCTS", ctx.language, selected);
+    const includeTotal = /\b(?:total|suman|sum|combined)\b/.test(normalized);
+    return responsePayload(ctx.requestId, ctx.threadId, comparisonEvidence(selected, ctx.locale, ctx.language, includeTotal), "COMPARE_PRODUCTS", ctx.language, selected);
+  }
+  if (comparison && products.length === 1) {
+    const clarification = localize(ctx.language, {
+      es: `Identifiqué ${products[0]?.name}, pero necesito el nombre del otro producto para compararlos.`,
+      en: `I found ${products[0]?.name}, but I need the other product's name to compare them.`,
+      fr: `J'ai trouvé ${products[0]?.name}, mais il me faut le nom de l'autre produit pour les comparer.`,
+      it: `Ho trovato ${products[0]?.name}, ma mi serve il nome dell'altro prodotto per confrontarli.`
+    });
+    return responsePayload(ctx.requestId, ctx.threadId, clarification, "COMPARE_PRODUCTS", ctx.language, [], null, "ASK_CLARIFICATION", "PENDING");
+  }
+  if (compatibilityQuestion) {
+    const product = products.length === 1 ? products[0] : products.length === 0 ? await currentContextProduct(ctx.env, ctx.body) : null;
+    if (product) {
+      return responsePayload(ctx.requestId, ctx.threadId, compatibilityEvidence(product, message, ctx.language), "GET_PRODUCT_DETAILS", ctx.language, [product]);
+    }
+    const clarification = localize(ctx.language, {
+      es: "Dime qué producto quieres comprobar para revisar su compatibilidad en la ficha.",
+      en: "Tell me which product you mean so I can check its listed compatibility.",
+      fr: "Indiquez le produit concerné pour que je vérifie sa compatibilité dans la fiche.",
+      it: "Dimmi quale prodotto intendi, così posso verificarne la compatibilità nella scheda."
+    });
+    return responsePayload(ctx.requestId, ctx.threadId, clarification, "GET_PRODUCT_DETAILS", ctx.language, [], null, "ASK_CLARIFICATION", "PENDING");
   }
   if (priceQuestion && products.length === 1) {
     const product = products[0]!;

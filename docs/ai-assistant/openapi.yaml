@@ -260,10 +260,10 @@ components:
             - "null"
         price:
           type: string
-          description: Decimal USD amount derived from Aether integer cents.
+          description: Decimal amount in the product currency, derived from Aether integer cents.
         currency:
           type: string
-          enum: [USD]
+          enum: [USD, COP]
         image_url:
           type:
             - string
@@ -285,6 +285,17 @@ components:
           type:
             - number
             - "null"
+        specifications:
+          type: array
+          description: Product facts supplied by the catalog; an empty array means no specifications were listed.
+          items:
+            type: object
+            required: [key, value]
+            properties:
+              key:
+                type: string
+              value:
+                type: string
         recommendation_reason:
           description: Grounded explanation shown only for recommendation results.
           type:
