@@ -837,8 +837,10 @@ async function renderMetrics(env: Env): Promise<string> {
       tool_call_count: number;
     }>();
   const audit = await env.DB.prepare(
-    "select authorization_result, execution_status, count(*) as count from ai_action_audit group by authorization_result, execution_status"
-  ).all<{ authorization_result: string; execution_status: string; count: number }>();
+    "select authorization_result, execution_status, count(*) as count from ai_action_audit where created_at >= ? group by authorization_result, execution_status"
+  )
+    .bind(`${day} 00:00:00`)
+    .all<{ authorization_result: string; execution_status: string; count: number }>();
   const projectRequests = Number(
     (usage.results || []).find((row) => row.user_or_session_hash === "project")?.request_count || 0
   );
@@ -859,11 +861,15 @@ async function renderMetrics(env: Env): Promise<string> {
   const cartMutationFailures = (audit.results || [])
     .filter((row) => row.authorization_result === "allowed" && row.execution_status === "failed")
     .reduce((total, row) => total + Number(row.count || 0), 0);
+  const toolErrors = (audit.results || [])
+    .filter((row) => row.execution_status === "failed")
+    .reduce((total, row) => total + Number(row.count || 0), 0);
   const blockedMutations = (audit.results || [])
     .filter((row) => row.execution_status === "blocked")
     .reduce((total, row) => total + Number(row.count || 0), 0);
   const activeBuckets = await getActiveRateLimitBuckets(env);
   const dailyBudget = numberEnv(env.AI_DAILY_REQUEST_BUDGET);
+  const dailyBudgetConfigured = dailyBudget === null ? 0 : 1;
   const budgetRatio =
     dailyBudget && dailyBudget > 0 ? Math.min(1, projectRequests / dailyBudget) : 0;
   return [
@@ -876,7 +882,7 @@ async function renderMetrics(env: Env): Promise<string> {
     "ai_llm_tokens_input_total 0",
     "ai_llm_tokens_output_total 0",
     `ai_tool_calls_total ${projectToolCalls}`,
-    "ai_tool_errors_total 0",
+    `ai_tool_errors_total ${toolErrors}`,
     `ai_rate_limit_errors_total ${rateErrors}`,
     `ai_rate_limit_buckets_active ${activeBuckets}`,
     `ai_cart_mutations_total ${cartMutations}`,
@@ -884,6 +890,8 @@ async function renderMetrics(env: Env): Promise<string> {
     "ai_clarifications_total 0",
     "ai_fallback_total 0",
     `ai_blocked_cart_mutations_total ${blockedMutations}`,
+    `ai_daily_budget_configured ${dailyBudgetConfigured}`,
+    `ai_daily_budget_limit_requests ${dailyBudget ?? 0}`,
     `ai_daily_budget_usage_ratio ${budgetRatio}`,
     `ai_daily_budget_requests_remaining ${dailyBudget === null ? 0 : Math.max(0, dailyBudget - projectRequests)}`,
     `ai_daily_budget_threshold_70_reached ${budgetRatio >= 0.7 ? 1 : 0}`,

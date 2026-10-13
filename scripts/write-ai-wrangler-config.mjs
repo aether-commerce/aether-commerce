@@ -4,9 +4,16 @@ import { resolve } from "node:path";
 const deployEnvironment = process.env.AETHER_DEPLOY_ENV || "production";
 const outputFile = process.env.AETHER_AI_WRANGLER_OUTPUT || `wrangler.${deployEnvironment}.json`;
 const databaseId = process.env.AETHER_D1_DATABASE_ID?.trim();
+const dailyRequestBudget = process.env.AI_DAILY_REQUEST_BUDGET?.trim();
 
 if (!databaseId) {
   throw new Error("AETHER_D1_DATABASE_ID is required.");
+}
+if (
+  dailyRequestBudget &&
+  (!Number.isSafeInteger(Number(dailyRequestBudget)) || Number(dailyRequestBudget) < 1)
+) {
+  throw new Error("AI_DAILY_REQUEST_BUDGET must be a positive integer when configured.");
 }
 
 const inputPath = resolve("apps/ai-assistant/wrangler.jsonc");
@@ -26,6 +33,7 @@ config.vars = {
   AI_TOOL_CALLING_ENABLED:
     process.env.AI_TOOL_CALLING_ENABLED || config.vars.AI_TOOL_CALLING_ENABLED,
   AI_MUTATIONS_ENABLED: process.env.AI_MUTATIONS_ENABLED || config.vars.AI_MUTATIONS_ENABLED,
+  AI_DAILY_REQUEST_BUDGET: dailyRequestBudget || config.vars.AI_DAILY_REQUEST_BUDGET,
 };
 config.services = [
   {
