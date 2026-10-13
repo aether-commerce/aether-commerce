@@ -48,6 +48,7 @@ type AssistantResponse = {
     message: string | null;
   };
   suggested_replies: string[];
+  links?: Array<{ label: string; href: string }>;
 };
 
 type AssistantOrderSummary = {
@@ -75,6 +76,7 @@ type ChatMessage = {
   orders?: AssistantOrderSummary[];
   action?: AssistantResponse["action"];
   suggestedReplies?: string[];
+  links?: AssistantResponse["links"];
   streaming?: boolean;
   error?: boolean;
 };
@@ -657,7 +659,8 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
         products: payload.products,
         cart: payload.cart,
         action: payload.action,
-        suggestedReplies: payload.suggested_replies
+        suggestedReplies: payload.suggested_replies,
+        links: payload.links
       };
       if (payload.orders?.length) nextMessage.orders = payload.orders;
       if (
@@ -685,11 +688,13 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
       const nextCart = partial.cart ?? existing?.cart;
       const nextAction = partial.action ?? existing?.action;
       const nextSuggestedReplies = partial.suggestedReplies ?? existing?.suggestedReplies;
+      const nextLinks = partial.links ?? existing?.links;
 
       if (nextProducts) draft.products = nextProducts;
       if (nextCart) draft.cart = nextCart;
       if (nextAction) draft.action = nextAction;
       if (nextSuggestedReplies) draft.suggestedReplies = nextSuggestedReplies;
+      if (nextLinks) draft.links = nextLinks;
 
       if (
         current[current.length - 1]?.role === "assistant" &&
@@ -829,7 +834,22 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
                       : "rounded-tl-md bg-chat-surface text-chat-text"
                   }`}
                 >
-                  {message.content}
+                  <span>{message.content}</span>
+                  {message.links?.length ? (
+                    <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
+                      {message.links
+                        .filter((link) => ["/shipping/", "/returns/", "/contact/"].includes(link.href))
+                        .map((link) => (
+                        <StorefrontLink
+                          key={link.href}
+                          href={link.href}
+                          className="font-semibold text-chat-accent underline underline-offset-2"
+                        >
+                          {link.label}
+                        </StorefrontLink>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
                 {message.products?.length ? (
                   <div className="mt-2 grid gap-2 text-left">
