@@ -3,13 +3,26 @@
 import { ProductImage } from "./ProductImage";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CreditCard, MessageCircle, Minus, Plus, RotateCcw, ShoppingBag, Ticket, Trash2 } from "lucide-react";
+import {
+  CreditCard,
+  MessageCircle,
+  Minus,
+  Plus,
+  RotateCcw,
+  ShoppingBag,
+  Ticket,
+  Trash2
+} from "lucide-react";
 import { formatMoney } from "@aether-commerce/core";
 import type { Cart, Product } from "@aether-commerce/schemas";
 import { Badge, Button } from "@aether-commerce/ui";
 import { useStorefrontConfig, useStorefrontPath } from "./AetherStorefrontProvider";
 import { createCartClient } from "./cart-client";
-import { buildCartWhatsappMessage, buildInquiryWhatsappMessage, buildWhatsappUrl } from "./whatsapp-checkout";
+import {
+  buildCartWhatsappMessage,
+  buildInquiryWhatsappMessage,
+  buildWhatsappUrl
+} from "./whatsapp-checkout";
 import { useCheckoutOptions, useShippingSettings } from "./checkout-options";
 import { useAetherAuth } from "./AetherAuthProvider";
 import { useCustomerSession } from "./customer-client";
@@ -40,6 +53,7 @@ export function CartPage() {
   const [status, setStatus] = useState<string>(t.loadingCart);
   const [isLoading, setIsLoading] = useState(true);
   const [stockBySlug, setStockBySlug] = useState<Record<string, number>>({});
+  const [variantLabelByItem, setVariantLabelByItem] = useState<Record<string, string>>({});
   const [pendingItemId, setPendingItemId] = useState<string | null>(null);
   const [couponCode, setCouponCode] = useState("");
   const [couponStatus, setCouponStatus] = useState<"idle" | "applying" | "error">("idle");
@@ -54,7 +68,9 @@ export function CartPage() {
       ? await refreshLocalCartPrices()
       : savedCart;
     const hasLocalItems = localCart.items.length > 0;
-    const localCurrencyMatches = localCart.items.every((item) => item.currency === config.store.currency);
+    const localCurrencyMatches = localCart.items.every(
+      (item) => item.currency === config.store.currency
+    );
 
     if (hasLocalItems && localCurrencyMatches) {
       setCart(localCart);
@@ -93,7 +109,8 @@ export function CartPage() {
 
       const nextCart = payload.data?.items.length
         ? payload.data
-        : serverLocalCart.items.length && serverLocalCart.items.every((item) => item.currency === config.store.currency)
+        : serverLocalCart.items.length &&
+            serverLocalCart.items.every((item) => item.currency === config.store.currency)
           ? serverLocalCart
           : payload.data;
       if (payload.data?.items.length) replaceLocalCartItems(payload.data.items);
@@ -113,7 +130,9 @@ export function CartPage() {
   useEffect(() => {
     void refresh().catch(() => {
       const localCart = readLocalCart();
-      const currentCart = localCart.items.every((item) => item.currency === config.store.currency) ? localCart : null;
+      const currentCart = localCart.items.every((item) => item.currency === config.store.currency)
+        ? localCart
+        : null;
       setCart(currentCart);
       setStatus(currentCart?.items.length ? t.cartSavedLocal : t.startApiSyncCart);
       setIsLoading(false);
@@ -132,15 +151,25 @@ export function CartPage() {
           .then((response) => response.json())
           .then(
             (payload: { success: boolean; data?: Product }) =>
-              [slug, payload.data?.availableStock ?? null] as const
+              [slug, payload.success ? (payload.data ?? null) : null] as const
           )
           .catch(() => [slug, null] as const)
       )
     ).then((entries) => {
       if (cancelled) return;
       setStockBySlug(
-        Object.fromEntries(entries.filter(([, stock]) => stock !== null)) as Record<string, number>
+        Object.fromEntries(
+          entries
+            .filter(([, product]) => product !== null)
+            .map(([slug, product]) => [slug, product!.availableStock])
+        )
       );
+      const labels = entries.flatMap(([slug, product]) =>
+        product
+          ? product.variants.map((variant) => [`${slug}:${variant.id}`, variant.label] as const)
+          : []
+      );
+      setVariantLabelByItem(Object.fromEntries(labels));
     });
 
     return () => {
@@ -166,12 +195,20 @@ export function CartPage() {
     if (checkoutOptions?.paymentMode === "whatsapp") {
       if (!cart || cart.items.length === 0) return;
       const message = buildCartWhatsappMessage(cart, locale);
-      window.open(buildWhatsappUrl(checkoutOptions.whatsappNumber, message), "_blank", "noopener,noreferrer");
+      window.open(
+        buildWhatsappUrl(checkoutOptions.whatsappNumber, message),
+        "_blank",
+        "noopener,noreferrer"
+      );
       return;
     }
 
     if (!customer) {
-      router.push(storefrontPath(`/register?next=${shippingSettings?.enabled ? "/checkout" : "/cart"}&checkout=1`));
+      router.push(
+        storefrontPath(
+          `/register?next=${shippingSettings?.enabled ? "/checkout" : "/cart"}&checkout=1`
+        )
+      );
       return;
     }
 
@@ -185,7 +222,11 @@ export function CartPage() {
       try {
         let payload = await createCheckoutSession(getToken);
 
-        if (!payload.success && payload.error?.code === "EMPTY_CART" && readLocalCartItems().length > 0) {
+        if (
+          !payload.success &&
+          payload.error?.code === "EMPTY_CART" &&
+          readLocalCartItems().length > 0
+        ) {
           setStatus(t.syncingCartCheckout);
           await syncLocalCartToApi();
           payload = await createCheckoutSession(getToken);
@@ -272,7 +313,10 @@ export function CartPage() {
                 </StorefrontLink>
                 {checkoutOptions?.paymentMode === "whatsapp" && checkoutOptions.whatsappNumber ? (
                   <a
-                    href={buildWhatsappUrl(checkoutOptions.whatsappNumber, buildInquiryWhatsappMessage(locale))}
+                    href={buildWhatsappUrl(
+                      checkoutOptions.whatsappNumber,
+                      buildInquiryWhatsappMessage(locale)
+                    )}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="focus-ring inline-flex min-h-11 items-center gap-2 rounded-md border border-zinc-300 px-4 text-sm font-semibold text-zinc-700 hover:bg-zinc-100"
@@ -316,8 +360,19 @@ export function CartPage() {
                       {item.name}
                     </StorefrontLink>
                     <p className="mt-1 text-sm text-zinc-500">
-                      {formatMoney(item.finalUnitPrice, item.currency, locale === "es" ? "es-CO" : "en-US")} {t.qty.toLowerCase()}
+                      {formatMoney(
+                        item.finalUnitPrice,
+                        item.currency,
+                        locale === "es" ? "es-CO" : "en-US"
+                      )}{" "}
+                      {t.qty.toLowerCase()}
                     </p>
+                    {item.variantId && variantLabelByItem[`${item.slug}:${item.variantId}`] ? (
+                      <p className="mt-1 text-xs text-zinc-600">
+                        {locale === "es" ? "Opción:" : "Option:"}{" "}
+                        {variantLabelByItem[`${item.slug}:${item.variantId}`]}
+                      </p>
+                    ) : null}
                     {outOfStock ? (
                       <Badge tone="danger" className="mt-2">
                         {t.cartItemOutOfStock}
@@ -362,7 +417,13 @@ export function CartPage() {
                     </div>
                   </div>
                   <div className="grid justify-items-end gap-3">
-                    <strong className="text-zinc-950">{formatMoney(item.lineTotal, item.currency, locale === "es" ? "es-CO" : "en-US")}</strong>
+                    <strong className="text-zinc-950">
+                      {formatMoney(
+                        item.lineTotal,
+                        item.currency,
+                        locale === "es" ? "es-CO" : "en-US"
+                      )}
+                    </strong>
                     <button
                       type="button"
                       onClick={() => void removeItem(item.slug, item.name)}
@@ -385,10 +446,47 @@ export function CartPage() {
         <aside className="h-fit rounded-lg border border-zinc-200 bg-white p-5 lg:sticky lg:top-24">
           <h2 className="text-lg font-semibold text-zinc-950">{t.summary}</h2>
           <dl className="mt-4 grid gap-2 text-sm">
-            <div className="flex justify-between"><dt>{t.subtotal}</dt><dd>{formatMoney(cart?.totals.subtotal ?? 0, cart?.totals.currency ?? config.store.currency, locale === "es" ? "es-CO" : "en-US")}</dd></div>
-            <div className="flex justify-between"><dt>{t.discount}</dt><dd>-{formatMoney(cart?.totals.discount ?? 0, cart?.totals.currency ?? config.store.currency, locale === "es" ? "es-CO" : "en-US")}</dd></div>
-            <div className="flex justify-between"><dt>{t.shipping}</dt><dd>{formatMoney(cart?.totals.shipping ?? 0, cart?.totals.currency ?? config.store.currency, locale === "es" ? "es-CO" : "en-US")}</dd></div>
-            <div className="flex justify-between border-t border-zinc-200 pt-3 text-base font-semibold"><dt>{t.total}</dt><dd>{formatMoney(cart?.totals.total ?? 0, cart?.totals.currency ?? config.store.currency, locale === "es" ? "es-CO" : "en-US")}</dd></div>
+            <div className="flex justify-between">
+              <dt>{t.subtotal}</dt>
+              <dd>
+                {formatMoney(
+                  cart?.totals.subtotal ?? 0,
+                  cart?.totals.currency ?? config.store.currency,
+                  locale === "es" ? "es-CO" : "en-US"
+                )}
+              </dd>
+            </div>
+            <div className="flex justify-between">
+              <dt>{t.discount}</dt>
+              <dd>
+                -
+                {formatMoney(
+                  cart?.totals.discount ?? 0,
+                  cart?.totals.currency ?? config.store.currency,
+                  locale === "es" ? "es-CO" : "en-US"
+                )}
+              </dd>
+            </div>
+            <div className="flex justify-between">
+              <dt>{t.shipping}</dt>
+              <dd>
+                {formatMoney(
+                  cart?.totals.shipping ?? 0,
+                  cart?.totals.currency ?? config.store.currency,
+                  locale === "es" ? "es-CO" : "en-US"
+                )}
+              </dd>
+            </div>
+            <div className="flex justify-between border-t border-zinc-200 pt-3 text-base font-semibold">
+              <dt>{t.total}</dt>
+              <dd>
+                {formatMoney(
+                  cart?.totals.total ?? 0,
+                  cart?.totals.currency ?? config.store.currency,
+                  locale === "es" ? "es-CO" : "en-US"
+                )}
+              </dd>
+            </div>
           </dl>
           <div className="mt-5 grid gap-3">
             <div className="grid gap-1.5">
@@ -414,7 +512,9 @@ export function CartPage() {
                   {t.applyCoupon}
                 </Button>
               </div>
-              {couponStatus === "error" ? <p className="text-xs text-danger">{t.couponInvalid}</p> : null}
+              {couponStatus === "error" ? (
+                <p className="text-xs text-danger">{t.couponInvalid}</p>
+              ) : null}
             </div>
             <Button type="button" onClick={() => void checkout()} disabled={items.length === 0}>
               {checkoutOptions?.paymentMode === "whatsapp" ? (

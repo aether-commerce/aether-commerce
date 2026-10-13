@@ -163,7 +163,7 @@ export function SiteHeader({ portfolioUrl }: { portfolioUrl?: string }) {
           </span>
         </StorefrontLink>
 
-        <form onSubmit={submitSearch} className="hidden min-w-0 flex-1 max-w-lg lg:flex">
+        <form noValidate onSubmit={submitSearch} className="hidden min-w-0 flex-1 max-w-lg lg:flex">
           <label className="focus-within:ring-3 flex min-h-11 w-full items-center gap-2 rounded-md border border-border bg-surface-hover px-3 text-sm">
             <Search size={16} aria-hidden className="shrink-0 text-ink-subtle" />
             <span className="sr-only">{t.searchProducts}</span>

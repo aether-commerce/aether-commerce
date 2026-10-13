@@ -1,5 +1,11 @@
 # @aether-commerce/storefront-default
 
+## 0.5.12
+
+### Patch Changes
+
+- d88b451: Show the selected product variant in the cart and assistant cart summaries.
+
 ## 0.5.11
 
 ### Patch Changes
