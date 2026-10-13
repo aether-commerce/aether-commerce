@@ -70,6 +70,11 @@ function assistantRequest(message: string, headers: Record<string, string> = {},
   });
 }
 
+function isGeminiRequest(input: RequestInfo | URL): boolean {
+  const url = new URL(input instanceof Request ? input.url : String(input), "https://assistant.example.test");
+  return url.hostname === "generativelanguage.googleapis.com";
+}
+
 // Stubs global fetch so a call to Gemini returns a fixed plain-text reply
 // with no tool call, as if the model answered conversationally instead of
 // invoking a tool - lets tests assert on finalizeAgentResponseNode's language
@@ -89,8 +94,7 @@ function withMockedGeminiTextReply<T>(text: string, run: () => Promise<T>): Prom
   };
   const originalFetch = global.fetch.bind(global);
   global.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
-    const url = input instanceof Request ? input.url : String(input);
-    if (url.includes("generativelanguage.googleapis.com"))
+    if (isGeminiRequest(input))
       return Promise.resolve(Response.json(geminiPayload));
     return originalFetch(input, init);
   }) as typeof fetch;
@@ -100,6 +104,83 @@ function withMockedGeminiTextReply<T>(text: string, run: () => Promise<T>): Prom
 }
 
 describe("LangGraph Worker orchestration", () => {
+  it("ends a stalled store request at the shared deadline instead of hanging", async () => {
+    let aborted = false;
+    const stalledApi = (_input: RequestInfo | URL, init?: RequestInit) =>
+      new Promise<Response>((_resolve, reject) => {
+        const signal = init?.signal;
+        if (!signal) return reject(new Error("missing abort signal"));
+        signal.addEventListener("abort", () => {
+          aborted = true;
+          reject(new Error("stalled API request aborted"));
+        }, { once: true });
+      });
+    const requestEnv = { ...env(stalledApi), AI_REQUEST_TIMEOUT_SECONDS: "1" };
+    const request = assistantRequest("ver carrito", {
+      "x-aether-cart-id": "cart_timeout",
+      "x-aether-cart-token": "token_timeout"
+    });
+
+    const response = await worker.fetch(request, requestEnv);
+    expect(response.status).toBe(504);
+    expect(aborted).toBe(true);
+    await expect(response.json()).resolves.toMatchObject({ error: { code: "assistant_timeout" } });
+  });
+
+  it("aborts a stalled model call at the same deadline", async () => {
+    const originalFetch = global.fetch.bind(global);
+    let modelCallAborted = false;
+    let modelCallStarted = false;
+    let modelSignalPresent = false;
+    global.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+      if (!isGeminiRequest(input)) return originalFetch(input, init);
+      modelCallStarted = true;
+      const signal = input instanceof Request ? input.signal : init?.signal;
+      modelSignalPresent = Boolean(signal);
+      return new Promise<Response>((_resolve, reject) => {
+        signal?.addEventListener("abort", () => {
+          modelCallAborted = true;
+          reject(new DOMException("stalled model request aborted", "AbortError"));
+        }, { once: true });
+      });
+    }) as typeof fetch;
+    try {
+      const response = await worker.fetch(assistantRequest("asdlkjaslkdj"), {
+        ...env(),
+        GEMINI_API_KEY: "test-model-key",
+        AI_REQUEST_TIMEOUT_SECONDS: "1"
+      });
+      expect(response.status).toBe(504);
+      expect(modelCallStarted).toBe(true);
+      expect(modelSignalPresent).toBe(true);
+      expect(modelCallAborted).toBe(true);
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  it("reports a stalled streamed request as a terminal error", async () => {
+    const stalledApi = (_input: RequestInfo | URL, init?: RequestInit) =>
+      new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => reject(new Error("stalled API request aborted")), { once: true });
+      });
+    const request = new Request("https://assistant.example.test/v1/assistant/messages/stream", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-aether-cart-id": "cart_timeout",
+        "x-aether-cart-token": "token_timeout"
+      },
+      body: JSON.stringify({ message: "ver carrito", locale: "es-CO", privacy_consent: true })
+    });
+    const response = await worker.fetch(request, { ...env(stalledApi), AI_REQUEST_TIMEOUT_SECONDS: "1" });
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(body).toContain("event: assistant.error");
+    expect(body).toContain("tardó demasiado");
+    expect(body).not.toContain("event: assistant.completed");
+  });
+
   it("reports LangGraph.js in health checks", async () => {
     const response = await worker.fetch(
       new Request("https://assistant.example.test/healthz"),
@@ -582,9 +663,15 @@ describe("interview regressions", () => {
     // and Gemini's endpoint is never touched to get it.
     let geminiCalled = false;
     const originalFetch = global.fetch.bind(global);
-    global.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
-      const url = input instanceof Request ? input.url : String(input);
-      if (url.includes("generativelanguage.googleapis.com")) geminiCalled = true;
+    global.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (isGeminiRequest(input)) {
+        // A previous timed-out turn may still be unwinding when this test
+        // starts. Only count a model call made for this request.
+        const body = input instanceof Request
+          ? await input.clone().text()
+          : typeof init?.body === "string" ? init.body : "";
+        if (body.includes("Ver mis pedidos")) geminiCalled = true;
+      }
       return originalFetch(input, init);
     }) as typeof fetch;
 
@@ -633,8 +720,7 @@ describe("interview regressions", () => {
     let geminiCalled = false;
     const originalFetch = global.fetch.bind(global);
     global.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
-      const url = input instanceof Request ? input.url : String(input);
-      if (url.includes("generativelanguage.googleapis.com")) {
+      if (isGeminiRequest(input)) {
         geminiCalled = true;
         return Promise.resolve(
           Response.json({

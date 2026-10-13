@@ -221,6 +221,20 @@ test("assistant widget sends current product context from detail pages", async (
 });
 
 test("assistant widget renders product cards from streaming product events", async ({ page }) => {
+  const product = {
+    product_id: "stream-product-1",
+    variant_id: "stream-product-1-standard",
+    name: "Streamed Runner",
+    description: "Rendered before the completed payload.",
+    price: "79",
+    currency: "USD",
+    image_url: null,
+    product_url: "/products/detail?slug=streamed-runner",
+    available: true,
+    color: "Blue",
+    size: "42",
+    rating: null
+  };
   await page.route("**/api/v1/cart/session", async (route) => {
     await route.fulfill({
       status: 200,
@@ -245,25 +259,13 @@ test("assistant widget renders product cards from streaming product events", asy
         'data: {"message":"Buscando productos"}',
         "",
         "event: assistant.products",
-        `data: ${JSON.stringify([
-          {
-            product_id: "stream-product-1",
-            variant_id: "stream-product-1-standard",
-            name: "Streamed Runner",
-            description: "Rendered before the completed payload.",
-            price: "79",
-            currency: "USD",
-            image_url: null,
-            product_url: "/products/detail?slug=streamed-runner",
-            available: true,
-            color: "Blue",
-            size: "42",
-            rating: null
-          }
-        ])}`,
+        `data: ${JSON.stringify([product])}`,
         "",
         "event: assistant.token",
         'data: {"text":"Estas opciones ya estan disponibles."}',
+        "",
+        "event: assistant.completed",
+        `data: ${JSON.stringify({ request_id: "req_stream_product", thread_id: "00000000-0000-4000-8000-000000000012", message: "Estas opciones ya estan disponibles.", intent: "SEARCH_PRODUCTS", products: [product], cart: null, action: { type: "PRODUCTS_LISTED", status: "SUCCEEDED", entity_id: null, message: null }, suggested_replies: [] })}`,
         "",
         ""
       ].join("\n")
@@ -281,6 +283,12 @@ test("assistant widget renders product cards from streaming product events", asy
 });
 
 test("assistant widget renders cart summary from streaming cart events", async ({ page }) => {
+  const cartSummary = {
+    item_count: 1,
+    subtotal: "79",
+    currency: "USD",
+    items: [{ slug: "streamed-runner", quantity: 1 }]
+  };
   await page.route("**/api/v1/cart/session", async (route) => {
     await route.fulfill({
       status: 200,
@@ -302,15 +310,13 @@ test("assistant widget renders cart summary from streaming cart events", async (
         "data: {}",
         "",
         "event: assistant.cart_updated",
-        `data: ${JSON.stringify({
-          item_count: 1,
-          subtotal: "79",
-          currency: "USD",
-          items: [{ slug: "streamed-runner", quantity: 1 }]
-        })}`,
+        `data: ${JSON.stringify(cartSummary)}`,
         "",
         "event: assistant.token",
         'data: {"text":"Agregue el producto al carrito."}',
+        "",
+        "event: assistant.completed",
+        `data: ${JSON.stringify({ request_id: "req_stream_cart", thread_id: "00000000-0000-4000-8000-000000000013", message: "Agregue el producto al carrito.", intent: "ADD_TO_CART", products: [], cart: cartSummary, action: { type: "OPEN_CART", status: "SUCCEEDED", entity_id: null, message: null }, suggested_replies: [] })}`,
         "",
         ""
       ].join("\n")
@@ -375,7 +381,7 @@ test("assistant widget handles malformed stream events safely", async ({ page })
   await assistant.getByPlaceholder(/buscar|search/i).fill("Hola");
   await assistant.getByRole("button", { name: /enviar|send/i }).click();
 
-  await expect(assistant).toContainText(/no pude conectar|could not reach/i);
+  await expect(assistant).toContainText(/respuesta se interrumpió|response was interrupted/i);
   await expect(assistant).not.toContainText("GEMINI_API_KEY");
   await expect(assistant).not.toContainText("stacktrace");
 });
@@ -408,6 +414,9 @@ test("assistant widget ignores malformed streaming cart summaries", async ({ pag
         "",
         "event: assistant.token",
         'data: {"text":"Estoy revisando el carrito con datos seguros."}',
+        "",
+        "event: assistant.completed",
+        `data: ${JSON.stringify({ request_id: "req_safe_cart", thread_id: "00000000-0000-4000-8000-000000000014", message: "Estoy revisando el carrito con datos seguros.", intent: "GET_CART", products: [], cart: null, action: { type: "NONE", status: "NOT_REQUESTED", entity_id: null, message: null }, suggested_replies: [] })}`,
         "",
         ""
       ].join("\n")
@@ -751,4 +760,49 @@ test("assistant widget closes when the cart summary's Open cart link is clicked"
 
   await page.waitForURL(/\/cart\/?$/);
   await expect(page.getByRole("dialog", { name: /assistant|asistente/i })).toHaveCount(0);
+});
+
+test("interrupted assistant stream keeps the message without sending it twice", async ({ page }) => {
+  let streamCalls = 0;
+  let fallbackCalls = 0;
+  await page.route("http://localhost:8090/v1/assistant/messages", async (route) => {
+    fallbackCalls += 1;
+    await route.fulfill({ status: 200, body: "{}" });
+  });
+  await page.route("http://localhost:8090/v1/assistant/messages/stream", async (route) => {
+    streamCalls += 1;
+    await route.abort("failed");
+  });
+
+  await page.goto("/");
+  const assistant = await openAssistant(page);
+  const input = assistant.getByPlaceholder(/buscar|search/i);
+  await input.fill("agrega un producto al carrito");
+  await assistant.getByRole("button", { name: /enviar|send/i }).click();
+
+  await expect(input).toHaveValue("agrega un producto al carrito");
+  await expect(assistant.getByText(/respuesta se interrumpió|response was interrupted/i)).toBeVisible();
+  expect(streamCalls).toBe(1);
+  expect(fallbackCalls).toBe(0);
+});
+
+test("shopper can stop a pending assistant response and recover the message", async ({ page }) => {
+  let requested: (() => void) | undefined;
+  const requestStarted = new Promise<void>((resolve) => { requested = resolve; });
+  await page.route("http://localhost:8090/v1/assistant/messages/stream", async (route) => {
+    requested?.();
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await route.fulfill({ status: 200, contentType: "text/event-stream", body: "" }).catch(() => undefined);
+  });
+
+  await page.goto("/");
+  const assistant = await openAssistant(page);
+  const input = assistant.getByPlaceholder(/buscar|search/i);
+  await input.fill("ver carrito");
+  await assistant.getByRole("button", { name: /enviar|send/i }).click();
+  await requestStarted;
+  await assistant.getByRole("button", { name: /detener|stop/i }).click();
+
+  await expect(input).toHaveValue("ver carrito");
+  await expect(assistant.getByText(/detuve la respuesta|stopped the response/i)).toBeVisible();
 });

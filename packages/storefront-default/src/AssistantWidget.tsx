@@ -72,6 +72,7 @@ type ChatMessage = {
   action?: AssistantResponse["action"];
   suggestedReplies?: string[];
   streaming?: boolean;
+  error?: boolean;
 };
 
 const threadStorageKey = "aether.assistant.threadId.v1";
@@ -102,6 +103,7 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
   const panelRef = useRef<HTMLDivElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const activeRequestRef = useRef<AbortController | null>(null);
   const enabled = config.features.aiAssistant && Boolean(aiAssistantUrl);
   const formatUsd = (cents: number, displayLocale: string) => formatMoney(cents, config.store.currency, displayLocale);
 
@@ -130,6 +132,10 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
             openCart: "Abrir carrito",
             busy: "Buscando...",
             error: "No pude conectar con el asistente. La tienda sigue funcionando normalmente.",
+            cancel: "Detener",
+            cancelled: "Detuve la respuesta. Revisa el carrito o tus pedidos antes de volver a enviar el mensaje.",
+            timedOut: "El asistente tardó demasiado. Revisa el carrito o tus pedidos antes de volver a enviar el mensaje.",
+            incomplete: "La respuesta se interrumpió. Revisa el carrito o tus pedidos antes de volver a enviar el mensaje.",
             privacyQuestion: "¿Autorizas el tratamiento de este chat?",
             privacyNotice: "Se guarda hasta 30 días y el mensaje puede enviarse a Gemini. No incluyas datos sensibles.",
             privacyAccept: "Sí, continuar",
@@ -159,6 +165,10 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
             openCart: "Open cart",
             busy: "Searching...",
             error: "I could not reach the assistant. The store still works normally.",
+            cancel: "Stop",
+            cancelled: "I stopped the response. Check your cart or orders before sending the message again.",
+            timedOut: "The assistant took too long. Check your cart or orders before sending the message again.",
+            incomplete: "The response was interrupted. Check your cart or orders before sending the message again.",
             privacyQuestion: "Do you authorize processing this chat?",
             privacyNotice: "It is stored for up to 30 days and the message may be sent to Gemini. Please don't include sensitive data.",
             privacyAccept: "Yes, continue",
@@ -363,21 +373,31 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
 
   async function sendMessage(message = input.trim()) {
     if (!message || isSending || !privacyAccepted) return;
+    const controller = new AbortController();
+    activeRequestRef.current = controller;
+    const timeout = window.setTimeout(() => controller.abort(new DOMException("Assistant request timed out", "TimeoutError")), 30_000);
     setInput("");
     setIsSending(true);
     setStatusMessage(null);
     setMessages((current) => [...current, { role: "user", content: message }]);
 
     try {
-      await sendMessageStream(message);
-    } catch {
-      try {
-        await sendMessageFallback(message);
-      } catch (err) {
-        const text = err instanceof Error && err.message ? err.message : copy.error;
-        setMessages((current) => [...current, { role: "assistant", content: text }]);
-      }
+      await sendMessageStream(message, controller.signal);
+    } catch (err) {
+      const text = controller.signal.aborted
+        ? (controller.signal.reason as { name?: string } | undefined)?.name === "TimeoutError"
+          ? copy.timedOut
+          : copy.cancelled
+        : err instanceof TypeError ? copy.incomplete
+        : err instanceof Error && err.message ? err.message : copy.error;
+      setInput((current) => current.trim() ? current : message);
+      setMessages((current) => [
+        ...(current[current.length - 1]?.streaming ? current.slice(0, -1) : current),
+        { role: "assistant", content: text, error: true }
+      ]);
     } finally {
+      window.clearTimeout(timeout);
+      if (activeRequestRef.current === controller) activeRequestRef.current = null;
       setIsSending(false);
       setStatusMessage(null);
     }
@@ -426,47 +446,41 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
     }
   }
 
-  async function sendMessageFallback(message: string) {
-    const response = await fetch(`${aiAssistantUrl.replace(/\/$/, "")}/v1/assistant/messages`, {
-      method: "POST",
-      headers: await assistantRequestHeaders(),
-      body: assistantRequestBody(message)
-    });
-    if (!response.ok) throw new Error(await readErrorMessage(response));
-    const payload = (await response.json()) as AssistantResponse;
-    appendAssistantResponse(payload);
-  }
-
-  async function sendMessageStream(message: string) {
+  async function sendMessageStream(message: string, signal: AbortSignal) {
+    const headers = await assistantRequestHeaders();
+    signal.throwIfAborted();
     const response = await fetch(`${aiAssistantUrl.replace(/\/$/, "")}/v1/assistant/messages/stream`, {
       method: "POST",
-      headers: await assistantRequestHeaders(),
-      body: assistantRequestBody(message)
+      headers,
+      body: assistantRequestBody(message),
+      signal
     });
     if (!response.ok || !response.body) throw new Error(await readErrorMessage(response));
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
-    let completed = false;
+    let ended = false;
+    let receivedCompletion = false;
 
-    while (!completed) {
+    while (!ended) {
       const { value, done } = await reader.read();
-      completed = done;
+      ended = done;
       buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
       const chunks = buffer.split("\n\n");
       buffer = chunks.pop() || "";
       for (const chunk of chunks) {
-        handleAssistantEvent(chunk);
+        if (handleAssistantEvent(chunk)) receivedCompletion = true;
       }
     }
 
     if (buffer.trim()) {
-      handleAssistantEvent(buffer);
+      if (handleAssistantEvent(buffer)) receivedCompletion = true;
     }
+    if (!receivedCompletion) throw new Error(copy.incomplete);
   }
 
-  function handleAssistantEvent(rawEvent: string) {
+  function handleAssistantEvent(rawEvent: string): boolean {
     const eventName = rawEvent
       .split("\n")
       .find((line) => line.startsWith("event:"))
@@ -477,14 +491,12 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
       .find((line) => line.startsWith("data:"))
       ?.replace("data:", "")
       .trim();
-    if (!eventName || !dataLine) return;
+    if (!eventName || !dataLine) return false;
     let data: AssistantStreamData;
     try {
       data = JSON.parse(dataLine) as AssistantStreamData;
     } catch {
-      setStatusMessage(null);
-      setMessages((current) => [...current, { role: "assistant", content: copy.error }]);
-      return;
+      throw new Error(copy.incomplete);
     }
 
     if (eventName === "assistant.status" && "message" in data && data.message) {
@@ -524,16 +536,12 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
     }
     if (eventName === "assistant.completed" && !Array.isArray(data) && "thread_id" in data) {
       appendAssistantResponse(data);
+      return true;
     }
     if (eventName === "assistant.error") {
-      setMessages((current) => [
-        ...current,
-        {
-          role: "assistant",
-          content: "message" in data && data.message ? data.message : copy.error
-        }
-      ]);
+      throw new Error("message" in data && data.message ? data.message : copy.incomplete);
     }
+    return false;
   }
 
   function isAssistantCartSummary(data: AssistantStreamData): data is AssistantCartSummary {
@@ -711,6 +719,7 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
             {messages.map((message, index) => (
               <div key={index} className={message.role === "user" ? "ml-8 text-right" : "mr-8"}>
                 <div
+                  role={message.error ? "alert" : undefined}
                   className={`inline-block max-w-[85%] rounded-2xl px-3.5 py-2.5 text-left text-sm leading-6 ${
                     message.role === "user" ? "rounded-tr-md bg-chat-accent text-white" : "rounded-tl-md bg-chat-surface text-chat-text"
                   }`}
@@ -885,6 +894,9 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
               <div className="mr-8 inline-flex items-center gap-2 rounded-2xl bg-chat-surface px-3.5 py-2.5 text-sm text-chat-text-muted">
                 <Loader2 size={15} className="animate-spin" aria-hidden />
                 {statusMessage || copy.busy}
+                <button type="button" onClick={() => activeRequestRef.current?.abort()} className="focus-ring ml-2 min-h-11 rounded-full border border-chat-border px-3 py-2 font-medium text-chat-text hover:border-chat-accent">
+                  {copy.cancel}
+                </button>
               </div>
             ) : null}
             <div ref={messagesEndRef} />
