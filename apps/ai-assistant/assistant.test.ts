@@ -305,6 +305,49 @@ describe("LangGraph Worker orchestration", () => {
     expect(response.status).toBe(403);
     expect(response.headers.get("x-frame-options")).toBe("DENY");
   });
+
+  it("reports failed tool outcomes and the configured daily request ceiling", async () => {
+    const usageRows = [
+      { user_or_session_hash: "project", request_count: 80, llm_call_count: 96, tool_call_count: 31 },
+      { user_or_session_hash: "rate_limit_errors", request_count: 5, llm_call_count: 0, tool_call_count: 0 }
+    ];
+    const auditRows = [
+      { authorization_result: "allowed", execution_status: "failed", count: 2 },
+      { authorization_result: "denied", execution_status: "failed", count: 1 },
+      { authorization_result: "denied", execution_status: "blocked", count: 4 },
+      { authorization_result: "allowed", execution_status: "succeeded", count: 6 }
+    ];
+    const db = {
+      prepare: (sql: string) => {
+        const statement = {
+          bind: () => statement,
+          first: () => Promise.resolve(sql.includes("ai_rate_limit_buckets") ? { count: 7 } : null),
+          all: () => Promise.resolve({
+            results: sql.includes("ai_usage_daily") ? usageRows : auditRows
+          }),
+          run: () => Promise.resolve({ meta: { changes: 1 } })
+        };
+        return statement;
+      },
+      batch: () => Promise.resolve([])
+    } as unknown as NonNullable<TestEnv["DB"]>;
+    const response = await worker.fetch(
+      new Request("https://assistant.example.test/metrics", {
+        headers: { "x-aether-operations-token": "operations-secret" }
+      }),
+      { ...env(), DB: db, AI_OPERATIONS_TOKEN: "operations-secret", AI_DAILY_REQUEST_BUDGET: "100" }
+    );
+
+    expect(response.status).toBe(200);
+    const metrics = await response.text();
+    expect(metrics).toContain("ai_tool_errors_total 3");
+    expect(metrics).toContain("ai_cart_mutation_failures_total 2");
+    expect(metrics).toContain("ai_daily_budget_configured 1");
+    expect(metrics).toContain("ai_daily_budget_limit_requests 100");
+    expect(metrics).toContain("ai_daily_budget_usage_ratio 0.8");
+    expect(metrics).toContain("ai_daily_budget_requests_remaining 20");
+    expect(metrics).toContain("ai_daily_budget_threshold_70_reached 1");
+  });
 });
 
 describe("interview regressions", () => {
