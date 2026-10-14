@@ -227,13 +227,18 @@ test("package publishing stores a verified immutable manifest before v1 client d
   );
 });
 
-test("skipped PR CI cannot cancel a real development deployment", () => {
+test("development deployments serialize without canceling an active release", () => {
   const workflow = read(".github/workflows/deploy-development.yml");
-  assert.match(workflow, /cancel-in-progress: >-/);
-  assert.match(workflow, /github\.event_name == 'workflow_dispatch'/);
+  assert.match(workflow, /group:\s*aether-development/);
+  assert.match(workflow, /cancel-in-progress:\s*false/);
+  assert.doesNotMatch(workflow, /cancel-in-progress:\s*>-/);
   assert.match(
     workflow,
-    /github\.event_name == 'workflow_run' && github\.event\.workflow_run\.event == 'push' && github\.event\.workflow_run\.conclusion == 'success'/
+    /github\.event_name == 'workflow_run' && github\.event\.workflow_run\.name == 'Aether CI' && github\.event\.workflow_run\.event == 'push' && github\.event\.workflow_run\.conclusion == 'success' && github\.event\.workflow_run\.head_branch == 'develop'/
+  );
+  assert.match(
+    workflow,
+    /github\.event_name == 'workflow_dispatch' && github\.ref == 'refs\/heads\/develop'/
   );
 });
 
