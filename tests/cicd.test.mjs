@@ -469,7 +469,7 @@ test("storefront product pages are generated on demand without querying the live
   assert.match(productRoute, /export const revalidate = 300/);
   assert.match(
     productRoute,
-    /export async function generateStaticParams\(\)\s*\{\s*return \[\];?\s*\}/
+    /export function generateStaticParams\(\)\s*\{\s*return \[\];?\s*\}/
   );
   assert.doesNotMatch(productRoute, /fetchAllCatalogProducts/);
 });

@@ -15,7 +15,7 @@ export const revalidate = 300;
 
 // Product data is live and can change independently of a deployment. Generate
 // detail pages on first request so one unavailable catalog item cannot fail the build.
-export async function generateStaticParams() {
+export function generateStaticParams() {
   return [];
 }
 
