@@ -1,5 +1,11 @@
 # @aether-commerce/i18n
 
+## 0.4.0
+
+### Minor Changes
+
+- 6d4e954: Add an environment-isolated admin page for assistant request and concurrency limits, with validated API persistence and runtime enforcement.
+
 ## 0.3.5
 
 ### Patch Changes
