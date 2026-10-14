@@ -1,6 +1,6 @@
 # Plan de corrección de la auditoría CI/CD de Aether y Liminal
 
-Fecha: 14 de octubre de 2026. Estado: **en ejecución**. PR #338 integró la generación bajo demanda de páginas de producto; PR #339 promovió el cambio a `main`. El CI exacto de ambos PR, el CI del push, y los despliegues de desarrollo y producción pasaron. La primera tentativa de producción falló durante el prerender antes de mutar recursos; su causa y la corrección están registradas abajo. P3 todavía requiere completar la reanudación del manifiesto; T14, T17, P5, P6, P7 y DEC-01 permanecen abiertos.
+Fecha: 14 de octubre de 2026. Estado: **en ejecución**. PR #338 integró la generación bajo demanda de páginas de producto; PR #339 promovió el cambio a `main`. El CI exacto de ambos PR, el CI del push, y los despliegues de desarrollo y producción pasaron. La primera tentativa de producción falló durante el prerender antes de mutar recursos; su causa y la corrección están registradas abajo. La reanudación del manifiesto histórico ya se verificó hasta el manifiesto; falta una entrega real al consumidor Liminal. T14, T17, P5, P6, P7 y DEC-01 permanecen abiertos.
 
 Fuentes: [auditoría H01–H12](2026-10-14-cicd-liminal.md), [ampliación Changesets H13–H18](2026-10-14-changesets-agent-release.md) y [mediciones](2026-10-14-cicd-timings.json).
 
@@ -113,7 +113,9 @@ Se puede preparar P4 mientras se desarrolla P3 porque modifica otra parte del si
 
 ## P3 — Reparar la distribución de paquetes y la actualización de Liminal
 
-**Estado:** las correcciones de distribución y actualización de P3 quedaron integradas en Aether (PR #308) y Liminal (PR #123), con CI de integración verde. La aceptación operativa sigue abierta: todavía falta observar una release nueva que recorra publicación con manifiesto, dispatch, actualización del cliente y smoke end-to-end; no se debe confundir el merge de los controles con la certificación completa de una entrega.
+**Actualización de aceptación 2026-10-14:** el run [38646000387](https://github.com/aether-commerce/aether-commerce/actions/runs/38646000387) comprobó tags y versiones del SHA `817c0ca`, creó el manifiesto duradero, y omitió `Publish packages`. Su resumen declara `Client delivery: not activated`; por eso cuenta como prueba de reanudación segura hasta manifiesto, no como entrega completa. El siguiente bloqueo es integrar/habilitar el consumidor compatible de Liminal y disponer del token de actualización que requiere su workflow.
+
+**Estado:** las correcciones de distribución y actualización de P3 quedaron integradas en Aether (PR #308) y Liminal (PR #123), con CI de integración verde. El workflow [run #102](https://github.com/aether-commerce/aether-commerce/actions/runs/38646000387) reanudó el SHA publicado `817c0cae12b3a71c3c9c31e4074675f74dbe4ba4`: build y pruebas de plantilla pasaron, comprobó `@aether-commerce/api-worker@0.8.3` y `@aether-commerce/migrations@0.4.4` en el registro, verificó que los tags apuntan a ese SHA, omitió la republicación y creó el manifiesto inmutable con SHA-256 `13ab850f9714a2ef4c4fff3698935791ee41b7a8996bcbad1773b2cfd7d989da`. El manifiesto se conserva en [aether-release-817c0cae12b3a71c3c9c31e4074675f74dbe4ba4](https://github.com/aether-commerce/aether-commerce/releases/download/aether-release-817c0cae12b3a71c3c9c31e4074675f74dbe4ba4/release-manifest.v1.json). El flujo dejó explícitamente la entrega a Liminal sin activar, porque `AETHER_V1_CLIENT_UPDATES_ENABLED` sigue apagado; no hubo dispatch ni deploy de cliente. T20 queda parcialmente acreditado, pero la certificación end-to-end sigue abierta; T19 aún requiere probar un corte durante la publicación.
 
 **P3-A: manifiesto y publicación recuperable.**
 
@@ -292,7 +294,7 @@ PR #324 pasó su CI de PR en 7m30s; su CI del push [38601962381](https://github.
 | T17 | Falla un componente tras desplegar otro: reporte parcial, retry seguro y recuperación documentada compatible con D1 |
 | T18 | Merge a main seguido de sincronización: PR correcto, CI vigente, sin commits vacíos ni pushes protegidos |
 | T19 | Corte durante publicación de paquetes: reanudar faltantes, rechazar integridad distinta para una versión existente |
-| T20 | Corte después de paquetes o tags, antes de dispatch: retomar entrega sin duplicar; ausencia de token no parece éxito completo |
+| T20 | Corte después de paquetes o tags, antes de dispatch: reanudación del SHA `817c0ca` creó el manifiesto y mantuvo la republicación omitida; entrega a Liminal quedó expresamente desactivada y no se reportó como completada. Falta probar dispatch/actualización compatibles |
 | T21 | Reinicio del agente/controlador en cada fase: reconstruir estado, comprobar SHA y ejecutar solo la siguiente transición válida |
 | T22 | Job de CI fallido/cancelado/omitido: agregador requerido falla; pruebas y paquetes mantienen cobertura |
 | T23 | Restauración de caché con ambiente/lockfile/plataforma distintos: no reutilizar salida incompatible; medir costo/tiempo |
