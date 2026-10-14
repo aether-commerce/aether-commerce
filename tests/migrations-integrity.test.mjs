@@ -28,6 +28,18 @@ test("all core D1 migrations apply with foreign keys enabled", () => {
 
   assert.deepEqual(database.prepare("PRAGMA foreign_key_check;").all(), []);
 
+  const catalogPlan = database.prepare(`
+    EXPLAIN QUERY PLAN
+    SELECT p.*, c.name AS category_name
+    FROM products p
+    LEFT JOIN store_categories c ON c.id = p.store_category_id AND c.store_id = p.store_id
+    WHERE p.store_id = ?
+    ORDER BY p.updated_at DESC
+  `).all("store_default");
+  const catalogPlanDetails = catalogPlan.map((row) => row.detail).join("\n");
+  assert.ok(catalogPlanDetails.includes("SEARCH p USING INDEX idx_products_store_updated_at (store_id=?)"), catalogPlanDetails);
+  assert.doesNotMatch(catalogPlanDetails, /USE TEMP B-TREE FOR ORDER BY/);
+
   const catalogSpecifications = [
     ["cargador-gan-30w", "Potencia", "30 W"],
     ["cargador-dual-usb-c-45w", "Potencia", "45 W"],
