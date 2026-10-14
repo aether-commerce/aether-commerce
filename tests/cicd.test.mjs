@@ -65,25 +65,33 @@ test("deploy jobs reuse the exact SHA CI gate without repeating workspace valida
   }
 });
 
-test("Worker deployments retry only transient Cloudflare API failures", () => {
+test("Worker secrets are bound to the code version that the smoke test verifies", () => {
   for (const environment of ["production", "development"]) {
-    const workflow = read(`.github/workflows/deploy-${environment}.yml`);
-    for (const worker of ["api", "ai-assistant", "storefront"]) {
-      assert.match(
-        workflow,
-        new RegExp(
-          `retry-cloudflare-command\\.mjs pnpm exec wrangler deploy --config apps/${worker}/wrangler\\.${environment}\\.json`
-        )
-      );
+    const workflow = read(".github/workflows/deploy-" + environment + ".yml");
+    const steps = environment === "development"
+      ? [
+          ["Deploy development API Worker", "Deploy development AI assistant Worker", ".api-secrets.json"],
+          ["Deploy development AI assistant Worker", "Deploy development storefront Worker", ".ai-secrets.json"]
+        ]
+      : [
+          ["Deploy API Worker", "Deploy AI assistant Worker", ".api-secrets.json"],
+          ["Deploy AI assistant Worker", "Deploy storefront Worker", ".ai-secrets.json"]
+        ];
+
+    for (const [name, nextName, secretsFile] of steps) {
+      const start = workflow.indexOf("      - name: " + name);
+      const end = workflow.indexOf("      - name: " + nextName, start + 1);
+      assert.notEqual(start, -1, name + " exists in " + environment);
+      assert.notEqual(end, -1, nextName + " follows " + name + " in " + environment);
+      const step = workflow.slice(start, end);
+      assert.match(step, /retry-cloudflare-command\.mjs/);
+      assert.match(step, /wrangler deploy/);
+      assert.match(step, /--secrets-file/);
+      assert.ok(step.includes(secretsFile));
+      assert.match(step, /DEPLOYED_COMMIT_SHA/);
     }
-    for (const worker of ["api", "ai-assistant"]) {
-      assert.match(
-        workflow,
-        new RegExp(
-          `retry-cloudflare-command\\.mjs pnpm exec wrangler secret bulk \\.${worker === "api" ? "api" : "ai"}-secrets\\.json --config apps/${worker}/wrangler\\.${environment}\\.json`
-        )
-      );
-    }
+
+    assert.doesNotMatch(workflow, /wrangler secret bulk/);
   }
 });
 
@@ -189,8 +197,9 @@ test("Aether deployments stamp and verify the exact release revision", () => {
     assert.match(workflow, /write-deploy-build-info\.mjs admin/);
     assert.match(
       workflow,
-      /--var DEPLOYED_COMMIT_SHA:\$\{\{ github\.event\.workflow_run\.head_sha \|\| github\.sha \}\}/
+      /DEPLOYED_COMMIT_SHA: \$\{\{ github\.event\.workflow_run\.head_sha \|\| github\.sha \}\}/
     );
+    assert.match(workflow, /--var "DEPLOYED_COMMIT_SHA:\$\{DEPLOYED_COMMIT_SHA\}"/);
     assert.match(workflow, /node scripts\/check-deployment-smoke\.mjs/);
     assert.doesNotMatch(workflow, /curl --fail.*APP_ORIGIN_STORE/);
   }
