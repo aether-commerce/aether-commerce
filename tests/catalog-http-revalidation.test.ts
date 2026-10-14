@@ -1,10 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createRequire } from "node:module";
 import type { Product } from "@aether-commerce/schemas";
-import type { AppBindings, Env } from "../packages/api-worker/src/types";
+import type { Env } from "../packages/api-worker/src/types";
 import { getCatalogProducts, getProductById, getProductBySlug } from "../packages/api-worker/src/services/catalog";
 import { catalogRoutes } from "../packages/api-worker/src/routes/catalog";
 import { publicRoutes } from "../packages/api-worker/src/routes/public";
-import { Hono } from "hono";
+
+const requireApiWorker = createRequire(new URL("../packages/api-worker/package.json", import.meta.url));
+const { Hono } = requireApiWorker("hono");
 
 vi.mock("../packages/api-worker/src/services/catalog", () => ({
   getCatalogProducts: vi.fn(),
@@ -25,7 +28,7 @@ const product = {
   category: { image }
 } as Product;
 const pagination = { page: 1, pageSize: 12, total: 1, pageCount: 1 };
-const app = new Hono<AppBindings>().route("/catalog", catalogRoutes).route("/public", publicRoutes);
+const app = new Hono().route("/catalog", catalogRoutes).route("/public", publicRoutes);
 
 beforeEach(() => {
   vi.mocked(getCatalogProducts).mockResolvedValue({ data: [product], pagination });
