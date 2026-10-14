@@ -22,7 +22,7 @@ Incidente resuelto en el primer smoke posterior al arreglo: el run de desarrollo
 | Asistente Worker, storefront Worker o Admin Pages | Uno o más servicios pueden servir la revisión nueva y los demás la anterior. | Consultar /healthz y /readyz del asistente, /build-info.json del storefront y Admin, y registrar el SHA por servicio. Desplegar la revisión compatible que falta. |
 | Smoke o catálogo | Los servicios pueden estar desplegados aunque la ejecución termine fallida. | Tratar el release como incompleto. Revisar las respuestas y SHA de cada verificación; no reportar éxito por HTTP 200 aislado. |
 
-Los mensajes del workflow identifican el último paso completado, pero la ejecución puede haber aplicado varias migraciones antes de fallar en una posterior. Confirma siempre el estado de D1 en Cloudflare antes de reanudar.
+Ejemplo: si D1 y API terminaron correctamente pero falló el deploy del asistente, el snapshot debe quedar `partial`, con `lastSuccessfulStage=api` y `firstIncompleteStage=assistant`. Verifica las migraciones de D1 y el SHA servido por la API y el asistente antes de reintentar. El resultado del paso de API indica que se intentó una mutación; no vuelvas a desplegarla a ciegas ni reviertas D1. Corrige la causa y reanuda el SHA autorizado; después vuelve a ejecutar el smoke de todos los servicios.\n\nLos mensajes del workflow identifican el último paso completado, pero la ejecución puede haber aplicado varias migraciones antes de fallar en una posterior. Confirma siempre el estado de D1 en Cloudflare antes de reanudar.
 
 ## Reintentar o corregir
 
