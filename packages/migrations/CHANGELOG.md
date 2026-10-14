@@ -1,5 +1,11 @@
 # @aether-commerce/migrations
 
+## 0.4.4
+
+### Patch Changes
+
+- d37664c: Add a store-scoped index for catalog ordering by update time.
+
 ## 0.4.3
 
 ### Patch Changes
