@@ -17,14 +17,15 @@ export function createReleaseManifest(input) {
       registry: entry.registry,
       integrity: entry.integrity,
       tarball: entry.tarball,
-      tag: entry.tag
+      tag: entry.tag,
+      changedInRelease: entry.changedInRelease
     }))
-    .sort((left, right) => left.name.localeCompare(right.name));
+    .sort((left, right) => (left.name < right.name ? -1 : left.name > right.name ? 1 : 0));
   const migrations = {
     manifestSha256: input.migrations.manifestSha256,
     files: [...input.migrations.files]
       .map((entry) => ({ path: entry.path, sha256: entry.sha256 }))
-      .sort((left, right) => left.path.localeCompare(right.path))
+      .sort((left, right) => (left.path < right.path ? -1 : left.path > right.path ? 1 : 0))
   };
 
   const manifest = {
@@ -85,9 +86,17 @@ export function validateReleaseManifest(manifest) {
         errors.push(`invalid tarball URL: ${pkg.name}`);
       }
       const expectedTag = `${pkg.name}@${pkg.version}`;
-      if (pkg.tag !== expectedTag) errors.push(`tag does not match package version: ${pkg.name}`);
-      if (tags.has(pkg.tag)) errors.push(`duplicate package tag: ${pkg.tag}`);
-      tags.add(pkg.tag);
+      if (pkg.tag !== null && pkg.tag !== expectedTag) errors.push(`tag does not match package version: ${pkg.name}`);
+      if (pkg.changedInRelease !== true && pkg.changedInRelease !== false) {
+        errors.push(`changedInRelease must be a boolean: ${pkg.name}`);
+      }
+      if (pkg.changedInRelease && pkg.tag !== expectedTag) {
+        errors.push(`newly released package must have its release tag: ${pkg.name}`);
+      }
+      if (pkg.tag !== null) {
+        if (tags.has(pkg.tag)) errors.push(`duplicate package tag: ${pkg.tag}`);
+        tags.add(pkg.tag);
+      }
     }
   }
 

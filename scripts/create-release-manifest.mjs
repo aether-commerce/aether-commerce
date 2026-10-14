@@ -107,21 +107,35 @@ export function collectClientMigrations() {
 }
 
 export function buildReleaseManifest({ baseSha, headSha, repository, createdAt }) {
-  const changedPaths = git(["diff", "--name-only", baseSha, headSha, "--", "packages"])
+  const packagePaths = git(["ls-tree", "-r", "--name-only", headSha, "--", "packages"])
     .split(/\r?\n/)
     .filter((path) => /^packages\/[^/]+\/package\.json$/.test(path));
   const packages = [];
-  for (const path of changedPaths) {
-    const current = JSON.parse(readFileSync(join(root, path), "utf8"));
+  for (const path of packagePaths) {
+    const currentSource = maybeGitShow(headSha, path);
+    if (!currentSource) throw new Error(`Package metadata is missing from release commit: ${path}`);
+    const current = JSON.parse(currentSource);
+    if (current.private === true) continue;
+    if (!current.name?.startsWith("@aether-commerce/")) {
+      throw new Error(`Public package is missing its Aether package identity: ${path}`);
+    }
+    if (current.publishConfig?.registry !== "https://npm.pkg.github.com") {
+      throw new Error(`Public package is missing its GitHub Packages registry: ${path}`);
+    }
     const previousSource = maybeGitShow(baseSha, path);
     const previous = previousSource ? JSON.parse(previousSource) : null;
-    if (current.private || current.version === previous?.version) continue;
-    if (!current.name?.startsWith("@aether-commerce/") || !current.publishConfig?.registry) {
-      throw new Error(`Versioned package is missing its public package identity: ${path}`);
-    }
+    const changedInRelease = current.version !== previous?.version;
     const tag = `${current.name}@${current.version}`;
-    const taggedSha = git(["rev-list", "-n", "1", `refs/tags/${tag}`]);
-    if (taggedSha !== headSha) throw new Error(`Release tag ${tag} is missing or does not point to ${headSha}.`);
+    const taggedSha = maybeGitShow(tag, path) === null ? null : git(["rev-list", "-n", "1", `refs/tags/${tag}`]);
+    if (taggedSha) {
+      const taggedPackage = JSON.parse(maybeGitShow(tag, path));
+      if (taggedPackage.name !== current.name || taggedPackage.version !== current.version) {
+        throw new Error(`Release tag ${tag} does not identify this package version.`);
+      }
+    }
+    if (changedInRelease && taggedSha !== headSha) {
+      throw new Error(`New package release tag ${tag} is missing or does not point to ${headSha}.`);
+    }
     const dist = packageDist(current.name, current.version, dirname(join(root, path)));
     packages.push({
       name: current.name,
@@ -129,10 +143,11 @@ export function buildReleaseManifest({ baseSha, headSha, repository, createdAt }
       registry: current.publishConfig.registry,
       integrity: dist.integrity,
       tarball: dist.tarball,
-      tag
+      tag: taggedSha ? tag : null,
+      changedInRelease
     });
   }
-  if (packages.length === 0) throw new Error("No newly versioned public packages were found between the release base and head.");
+  if (packages.length === 0) throw new Error("No public Aether packages were found in the release commit.");
 
   return createReleaseManifest({
     repository,

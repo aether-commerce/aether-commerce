@@ -15,7 +15,8 @@ const baseInput = {
       registry: "https://npm.pkg.github.com",
       integrity: "sha512-dGVzdA==",
       tarball: "https://npm.pkg.github.com/download/@aether-commerce/api-worker/1.2.3/abc",
-      tag: "@aether-commerce/api-worker@1.2.3"
+      tag: "@aether-commerce/api-worker@1.2.3",
+      changedInRelease: true
     }
   ],
   migrations: {
@@ -40,7 +41,8 @@ test("release manifest v1 is deterministic and sorts package/migration entries",
         registry: "https://npm.pkg.github.com",
         integrity: "sha512-dGVzdA==",
         tarball: "https://npm.pkg.github.com/download/@aether-commerce/core/0.4.0/def",
-        tag: "@aether-commerce/core@0.4.0"
+        tag: "@aether-commerce/core@0.4.0",
+        changedInRelease: false
       }
     ]
   });
@@ -69,6 +71,36 @@ test("release manifest rejects stale, duplicated, or unverifiable release inputs
   assert.ok(errors.includes("duplicate package: @aether-commerce/api-worker"));
   assert.ok(errors.includes("missing or invalid tarball integrity: @aether-commerce/api-worker"));
   assert.ok(errors.includes("invalid migration digest: packages/migrations/migrations/0001_initial.sql"));
+});
+
+test("release manifest carries unchanged public packages in the exact snapshot without inventing missing tags", () => {
+  const manifest = createReleaseManifest({
+    ...baseInput,
+    packages: [
+      { ...baseInput.packages[0], tag: null, changedInRelease: false },
+      {
+        name: "@aether-commerce/core",
+        version: "0.4.0",
+        registry: "https://npm.pkg.github.com",
+        integrity: "sha512-dGVzdA==",
+        tarball: "https://npm.pkg.github.com/download/@aether-commerce/core/0.4.0/def",
+        tag: null,
+        changedInRelease: false
+      }
+    ]
+  });
+
+  assert.equal(manifest.packages[0].version, "1.2.3");
+  assert.equal(manifest.packages[0].changedInRelease, false);
+  assert.equal(manifest.packages[0].tag, null);
+  assert.deepEqual(validateReleaseManifest(manifest), []);
+});
+
+test("release manifest rejects a changed package whose version tag is missing", () => {
+  assert.throws(() => createReleaseManifest({
+    ...baseInput,
+    packages: [{ ...baseInput.packages[0], tag: null, changedInRelease: true }]
+  }), /newly released package must have its release tag/);
 });
 
 test("client migration snapshot hashes the exact published migration set", () => {
