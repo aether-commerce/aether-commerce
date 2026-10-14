@@ -1,5 +1,11 @@
 # @aether-commerce/core
 
+## 0.3.1
+
+### Patch Changes
+
+- 609f518: Report scheduled jobs individually, surface unresolved approved Wompi callbacks in system health, and align observability documentation with actual retention behavior.
+
 ## 0.3.0
 
 ### Minor Changes

@@ -1,5 +1,12 @@
 # @aether-commerce/api-core
 
+## 0.2.7
+
+### Patch Changes
+
+- Updated dependencies [609f518]
+  - @aether-commerce/core@0.3.1
+
 ## 0.2.6
 
 ### Patch Changes

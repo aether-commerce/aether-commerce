@@ -56,6 +56,8 @@ export type HealthSignals = {
   negativeInventoryCount: number;
   oldestPaidOrderBlockedMinutes: number | null;
   recentAdminFailedAttempts: number;
+  criticalTaskFailed?: boolean;
+  criticalTaskName?: string | null;
   criticalTaskStaleMinutes: number | null;
 };
 
@@ -131,8 +133,9 @@ export function evaluateSystemHealth(signals: HealthSignals, thresholds: HealthT
       ? { level: "degraded", reason: `${signals.recentAdminFailedAttempts} failed admin attempt(s) recently` }
       : { level: "operational" };
 
-  const scheduledTasks: ComponentStatus =
-    signals.criticalTaskStaleMinutes !== null && signals.criticalTaskStaleMinutes > thresholds.staleCriticalTaskMinutesDegraded
+  const scheduledTasks: ComponentStatus = signals.criticalTaskFailed === true
+    ? { level: "degraded", reason: `Scheduled task ${signals.criticalTaskName ?? "unknown"} failed` }
+    : signals.criticalTaskStaleMinutes !== null && signals.criticalTaskStaleMinutes > thresholds.staleCriticalTaskMinutesDegraded
       ? { level: "degraded", reason: `A critical task has not run in ${signals.criticalTaskStaleMinutes} minute(s)` }
       : { level: "operational" };
 

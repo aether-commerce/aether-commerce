@@ -50,6 +50,7 @@ type SystemHealthData = {
     blockedOrdersCount: number;
     blockedOrders: BlockedOrderSummary[];
     avgLatencyMs: number | null;
+    criticalTasks: { name: string; lastRunAt: string | null; status: "ok" | "failed" | null }[];
     lastCriticalTask: { name: string; lastRunAt: string; status: "ok" | "failed" } | null;
   };
   timestamp: string;
@@ -259,19 +260,24 @@ export function SystemHealthPage() {
                 <p className="mt-1 text-2xl font-semibold tabular-nums text-ink">{data.stats.avgLatencyMs !== null ? `${Math.round(data.stats.avgLatencyMs)}ms` : t.systemHealthPage.statNoData}</p>
               </div>
               <div className="rounded-lg border border-border bg-surface p-4">
-                <p className="text-xs uppercase tracking-wide text-ink-subtle">{t.systemHealthPage.statLastCriticalTask}</p>
-                {data.stats.lastCriticalTask ? (
-                  <p className="mt-1 flex items-center gap-1.5 text-sm font-medium text-ink">
-                    {data.stats.lastCriticalTask.status === "ok" ? (
-                      <CheckCircle2 size={14} aria-hidden className="text-success" />
-                    ) : (
-                      <ShieldAlert size={14} aria-hidden className="text-danger" />
-                    )}
-                    {formatRelativeTime(data.stats.lastCriticalTask.lastRunAt, t, locale)}
-                  </p>
-                ) : (
-                  <p className="mt-1 text-sm text-ink-subtle">{t.systemHealthPage.neverRunYet}</p>
-                )}
+                <p className="text-xs uppercase tracking-wide text-ink-subtle">{t.systemHealthPage.statScheduledTasks}</p>
+                <div className="mt-2 grid gap-1.5">
+                  {data.stats.criticalTasks.map((task) => (
+                    <p key={task.name} className="flex items-center gap-1.5 text-xs font-medium text-ink">
+                      {task.status === "failed" ? (
+                        <ShieldAlert size={14} aria-hidden className="shrink-0 text-danger" />
+                      ) : task.status === "ok" ? (
+                        <CheckCircle2 size={14} aria-hidden className="shrink-0 text-success" />
+                      ) : (
+                        <HelpCircle size={14} aria-hidden className="shrink-0 text-ink-subtle" />
+                      )}
+                      <span className="min-w-0 truncate font-mono">{task.name}</span>
+                      <span className="ml-auto shrink-0 text-ink-subtle">
+                        {task.lastRunAt ? formatRelativeTime(task.lastRunAt, t, locale) : t.systemHealthPage.neverRunYet}
+                      </span>
+                    </p>
+                  ))}
+                </div>
               </div>
             </div>
 

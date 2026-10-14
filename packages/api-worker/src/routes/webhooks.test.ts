@@ -162,7 +162,13 @@ describe("POST /webhooks/wompi sandbox routing", () => {
       customerEmail: "buyer@example.test",
       metadata: { cartId: "cart_1", userId: "user_1", checkoutSnapshotId: snapshotId }
     }), "wompi");
-    expect(statements.some((statement) => statement.sql.includes("insert into webhook_events"))).toBe(true);
+    const webhookInsert = statements.find((statement) => statement.sql.includes("insert into webhook_events"));
+    expect(webhookInsert).toBeDefined();
+    expect(JSON.parse(webhookInsert!.args[3] as string)).toEqual({
+      event: "transaction.updated",
+      transactionId: "txn_sandbox_1",
+      transactionStatus: "APPROVED"
+    });
     expect(statements.some((statement) => statement.sql.includes("status = 'processed'"))).toBe(true);
   });
 
