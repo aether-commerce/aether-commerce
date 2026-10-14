@@ -13,7 +13,9 @@ import { subscribeToRestockNotification } from "../services/restock-notification
 export const catalogRoutes = new Hono<AppBindings>();
 
 function cachePublicCatalog(c: Context<AppBindings>) {
-  c.header("Cache-Control", "public, max-age=60, s-maxage=300, stale-while-revalidate=600");
+  // Catalog data is mutable from admin routes. Revalidate every edge/browser
+  // request so a successful mutation is not hidden behind an older response.
+  c.header("Cache-Control", "public, max-age=0, s-maxage=0, must-revalidate");
 }
 
 catalogRoutes.get("/products", zValidator("query", productQuerySchema), async (c) => {
