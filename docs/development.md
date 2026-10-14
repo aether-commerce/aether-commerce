@@ -75,14 +75,14 @@ environment `production` de GitHub.
 ## Validación local
 
 ```bash
-pnpm install --frozen-lockfile
-pnpm validate
-pnpm build
+corepack pnpm install --frozen-lockfile
+corepack pnpm validate
+corepack pnpm build
 ```
 
 Para probar D1 local:
 
 ```bash
-pnpm db:migrate:local
-pnpm db:seed
+corepack pnpm db:migrate:local
+corepack pnpm db:seed
 ```

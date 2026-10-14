@@ -11,12 +11,22 @@ const limit = Math.min(300, Math.max(1, Number.isFinite(requestedLimit) ? reques
 const categoryArg = process.argv.indexOf("--category");
 const category = categoryArg >= 0 ? process.argv[categoryArg + 1] : null;
 const path = resolve("apps/ai-assistant/evaluation/cases.jsonl");
-const cases = readFileSync(path, "utf8")
+const allCases = readFileSync(path, "utf8")
   .split(/\r?\n/)
   .filter(Boolean)
-  .map((line) => JSON.parse(line))
+  .map((line) => JSON.parse(line));
+const cases = allCases
   .filter((entry) => !category || entry.category === category)
   .slice(0, limit);
+
+if (cases.length === 0) {
+  const availableCategories = [...new Set(allCases.map((entry) => entry.category).filter(Boolean))].sort();
+  const selection = category ? ` for category "${category}"` : " from the evaluation file";
+  console.error(
+    `No evaluation cases selected${selection}. Available categories: ${availableCategories.join(", ") || "none"}.`
+  );
+  process.exit(1);
+}
 
 // enforceMessageUsage rate-limits every request against a shared "project"
 // scope (see rateLimitScopes in worker.ts) - it's not just per-session, it's
