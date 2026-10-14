@@ -38,6 +38,11 @@ test("release resume rejects stale, unrelated, or changed package build inputs",
   assert.ok(errors.includes("no successful Aether CI push run exists for current main"));
 });
 
+test("release resume authorization runs from the current main checkout", () => {
+  const errors = packageReleaseResumeErrors({ ...validContext, currentCheckoutSha: sha });
+  assert.ok(errors.includes("checkout does not match the current main SHA"));
+});
+
 test("resume requires exact successful push CI for the release SHA", () => {
   const runs = [
     { name: "Aether CI", event: "pull_request", conclusion: "success", head_branch: "main", head_sha: sha },
