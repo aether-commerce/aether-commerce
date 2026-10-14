@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
+import { nextBuildArguments } from "../templates/client/scripts/next-build.mjs";
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
@@ -43,7 +44,10 @@ test("deployments wait for a successful CI run and deploy its exact SHA", () => 
     assert.match(workflow, /workflow_run:/);
     assert.match(workflow, /workflow_run\.event == 'push'/);
     assert.match(workflow, /workflow_run\.conclusion == 'success'/);
+    assert.match(workflow, /workflow_run\.repository\.full_name == github\.repository/);
     assert.match(workflow, /workflow_run\.head_sha \|\| github\.sha/);
+    assert.match(workflow, /check-deploy-authorization\.mjs/);
+    assert.match(workflow, /^  actions: read$/m);
     assert.match(workflow, /check-deploy-runtime\.mjs/);
     assert.doesNotMatch(workflow, /^\s{2}push:/m);
   }
@@ -120,6 +124,19 @@ test("CI enforces the single develop to main release path", () => {
   assert.match(policy, /skip ci|ci skip/);
 });
 
+test("Next builds use Webpack only on Windows and share the client template helper", () => {
+  assert.deepEqual(nextBuildArguments("win32"), ["build", "--webpack"]);
+  assert.deepEqual(nextBuildArguments("linux"), ["build"]);
+  for (const file of [
+    "apps/admin/package.json",
+    "apps/storefront/package.json",
+    "templates/client/apps/admin/package.json",
+    "templates/client/apps/storefront/package.json"
+  ]) {
+    assert.match(JSON.parse(read(file)).scripts.build, /next-build\.mjs/);
+  }
+});
+
 test("CI builds and tests the Cloudflare LangGraph assistant", () => {
   const workflow = read(".github/workflows/ci.yml");
   assert.match(workflow, /@aether-commerce\/ai-assistant typecheck/);
@@ -135,8 +152,9 @@ test("CI accepts version releases that consume existing changesets", () => {
   assert.match(workflow, /git diff --name-status/);
   assert.match(workflow, /Version release detected/);
   assert.match(checker, /status === "D"/);
-  assert.match(checker, /consumesChangeset/);
-  assert.match(checker, /versionedPublicPackage/);
+  assert.match(checker, /Only the Changesets release PR may consume notes/);
+  assert.match(checker, /Validated generated Changesets release/);
+  assert.match(workflow, /check-promotion-readiness\.mjs/);
 });
 
 test("Changesets release preparation generates package changelogs", () => {
@@ -144,9 +162,13 @@ test("Changesets release preparation generates package changelogs", () => {
   const config = JSON.parse(read(".changeset/config.json"));
 
   assert.equal(config.changelog, "@changesets/cli/changelog");
-  assert.match(workflow, /createGithubReleases: false/);
+  assert.match(workflow, /node scripts\/check-changesets\.mjs --validate-pending/);
+  assert.match(workflow, /ref: \$\{\{ github\.sha \}\}/);
   assert.match(workflow, /AETHER_RELEASE_TOKEN/);
-  assert.doesNotMatch(workflow, /github-token: \$\{\{ secrets\.GITHUB_TOKEN \}\}/);
+  assert.match(workflow, /wait-for-release-ci\.mjs/);
+  assert.match(workflow, /git merge --no-ff --no-edit origin\/develop/);
+  assert.match(workflow, /git push origin HEAD:refs\/heads\/changeset-release\/develop/);
+  assert.doesNotMatch(workflow, /--force|changesets\/action@/);
 });
 
 test("package publishing builds with deterministic public application configuration", () => {
@@ -170,6 +192,7 @@ test("client package distribution waits for successful main push CI and uses its
   assert.match(workflow, /workflow_run\.conclusion == 'success'/);
   assert.match(workflow, /ref: \$\{\{ github\.event\.workflow_run\.head_sha \|\| github\.sha \}\}/);
   assert.match(workflow, /RELEASE_SHA: \$\{\{ github\.event\.workflow_run\.head_sha \|\| github\.sha \}\}/);
+  assert.match(workflow, /check-deploy-authorization\.mjs/);
   assert.doesNotMatch(workflow, /^\s{2}push:/m);
 });
 

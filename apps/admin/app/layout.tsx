@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
 import { AetherAdminProvider, AdminLanguageProvider } from "@aether-commerce/admin-default";
 import { AdminShell } from "../components/AdminShell";
@@ -7,13 +6,6 @@ import { ClerkAuthProvider } from "../components/ClerkAuthProvider";
 import { aetherBrandConfig, aetherClientConfiguration, aetherThemeTokens } from "../components/configuration";
 import { apiBaseUrl, storefrontUrl } from "../components/config";
 import { SentryProvider } from "../components/SentryProvider";
-
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-  weight: ["400", "500", "600", "700"],
-  display: "swap"
-});
 
 export const metadata: Metadata = {
   title: `${aetherBrandConfig.name} Admin`,
@@ -45,7 +37,7 @@ const themeInitScript = `
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={inter.variable}>
+    <html lang="en">
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
         <style>{`html[data-locale-pending] body { visibility: hidden; } :root { --color-accent: ${aetherThemeTokens.primary}; }`}</style>
