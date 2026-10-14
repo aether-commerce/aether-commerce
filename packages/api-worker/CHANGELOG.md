@@ -1,5 +1,11 @@
 # @aether-commerce/api-worker
 
+## 0.8.2
+
+### Patch Changes
+
+- ac36f59: Include the deployed source revision in public health and readiness responses.
+
 ## 0.8.1
 
 ### Patch Changes
