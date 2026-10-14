@@ -336,13 +336,15 @@ test("client package distribution waits for successful main push CI and uses its
   assert.match(workflow, /workflows: \["Aether CI"\]/);
   assert.match(workflow, /workflow_run\.event == 'push'/);
   assert.match(workflow, /workflow_run\.conclusion == 'success'/);
-  assert.match(workflow, /ref: \$\{\{ github\.event\.workflow_run\.head_sha \|\| inputs\.resume_release_sha \|\| github\.sha \}\}/);
+  assert.match(workflow, /ref: \$\{\{ inputs\.resume_release_sha != '' && github\.sha \|\| github\.event\.workflow_run\.head_sha \|\| github\.sha \}\}/);
   assert.match(
     workflow,
     /RELEASE_SHA: \$\{\{ github\.event\.workflow_run\.head_sha \|\| inputs\.resume_release_sha \|\| github\.sha \}\}/
   );
   assert.match(workflow, /check-deploy-authorization\.mjs/);
   assert.match(workflow, /check-package-release-resume\.mjs/);
+  assert.ok(workflow.includes('git rev-list -n 1 "refs/tags/$tag")" != "$RELEASE_SHA"'));
+  assert.doesNotMatch(workflow, /git rev-parse HEAD/);
   assert.match(workflow, /resume_release_sha:/);
   assert.match(workflow, /inputs\.resume_release_sha == '' && steps\.release\.outputs\.needed == 'true'/);
   assert.match(workflow, /git diff --name-only .*RELEASE_SHA/);
