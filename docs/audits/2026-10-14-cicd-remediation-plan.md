@@ -1,6 +1,6 @@
 # Plan de corrección de la auditoría CI/CD de Aether y Liminal
 
-Fecha: 14 de octubre de 2026. Estado: **en ejecución; P1 y P2 de Aether integrados en `develop` (PR #307; CI de PR y push verdes); P1 de Liminal integrado en `development` (PR #122; CI de PR y push verdes); correcciones P3 integradas en Aether (PR #308) y Liminal (PR #123), con aceptación operativa pendiente; P4-A en implementación; P0 parcial; P4-B/C y P5–P7 abiertos**. No se ha promovido este trabajo a `main` ni se ha desplegado a producción.
+Fecha: 14 de octubre de 2026. Estado: **en ejecución; P1 y P2 de Aether integrados en `develop` (PR #307); P1 de Liminal integrado en `development` (PR #122); P3 integrado en Aether (PR #308) y Liminal (PR #123), con aceptación operativa pendiente; P4-A integrado en Aether (PR #309) y Liminal (PR #124); Aether desarrollo desplegado y smoke verde; Liminal PR #126 integrado en `development` tras check de PR verde y post-merge CI/despliegue en curso; P4-B en implementación; P0 parcial; P4-C y P5–P7 abiertos**. No se ha promovido este trabajo a `main` ni se ha desplegado a producción.
 
 Fuentes: [auditoría H01–H12](2026-10-14-cicd-liminal.md), [ampliación Changesets H13–H18](2026-10-14-changesets-agent-release.md) y [mediciones](2026-10-14-cicd-timings.json).
 
@@ -86,7 +86,7 @@ Se puede preparar P4 mientras se desarrolla P3 porque modifica otra parte del si
 
 ## P2 — Reparar la automatización de Changesets
 
-**Estado:** el workflow y los validadores están integrados en `develop` por PR #307 y pasaron CI de PR y push. Aún no se ha observado un ciclo de release de Changesets real en GitHub; la aceptación operativa sigue abierta.
+**Estado:** el workflow y los validadores están integrados en `develop` por PR #307. El PR automatizado de Changesets #310 pasó el check de su head y se integró en `develop` como `0106ea4`, preparando `@aether-commerce/api-worker` 0.8.2. El flujo `Prepare Aether package release` del push concluyó correctamente; el CI posterior de `develop` todavía está en curso. No se ha promovido a `main` ni se ha publicado esa versión; la aceptación operativa de una release completa sigue abierta.
 
 **Trabajo:**
 
@@ -146,7 +146,7 @@ Se puede preparar P4 mientras se desarrolla P3 porque modifica otra parte del si
 
 **P4-A: verificación funcional y de revisión.**
 
-**Estado:** implementación preparada en las ramas `feat/cicd-live-smoke-verification` de Aether y Liminal. Esta entrega añade revisión visible de API, asistente y frontends, smoke semántico con reintento acotado de metadatos en propagación, snapshot de paquetes/migraciones para Liminal y evidencia de casos/SHA del evaluador. En local pasan `pnpm validate`, `pnpm build`, la plantilla de cliente y `pnpm check:changesets` de Aether; en Liminal pasan `pnpm validate`, la verificación de sus 23 migraciones publicadas y los builds de admin, storefront y API. Las pruebas dirigidas de smoke/evaluación pasan en ambos repositorios. OpenNext no pudo crear symlinks en Windows (`EPERM`), así que ambos bundles Cloudflare quedan pendientes de la CI Ubuntu de los PR. La integración en ramas canónicas y el despliegue de producción no están hechos.
+**Estado:** integrado en las ramas canónicas: Aether PR #309 (`4d8775e`) y Liminal PR #124 (`e568ca2`); sus checks de PR y CI de push concluyeron correctamente. Aether se desplegó en la ejecución [38551638244](https://github.com/aether-commerce/aether-commerce/actions/runs/38551638244): los logs confirman checkout del SHA `4d8775e` y el paso `Verify development services` terminó verde. La ejecución aparece bajo `main` porque `workflow_run` usa la rama predeterminada como contexto del workflow consumidor. Liminal PR #125 activó el despliegue reutilizable: el push `86dfc04` publicó API, storefront y Pages, pero el smoke consultó `liminal-store-admin.pages.dev` y falló con 404 porque el artefacto corresponde al alias `development.liminal-store-admin.pages.dev`; no había migraciones nuevas. PR #126 corrigió el destino, restringió `workflow_run` a `main` y exige `APP_ORIGIN_ADMIN` para producción antes de mutar Cloudflare. Su check de PR pasó en [38555332557](https://github.com/aether-commerce/liminal-store/actions/runs/38555332557) y se integró a `development` como `fa119cc`; el CI de push [38555639475](https://github.com/aether-commerce/liminal-store/actions/runs/38555639475) y su despliegue reutilizable están en curso. No se ha promovido a producción.
 
 - Exponer una marca verificable de revisión por servicio y asociarla al manifiesto. No exponer secretos ni datos internos.
 - Ampliar smoke de Aether: storefront, API health, asistente health/readiness, admin y portfolio. Verificar la revisión esperada para los componentes desplegados; para servicios independientes, registrar revisión compatible esperada en lugar de exigirles un SHA que no les corresponde.
@@ -156,12 +156,16 @@ Se puede preparar P4 mientras se desarrolla P3 porque modifica otra parte del si
 
 **P4-B: catálogo y migraciones.**
 
+**Estado:** implementación preparada en la rama local `feat/catalog-generation`. La migración 0037 versiona snapshots con una generación actualizada por triggers de productos y categorías; se añadieron pruebas SQL/de caché y reglas para no editar catálogo manualmente en D1. La generación es la invalidación autoritativa y la limpieza de snapshots antiguos es best effort. Cada lectura cacheada suma una lectura indexada de generación en D1; faltan métricas reales de consumo de Free. Pasan migraciones integrales (3/3), política de Changesets (10/10), distribución de 30 migraciones y validación directa de Changesets. En esta máquina `pnpm install --frozen-lockfile`, `pnpm validate`, `pnpm build`, `pnpm test:client-template` y `pnpm check:changesets` fallan antes de ejecutar por `EPERM` al resolver el worktree/`node_modules`; la suite Vitest también tiene que validarse en CI Ubuntu. No se abrirá el PR hasta comprobar los cambios contra el head actual de `develop`.
+
 - Diseñar una generación de caché vinculada a cambios del catálogo y probar coherencia entre memoria, D1 y caché HTTP.
 - Cambios de datos visibles deben invalidar o cambiar esa generación dentro del proceso de migración; añadir una migración nueva cuando corresponda, preservando las ya aplicadas.
 - Mantener las fechas ISO exigidas en productos, respetar ediciones administrativas y excluir datos semilla de demo de la distribución a clientes cuando no les correspondan.
 - Medir el costo de consultas/invalidación para mantener compatibilidad con Cloudflare Free.
 
 **P4-C: build y recuperación.**
+
+**Estado:** el commit `b225723` reemplazó `next/font/google` por el paquete local `@fontsource-variable/inter`, conservando Inter sin la consulta de fuentes de Turbopack; los builds Ubuntu recientes de Aether y Liminal pasaron. La firma histórica dejó de aplicar al código actual. La reproducción Windows de Tailwind no puede completarse en esta copia porque pnpm no resuelve `node_modules` (`EPERM`); el lockfile sí incluye los paquetes opcionales para Win32. Mantener T16 abierto hasta validar una instalación limpia en Windows y registrar la etapa exacta de recuperación.
 
 - Reproducir el fallo Inter/Turbopack con el lockfile exacto. Elegir una corrección comprobada: fuente local con licencia y apariencia conservadas, o versión/corrección de Next demostrada. No atribuirlo a la red sin evidencia.
 - Reproducir el binding opcional de Tailwind en un worktree Windows limpio con pnpm declarado; corregir la causa si se confirma. No convertir el enlace manual en requisito permanente.

@@ -19,6 +19,19 @@ existing SQL-formatted product timestamps; the API also tolerates them during
 gradual deployment.
 
 
+## Catalog cache generations
+
+The API stores a monotonic `catalog-generation:<store_id>` value in
+`products_cache`. Migration `0037_catalog_cache_generation.sql` installs
+triggers for product and category inserts, updates, and deletes; these advance
+the generation in the same database transaction as the visible change. Do not
+edit product or category data manually in the Cloudflare console. Use the
+admin interface for operational edits, and include a new forward migration
+when data must change during deployment. Any future migration that changes
+catalog data must preserve these triggers or explicitly advance the same
+generation in its transaction. Test that a warm API cache and a request from a
+different Worker isolate both observe the new data.
+
 ## Payment providers and order channels
 
 `orders.channel` is constrained by a database check as well as the application

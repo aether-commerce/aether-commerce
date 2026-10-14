@@ -53,6 +53,19 @@ test("all core D1 migrations apply with foreign keys enabled", () => {
   const normalizedProduct = database.prepare("SELECT created_at, updated_at FROM products WHERE id = 'prd_0001';").get();
   assert.equal(normalizedProduct.created_at, "2024-10-01T00:00:00.000Z");
   assert.equal(normalizedProduct.updated_at, "2026-10-10T00:41:10.000Z");
+  const generation = () => Number(database.prepare(
+    "SELECT payload_json FROM products_cache WHERE id = 'catalog-generation:store_default'"
+  ).get().payload_json);
+  const initialCatalogGeneration = generation();
+  database.prepare("UPDATE products SET price_cents = price_cents + 1 WHERE id = 'prd_0001'").run();
+  assert.equal(generation(), initialCatalogGeneration + 1, "product edits advance the shared catalog generation");
+  const productGeneration = generation();
+  const categoryId = database.prepare("SELECT id FROM store_categories WHERE store_id = 'store_default' LIMIT 1").get().id;
+  database.prepare("UPDATE store_categories SET name = name || ' edited' WHERE id = ?").run(categoryId);
+  assert.equal(generation(), productGeneration + 1, "category edits advance the shared catalog generation");
+  const categoryGeneration = generation();
+  database.prepare("DELETE FROM products WHERE id = 'prd_0001'").run();
+  assert.equal(generation(), categoryGeneration + 1, "product deletion advances the shared catalog generation");
   for (const table of ["product_cache", "product_overrides", "category_overrides"]) {
     assert.equal(
       database.prepare("SELECT count(*) AS count FROM sqlite_master WHERE type = 'table' AND name = ?;").get(table).count,
