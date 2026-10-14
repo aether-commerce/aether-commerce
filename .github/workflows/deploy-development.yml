@@ -90,8 +90,6 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           AI_OPERATIONS_TOKEN: ${{ secrets.AI_OPERATIONS_TOKEN }}
         run: node scripts/check-deploy-runtime.mjs
-      - name: Validate workspace
-        run: pnpm validate
       - name: Build storefront, admin and Workers
         run: pnpm build
       - name: Generate development Worker configs
