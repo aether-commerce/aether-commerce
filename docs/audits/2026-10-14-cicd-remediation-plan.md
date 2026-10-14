@@ -1,5 +1,6 @@
 # Plan de corrección de la auditoría CI/CD de Aether y Liminal
 
+Fecha: 14 de octubre de 2026. Estado: **en ejecución; P1/P2 de Aether integrados en `develop` (PR #307 y release PR #310; CI de PR y push verdes); P1 de Liminal integrado en `development` (PR #122); P3 integrado en Aether (PR #308) y Liminal (PR #123), con aceptación operativa pendiente; P4-A integrado en Aether (PR #309) y Liminal (PR #124, #126); P4-B catálogo integrado por PR #312 y su changeset por PR #313; CI de PR/push y deploy de desarrollo verdes, con migración 0037 aplicada; P6 en implementación en `chore/skip-duplicate-deploy-validate`; P0 parcial; P4-C, P5–P7 abiertos**. No se ha promovido este trabajo a `main` ni se ha desplegado a producción.
 Fecha: 14 de octubre de 2026. Estado: **en ejecución; P1/P2 de Aether integrados en `develop` (PR #307 y release PR #310; CI de PR y push verdes); P1 de Liminal integrado en `development` (PR #122); P3 integrado en Aether (PR #308) y Liminal (PR #123), con aceptación operativa pendiente; P4-A integrado en Aether (PR #309) y Liminal (PR #124, #126); Aether y Liminal desarrollo desplegados con smoke verde; PR #312 de catálogo abierto, con una corrección de lint pendiente de CI; P0 parcial; P4-C y P5–P7 abiertos**. No se ha promovido este trabajo a `main` ni se ha desplegado a producción.
 
 Fuentes: [auditoría H01–H12](2026-10-14-cicd-liminal.md), [ampliación Changesets H13–H18](2026-10-14-changesets-agent-release.md) y [mediciones](2026-10-14-cicd-timings.json).
@@ -156,7 +157,7 @@ Se puede preparar P4 mientras se desarrolla P3 porque modifica otra parte del si
 
 **P4-B: catálogo y migraciones.**
 
-**Estado:** PR #312 está abierto desde el SHA actual de `develop` (`0106ea4`) con la migración 0037, invalidación por generación y changesets patch para API y migraciones. El primer head `b8d92e6` falló el check [38556089960](https://github.com/aether-commerce/aether-commerce/actions/runs/38556089960) por `require-await` en dos métodos del D1 falso de la nueva prueba. Se eliminaron los `async` innecesarios y se amplió la prueba SQL para cubrir inserción, edición y borrado de productos/categorías; el nuevo head debe pasar CI antes de integrarse. Pasan migraciones integrales (3/3), política de Changesets (10/10), distribución de 30 migraciones y validación directa de Changesets. En esta máquina `pnpm install --frozen-lockfile`, `pnpm validate`, `pnpm build`, `pnpm test:client-template` y `pnpm check:changesets` fallan antes de ejecutar por `EPERM` al resolver el worktree/`node_modules`; la suite Vitest y los builds quedan a cargo del CI Ubuntu. La generación en D1 es la invalidación autoritativa y la limpieza de snapshots antiguos es best effort; cada lectura cacheada suma una lectura indexada de generación y falta medir el consumo de Free en tráfico real.
+**Estado:** el PR #312 se integró en `develop` como `0f44e7c`; su head `2707814` pasó el CI [38556497726](https://github.com/aether-commerce/aether-commerce/actions/runs/38556497726). El CI del push [38557383270](https://github.com/aether-commerce/aether-commerce/actions/runs/38557383270) pasó y el deploy de desarrollo [38557956077](https://github.com/aether-commerce/aether-commerce/actions/runs/38557956077) terminó verde. Sus logs confirman que se aplicó `0037_catalog_cache_generation.sql` y el smoke de API, asistente y frontends pasó. El changeset para API y migraciones se versionó por el PR #313. La suite local de migraciones pasa (3/3), la política de Changesets (10/10) y el CI Ubuntu completa build y E2E. Queda pendiente medir lecturas D1 con tráfico real y confirmar margen de Cloudflare Free; esta entrega solo se desplegó a desarrollo.
 
 - Diseñar una generación de caché vinculada a cambios del catálogo y probar coherencia entre memoria, D1 y caché HTTP.
 - Cambios de datos visibles deben invalidar o cambiar esa generación dentro del proceso de migración; añadir una migración nueva cuando corresponda, preservando las ya aplicadas.
@@ -199,6 +200,8 @@ Se puede preparar P4 mientras se desarrolla P3 porque modifica otra parte del si
 **Aceptación:** T07, T18 y T21. Interrumpir el agente después de cada transición y reanudar sin duplicar PR, publicar otra versión o mezclar SHA. Una release incompleta debe explicar el bloqueo exacto.
 
 ## P6 — Optimizar costo y duración con controles ya fiables
+
+**Estado:** el deploy de desarrollo [38557956077](https://github.com/aether-commerce/aether-commerce/actions/runs/38557956077) ejecutó `pnpm validate` después de que el CI exitoso del mismo SHA ya lo había validado. El workflow también conserva la autorización del SHA exacto y la búsqueda de CI verde. La rama `chore/skip-duplicate-deploy-validate` retira solo el paso duplicado de los deploys dev/prod y añade una prueba de regresión; el CI de esta rama y el resultado post-merge quedan pendientes.
 
 **Trabajo:**
 

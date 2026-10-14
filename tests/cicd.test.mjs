@@ -53,6 +53,18 @@ test("deployments wait for a successful CI run and deploy its exact SHA", () => 
   }
 });
 
+test("deploy jobs reuse the exact SHA CI gate without repeating workspace validation", () => {
+  const ci = read(".github/workflows/ci.yml");
+  assert.match(ci, /pnpm validate/);
+
+  for (const file of ["deploy-production.yml", "deploy-development.yml"]) {
+    const workflow = read(`.github/workflows/${file}`);
+    assert.match(workflow, /check-deploy-authorization\\.mjs/);
+    assert.doesNotMatch(workflow, /pnpm validate/);
+    assert.doesNotMatch(workflow, /name: Validate workspace/);
+  }
+});
+
 test("Worker deployments retry only transient Cloudflare API failures", () => {
   for (const environment of ["production", "development"]) {
     const workflow = read(`.github/workflows/deploy-${environment}.yml`);
