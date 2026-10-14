@@ -112,6 +112,17 @@ export function collectClientMigrations(releaseSha = git(["rev-parse", "HEAD"]))
   return { manifestSha256: sha256(manifestBytes), files };
 }
 
+export function assertReleaseCommitAvailable(releaseSha) {
+  if (typeof releaseSha !== "string" || !/^[0-9a-f]{40}$/i.test(releaseSha)) {
+    throw new Error("RELEASE_SHA must be a full commit SHA.");
+  }
+  try {
+    git(["cat-file", "-e", `${releaseSha}^{commit}`]);
+  } catch {
+    throw new Error("Release commit is unavailable in checkout.");
+  }
+}
+
 export function buildReleaseManifest({ baseSha, headSha, repository, createdAt }) {
   const packagePaths = git(["ls-tree", "-r", "--name-only", headSha, "--", "packages"])
     .split(/\r?\n/)
@@ -160,7 +171,7 @@ export function buildReleaseManifest({ baseSha, headSha, repository, createdAt }
     sha: headSha,
     createdAt,
     packages,
-    migrations: collectClientMigrations()
+    migrations: collectClientMigrations(headSha)
   });
 }
 
@@ -168,7 +179,7 @@ function run() {
   const headSha = process.env.RELEASE_SHA || git(["rev-parse", "HEAD"]);
   const baseSha = process.env.RELEASE_BASE_SHA || git(["rev-parse", `${headSha}^`]);
   const repository = process.env.GITHUB_REPOSITORY || "";
-  if (git(["rev-parse", "HEAD"]) !== headSha) throw new Error("Checked out commit does not match RELEASE_SHA.");
+  assertReleaseCommitAvailable(headSha);
   const createdAt = git(["show", "-s", "--format=%cI", headSha]);
   const output = process.env.RELEASE_MANIFEST_PATH || join(root, "release-manifest.v1.json");
   const manifest = buildReleaseManifest({ baseSha, headSha, repository, createdAt });
