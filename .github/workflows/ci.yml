@@ -42,7 +42,13 @@ jobs:
         env:
           GITHUB_BASE_REF: ${{ github.base_ref }}
           GITHUB_HEAD_REF: ${{ github.head_ref }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
         run: node scripts/check-release-policy.mjs
+      - name: Block incomplete package promotion
+        if: github.event_name == 'pull_request' && github.base_ref == 'main'
+        env:
+          PROMOTION_BASE_REF: main
+        run: node scripts/check-promotion-readiness.mjs
       - name: Secret scan
         run: |
           if git grep -n -I -E '(sk|rk)_(live|test)_[A-Za-z0-9]{16,}|whsec_[A-Za-z0-9]{16,}|AIza[0-9A-Za-z_-]{30,}|AKIA[0-9A-Z]{16}|-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----'; then
@@ -54,9 +60,10 @@ jobs:
       - name: Verify release metadata
         env:
           GITHUB_BASE_REF: ${{ github.base_ref }}
+          GITHUB_HEAD_REF: ${{ github.head_ref }}
         run: |
           pnpm check:changesets
-          if [ -n "$GITHUB_BASE_REF" ] && git diff --name-status "origin/${GITHUB_BASE_REF}...HEAD" | grep -Eq '^D[[:space:]]+\.changeset/[^/]+\.md$'; then
+          if [ -n "$GITHUB_BASE_REF" ] && [ "$GITHUB_HEAD_REF" = "changeset-release/develop" ] && git diff --name-status "origin/$GITHUB_BASE_REF...HEAD" | grep -Eq '^D[[:space:]]+\.changeset/[^/]+\.md$'; then
             echo "Version release detected; the consumed changesets were validated before versioning."
           elif git diff --name-status HEAD^1 HEAD | grep -Eq '^D[[:space:]]+\.changeset/[^/]+\.md$'; then
             echo "Version release commit detected; the consumed changesets were validated before versioning."

@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "@fontsource-variable/inter/wght.css";
 
 /*
  * @aether-commerce/admin-default and @aether-commerce/ui ship the actual styled UI (the
@@ -85,6 +86,7 @@ html[data-theme="dark"] {
 }
 
 :root {
+  --font-inter: "Inter Variable";
   color-scheme: light;
   --background: var(--color-bg);
   --foreground: var(--color-ink);

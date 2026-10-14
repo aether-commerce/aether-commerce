@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
   deployments: write
 
 concurrency:
@@ -19,7 +20,7 @@ jobs:
   deploy:
     if: >-
       ${{
-        (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success') ||
+        (github.event_name == 'workflow_run' && github.event.workflow_run.name == 'Aether CI' && github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.repository.full_name == github.repository) ||
         (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
       }}
     runs-on: ubuntu-latest
@@ -57,6 +58,18 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - name: Authorize current production release SHA
+        env:
+          DEPLOY_TARGET_BRANCH: main
+          EXPECTED_RELEASE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          UPSTREAM_WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
+          UPSTREAM_EVENT: ${{ github.event.workflow_run.event }}
+          UPSTREAM_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          UPSTREAM_REPOSITORY: ${{ github.event.workflow_run.repository.full_name }}
+          UPSTREAM_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          UPSTREAM_SHA: ${{ github.event.workflow_run.head_sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/check-deploy-authorization.mjs
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
         with:
           version: 8.15.9

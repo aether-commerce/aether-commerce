@@ -1,18 +1,10 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
 import { AdminLanguageProvider, AetherAdminProvider } from "@aether-commerce/admin-default";
 import { AdminShell } from "../components/AdminShell";
 import { ClerkAuthProvider } from "../components/ClerkAuthProvider";
 import { clientConfiguration } from "../../../src/configuration";
 import { themeTokensToCssVariables } from "@aether-commerce/ui/theme";
-
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-  weight: ["400", "500", "600", "700"],
-  display: "swap"
-});
 
 export const metadata: Metadata = {
   title: `${clientConfiguration.brand.name} Admin`,
@@ -44,7 +36,7 @@ const themeInitScript = `
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={inter.variable}>
+    <html lang="en">
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
         <style>{themeTokensToCssVariables(clientConfiguration.theme)}</style>
