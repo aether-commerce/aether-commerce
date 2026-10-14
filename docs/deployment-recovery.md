@@ -46,3 +46,9 @@ Wrangler aplica migraciones pendientes en secuencia y registra las aplicadas; si
 - Producción: pnpm exec wrangler d1 migrations list DB --remote --config apps/api/wrangler.production.json
 
 No ejecutes comandos contra D1 sin revisar antes el nombre e ID del ambiente. Consulta [D1 migrations](https://developers.cloudflare.com/d1/reference/migrations/) y [comandos de Wrangler D1](https://developers.cloudflare.com/d1/wrangler-commands/).
+
+## Reanudar una publicación con manifiesto pendiente
+
+Si `Publish Aether packages` publicó y verificó los paquetes y sus etiquetas, pero falló al crear el manifiesto, no vuelvas a publicar el mismo número de versión. Ejecuta `Publish Aether packages` manualmente sobre `main`, deja `dry_run` desactivado y proporciona el SHA completo de la release en `resume_release_sha`.
+
+La reanudación exige que el SHA pertenezca al historial actual de `main`, que exista CI de push exitoso para ese SHA y para el `main` actual, y que no hayan cambiado los paquetes ni sus dependencias de build desde la release. La ejecución omite `pnpm changeset publish`, vuelve a verificar las versiones del registro y sus etiquetas, crea o valida el manifiesto usando las migraciones de la revisión original y continúa con la entrega al cliente configurado. Si cambió una entrada de build o el manifiesto inmutable existente tiene otro contenido, la ejecución se detiene para una recuperación revisada.

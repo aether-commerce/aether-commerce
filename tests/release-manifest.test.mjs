@@ -104,7 +104,7 @@ test("release manifest rejects a changed package whose version tag is missing", 
 });
 
 test("client migration snapshot hashes the exact published migration set", () => {
-  const snapshot = collectClientMigrations();
+  const snapshot = collectClientMigrations("HEAD");
   assert.ok(snapshot.files.length > 0);
   assert.equal(new Set(snapshot.files.map((migration) => migration.path)).size, snapshot.files.length);
   assert.match(snapshot.manifestSha256, /^[0-9a-f]{64}$/);
