@@ -20,7 +20,7 @@ function maybeGitShow(revision, path) {
   }
 }
 
-function packageDist(name, version, packageDirectory) {
+function packageDist(name, version, packageDirectory, changedInRelease) {
   let metadata;
   let lastError;
   for (let attempt = 1; attempt <= 6; attempt += 1) {
@@ -44,7 +44,9 @@ function packageDist(name, version, packageDirectory) {
   if (!metadata.dist?.integrity || !metadata.dist?.tarball) {
     throw new Error(`Registry did not provide tarball integrity for ${name}@${version}.`);
   }
-  verifyWorkspaceTarball(name, version, packageDirectory, metadata.dist.integrity);
+  if (changedInRelease) {
+    verifyWorkspaceTarball(name, version, packageDirectory, metadata.dist.integrity);
+  }
   verifyPublishedTarball(name, version, metadata.dist.integrity);
   return metadata.dist;
 }
@@ -87,19 +89,23 @@ function verifyPublishedTarball(name, version, expectedIntegrity) {
   }
 }
 
-export function collectClientMigrations() {
-  const manifestPath = join(root, "packages", "migrations", "client-migrations.manifest.json");
-  const manifestBytes = readFileSync(manifestPath);
-  const manifest = JSON.parse(manifestBytes.toString("utf8"));
+export function collectClientMigrations(releaseSha = git(["rev-parse", "HEAD"])) {
+  const manifestPath = "packages/migrations/client-migrations.manifest.json";
+  const manifestSource = maybeGitShow(releaseSha, manifestPath);
+  if (manifestSource === null) throw new Error("Published client migration manifest is missing from the release commit.");
+  const manifestBytes = Buffer.from(manifestSource, "utf8");
+  const manifest = JSON.parse(manifestSource);
   if (!Array.isArray(manifest.migrations)) throw new Error("Published client migration manifest must contain a migrations array.");
   const files = manifest.migrations.map((filename) => {
     if (typeof filename !== "string" || !/^\d{4}_[a-z0-9_]+\.sql$/.test(filename)) {
       throw new Error(`Invalid published client migration filename: ${filename}`);
     }
-    const migrationPath = join(root, "packages", "migrations", "migrations", filename);
-    const bytes = readFileSync(migrationPath);
+    const migrationPath = `packages/migrations/migrations/${filename}`;
+    const source = maybeGitShow(releaseSha, migrationPath);
+    if (source === null) throw new Error(`Published client migration is missing from release commit: ${filename}`);
+    const bytes = Buffer.from(source, "utf8");
     return {
-      path: `packages/migrations/migrations/${filename}`,
+      path: migrationPath,
       sha256: sha256(bytes)
     };
   });
@@ -136,7 +142,7 @@ export function buildReleaseManifest({ baseSha, headSha, repository, createdAt }
     if (changedInRelease && taggedSha !== headSha) {
       throw new Error(`New package release tag ${tag} is missing or does not point to ${headSha}.`);
     }
-    const dist = packageDist(current.name, current.version, dirname(join(root, path)));
+    const dist = packageDist(current.name, current.version, dirname(join(root, path)), changedInRelease);
     packages.push({
       name: current.name,
       version: current.version,

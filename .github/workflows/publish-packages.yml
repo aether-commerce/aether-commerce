@@ -12,6 +12,10 @@ on:
         required: false
         default: false
         type: boolean
+      resume_release_sha:
+        description: Resume manifest and client delivery for an already published main release SHA
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -34,13 +38,14 @@ jobs:
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          fetch-depth: 2
+          fetch-depth: 0
           fetch-tags: true
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ github.event.workflow_run.head_sha || inputs.resume_release_sha || github.sha }}
       - name: Authorize current package release SHA
+        if: ${{ inputs.resume_release_sha == '' }}
         env:
           DEPLOY_TARGET_BRANCH: main
-          EXPECTED_RELEASE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          EXPECTED_RELEASE_SHA: ${{ github.event.workflow_run.head_sha || inputs.resume_release_sha || github.sha }}
           UPSTREAM_WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
           UPSTREAM_EVENT: ${{ github.event.workflow_run.event }}
           UPSTREAM_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
@@ -49,6 +54,12 @@ jobs:
           UPSTREAM_SHA: ${{ github.event.workflow_run.head_sha }}
           GH_TOKEN: ${{ github.token }}
         run: node scripts/check-deploy-authorization.mjs
+      - name: Authorize resumed package release SHA
+        if: ${{ inputs.resume_release_sha != '' }}
+        env:
+          RELEASE_SHA: ${{ inputs.resume_release_sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/check-package-release-resume.mjs
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
         with: { version: 8.15.9 }
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
@@ -60,9 +71,11 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Detect package release
         id: release
+        env:
+          RELEASE_SHA: ${{ github.event.workflow_run.head_sha || inputs.resume_release_sha || github.sha }}
         shell: bash
         run: |
-          changed="$(git diff --name-only HEAD^ HEAD)"
+          changed="$(git diff --name-only "${RELEASE_SHA}^" "$RELEASE_SHA")"
           pending_changeset="$(find .changeset -maxdepth 1 -type f -name '*.md' ! -name README.md -print -quit)"
           if [ -n "$pending_changeset" ]; then
             echo "::error::Pending Changesets found on main. Prepare and merge the Changesets release PR from develop before promoting to main."
@@ -86,7 +99,7 @@ jobs:
         if: ${{ inputs.dry_run && steps.release.outputs.needed == 'true' }}
         run: pnpm --filter "./packages/*" exec pnpm pack --pack-destination "${{ runner.temp }}/aether-packages"
       - name: Publish packages
-        if: ${{ !inputs.dry_run && steps.release.outputs.needed == 'true' }}
+        if: ${{ !inputs.dry_run && inputs.resume_release_sha == '' && steps.release.outputs.needed == 'true' }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -96,19 +109,19 @@ jobs:
       - name: Verify package publication and ensure release tags
         if: ${{ !inputs.dry_run && steps.release.outputs.needed == 'true' }}
         env:
-          RELEASE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          RELEASE_SHA: ${{ github.event.workflow_run.head_sha || inputs.resume_release_sha || github.sha }}
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
           while IFS= read -r file; do
             [ -n "$file" ] || continue
-            if git cat-file -e "HEAD^:$file" 2>/dev/null; then
-              old_version="$(git show "HEAD^:$file" | node -e 'console.log(JSON.parse(require("fs").readFileSync(0, "utf8")).version)')"
+            if git cat-file -e "${RELEASE_SHA}^:$file" 2>/dev/null; then
+              old_version="$(git show "${RELEASE_SHA}^:$file" | node -e 'console.log(JSON.parse(require("fs").readFileSync(0, "utf8")).version)')"
             else
               old_version=""
             fi
-            read -r name version < <(node -e 'const p = require(`./${process.argv[1]}`); console.log(p.name, p.version)' "$file")
+            read -r name version < <(git show "${RELEASE_SHA}:$file" | node -e 'const p = JSON.parse(require("fs").readFileSync(0, "utf8")); console.log(p.name, p.version)')
             [ "$old_version" != "$version" ] || continue
             tag="${name}@${version}"
             published_version="$(npm view "${name}@${version}" version --registry https://npm.pkg.github.com)"
@@ -131,12 +144,12 @@ jobs:
             fi
             echo "Verified ${name}@${version}; tag ${tag} points to ${RELEASE_SHA}."
             echo "- ${name}@${version}: registry verified; tag \`${tag}\` → \`${RELEASE_SHA}\`." >> "$GITHUB_STEP_SUMMARY"
-          done < <(git diff --name-only HEAD^ HEAD -- 'packages/*/package.json')
+          done < <(git diff --name-only "${RELEASE_SHA}^" "$RELEASE_SHA" -- 'packages/*/package.json')
       - name: Create and publish immutable release manifest
         id: manifest
         if: ${{ !inputs.dry_run && steps.release.outputs.needed == 'true' }}
         env:
-          RELEASE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          RELEASE_SHA: ${{ github.event.workflow_run.head_sha || inputs.resume_release_sha || github.sha }}
           RELEASE_MANIFEST_PATH: ${{ runner.temp }}/aether-release-manifest/release-manifest.v1.json
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -184,7 +197,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.AETHER_CLIENT_DISPATCH_TOKEN }}
           CLIENT_REPOSITORY: ${{ vars.AETHER_CLIENT_REPOSITORY || 'aether-commerce/liminal-store' }}
-          RELEASE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          RELEASE_SHA: ${{ github.event.workflow_run.head_sha || inputs.resume_release_sha || github.sha }}
           RELEASE_MANIFEST_TAG: ${{ steps.manifest.outputs.manifest_tag }}
           RELEASE_MANIFEST_SHA256: ${{ steps.manifest.outputs.manifest_sha256 }}
           RELEASE_MANIFEST_URL: ${{ steps.manifest.outputs.manifest_url }}
