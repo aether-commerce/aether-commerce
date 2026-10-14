@@ -485,11 +485,12 @@ test("admin security policy permits signed Cloudinary image uploads", () => {
   assert.match(headers, /img-src[^;]*https:\/\/res\.cloudinary\.com/);
 });
 
-test("storefront pre-generates catalog routes and caches product lookups", () => {
+test("storefront product pages generate on demand and cache product lookups", () => {
   const page = read("apps/storefront/app/products/[slug]/page.tsx");
   assert.match(page, /revalidate = 300/);
   assert.match(page, /generateStaticParams/);
-  assert.match(page, /fetchAllCatalogProducts/);
+  assert.match(page, /return \[\]/);
+  assert.doesNotMatch(page, /fetchAllCatalogProducts/);
   assert.match(page, /fetchProductBySlug/);
   assert.match(page, /initialProduct/);
   assert.match(page, /notFound/);
