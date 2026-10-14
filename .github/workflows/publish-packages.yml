@@ -40,7 +40,7 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
-          ref: ${{ github.event.workflow_run.head_sha || inputs.resume_release_sha || github.sha }}
+          ref: ${{ inputs.resume_release_sha != '' && github.sha || github.event.workflow_run.head_sha || github.sha }}
       - name: Authorize current package release SHA
         if: ${{ inputs.resume_release_sha == '' }}
         env:
@@ -135,8 +135,8 @@ jobs:
             elif ! git show-ref --verify --quiet "refs/tags/$tag"; then
               git tag "$tag" "$RELEASE_SHA"
             fi
-            if [ "$(git rev-list -n 1 "refs/tags/$tag")" != "$(git rev-parse HEAD)" ]; then
-              echo "::error::Release tag $tag does not point to the versioned main commit."
+            if [ "$(git rev-list -n 1 "refs/tags/$tag")" != "$RELEASE_SHA" ]; then
+              echo "::error::Release tag $tag does not point to release SHA ${RELEASE_SHA}."
               exit 1
             fi
             if [ -z "$remote_tag" ]; then
