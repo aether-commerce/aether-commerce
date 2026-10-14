@@ -1,5 +1,15 @@
 # @aether-commerce/admin-default
 
+## 0.6.1
+
+### Patch Changes
+
+- 609f518: Report scheduled jobs individually, surface unresolved approved Wompi callbacks in system health, and align observability documentation with actual retention behavior.
+- Updated dependencies [609f518]
+  - @aether-commerce/core@0.3.1
+  - @aether-commerce/i18n@0.4.1
+  - @aether-commerce/ui@0.2.6
+
 ## 0.6.0
 
 ### Minor Changes
