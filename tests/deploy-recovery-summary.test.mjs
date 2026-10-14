@@ -72,6 +72,30 @@ test("reports an API failure after migration as partial and requires remote insp
   assert.match(result.nextAction, /Inspect the target D1 migration history/);
 });
 
+test("reports a later service failure after an earlier Worker has already deployed", () => {
+  const result = report(
+    "development",
+    outcomes({
+      assistant: "failure",
+      storefront: "skipped",
+      admin: "skipped",
+      smoke: "skipped",
+      catalog: "skipped"
+    })
+  );
+  const markdown = renderDeployRecoverySummary(result);
+
+  assert.equal(result.status, "partial");
+  assert.equal(result.firstIncompleteStage, "assistant");
+  assert.equal(result.lastSuccessfulStage, "api");
+  assert.equal(result.mutationAttempted, true);
+  assert.equal(result.databaseState, "migration_step_succeeded");
+  assert.match(result.nextAction, /each service revision before retrying/);
+  assert.match(markdown, /\\| api \\| success \\|/);
+  assert.match(markdown, /\\| assistant \\| failure \\|/);
+  assert.match(markdown, /does not claim that a failed remote operation made no changes/);
+});
+
 test("treats a failed migration operation as remotely uncertain", () => {
   const result = report(
     "production",
