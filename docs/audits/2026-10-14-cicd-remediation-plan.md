@@ -1,6 +1,6 @@
 # Plan de corrección de la auditoría CI/CD de Aether y Liminal
 
-Fecha: 14 de octubre de 2026. Estado: **en ejecución; P1 y P2 de Aether implementados y validados localmente, pendientes de PR/CI; P0 parcial; P3–P7 abiertos**.
+Fecha: 14 de octubre de 2026. Estado: **en ejecución; P1 y P2 de Aether integrados en `develop` (PR #307; CI de PR y push verdes); P1 de Liminal integrado en `development` (PR #122; CI de PR y push verdes); P3-A en implementación; P0 parcial; resto de P3–P7 abierto**. No se ha promovido este trabajo a `main` ni se ha desplegado a producción.
 
 Fuentes: [auditoría H01–H12](2026-10-14-cicd-liminal.md), [ampliación Changesets H13–H18](2026-10-14-changesets-agent-release.md) y [mediciones](2026-10-14-cicd-timings.json).
 
@@ -55,11 +55,11 @@ Se puede preparar P4 mientras se desarrolla P3 porque modifica otra parte del si
 
 **Decisión externa DEC-01:** si Liminal no admite protección equivalente en su configuración actual, presentar las opciones disponibles y su costo/impacto al usuario. Mantener las correcciones de CI avanzando, pero dejar esa parte de H03 abierta. Los controles del workflow son una mitigación, no un reemplazo acreditado de protección de ramas. No cambiar visibilidad ni contratar un plan automáticamente.
 
-**Estado P0 al 14 de octubre:** se confirmó el repositorio canónico `aether-commerce/liminal-store`, la rama de trabajo `development` y el SHA observado `44e8f80bb9a56a773f2a273e0dfd7eb0434eac39`. Se conservaron sin tocar los cambios locales ajenos (`tsbuildinfo` y `.worktrees/`). La consulta de protección de `development` respondió HTTP 403: “Upgrade to GitHub Pro or make this repository public to enable this feature.” No se cambió visibilidad ni plan; DEC-01 sigue abierto. Falta inspeccionar rulesets y completar la matriz de capacidades/mediciones históricas.
+**Estado P0 al 14 de octubre:** se confirmó el repositorio canónico `aether-commerce/liminal-store`, la rama `development` y el SHA inicial observado `44e8f80bb9a56a773f2a273e0dfd7eb0434eac39`. Se conservaron sin tocar los cambios locales ajenos (`tsbuildinfo` y `.worktrees/`). Las consultas de protección de ramas y rulesets respondieron HTTP 403: “Upgrade to GitHub Pro or make this repository public to enable this feature.” No se cambió visibilidad ni plan; DEC-01 sigue abierto. El PR #122 y su CI ya se integraron en `development`; el CI del push de integración también pasó. Falta completar la matriz de capacidades y mediciones históricas. La inspección de secretos confirmó que producción carece de `PRODUCTION_AETHER_CART_TOKEN_SECRET` y `PRODUCTION_AETHER_SETTINGS_ENCRYPTION_KEY`; el preflight nuevo se detendrá antes de Cloudflare hasta que existan.
 
 ## P1 — Impedir promociones incompletas y despliegues sin evidencia
 
-**Estado de esta copia:** el checker de changesets, la promoción Aether, el gate de autorización de deploy/publicación y sus pruebas locales están implementados. El gate y las credenciales de despliegue de Liminal siguen abiertos. La revisión de código, el preflight obligatorio en copia limpia y el CI del PR aún están pendientes.
+**Estado:** los gates de Aether están integrados en `develop` por PR #307; el CI del PR y el CI del push a `develop` pasaron. El gate Liminal está integrado en `development` por PR #122; `Validate Liminal client` pasó en el PR y en el push resultante. Su despliegue a `main` espera la promoción normal. No se habilita producción mientras falten los dos secretos cart/settings; los controles de ramas de GitHub siguen bloqueados por DEC-01.
 
 **P1-A: metadatos y promoción.**
 
@@ -86,7 +86,7 @@ Se puede preparar P4 mientras se desarrolla P3 porque modifica otra parte del si
 
 ## P2 — Reparar la automatización de Changesets
 
-**Estado de esta copia:** el workflow y los validadores locales fueron reemplazados por una actualización normal y verificable de la rama estable, con un único PR reutilizable y espera de CI para el SHA exacto de `develop`. Las pruebas unitarias/contrato pasaron; el flujo no se ha ejecutado en GitHub y no se considera activo hasta que pase por PR y CI reales.
+**Estado:** el workflow y los validadores están integrados en `develop` por PR #307 y pasaron CI de PR y push. Aún no se ha observado un ciclo de release de Changesets real en GitHub; la aceptación operativa sigue abierta.
 
 **Trabajo:**
 
@@ -105,10 +105,12 @@ Se puede preparar P4 mientras se desarrolla P3 porque modifica otra parte del si
 
 ## P3 — Reparar la distribución de paquetes y la actualización de Liminal
 
+**Estado:** P3-A se está preparando en la rama `feat/release-manifest-v1`. El manifiesto v1 registra un snapshot de todos los paquetes públicos (incluidos los que no cambiaron en ese release), versiones exactas, tags disponibles, `dist.integrity`, enlaces de tarball y hashes de todas las migraciones de cliente; cada archivo fuente se contrasta con el tarball publicado para detectar cambios sin versionar. El publicador también valida el tarball descargado y persiste el manifiesto como asset de GitHub Release. Un reintento vuelve a publicar solo versiones ausentes según Changesets y completa tags faltantes únicamente tras confirmar versión exacta en el registro y SHA del tag; el resumen conserva el estado por paquete. El evento nuevo `aether-release-v1` transporta el manifiesto y su digest y queda desactivado hasta integrar el consumidor compatible en Liminal. P3-B/C y la entrega end-to-end siguen pendientes; no se habilitó dispatch ni se ejecutó una release real.
+
 **P3-A: manifiesto y publicación recuperable.**
 
-- Definir `release-manifest.v1`: repositorio y SHA fuente, versiones exactas, integridad de tarballs, tags, hashes de migraciones y versión del contrato operativo del cliente.
-- Identificar versiones nuevas frente a la última release confirmada, no solo package.json tocados en el último diff.
+- Definir `release-manifest.v1` como snapshot completo: repositorio y SHA fuente, versión exacta de cada paquete público, si cambió en ese release, tag cuando exista, integridad de tarballs, hashes de migraciones y versión del contrato operativo del cliente.
+- Comparar cada paquete fuente con el artefacto publicado de esa misma versión. Si el código empaquetable cambió sin incrementar versión, detener la release en vez de actualizar el cliente con contenido ambiguo.
 - Construir/probar los paquetes publicables y verificar su integridad en el registro. No reutilizar una versión ya publicada para contenido distinto.
 - Conservar un resultado por paquete, tags y notificación. Reanudar lo que falta tras un fallo parcial; no repetir etapas completas innecesariamente.
 - Publicar el manifiesto de forma duradera en el registro de release de GitHub asociado a main; el ID/digest debe ser verificable. Los artefactos temporales de Actions sirven de evidencia adicional, no como única copia para reanudar meses después.
