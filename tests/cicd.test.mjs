@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { nextBuildArguments } from "../templates/client/scripts/next-build.mjs";
+import { assertReleaseCommitAvailable } from "../scripts/create-release-manifest.mjs";
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
@@ -192,6 +193,18 @@ test("Wompi sandbox stays isolated to production", () => {
   assert.match(production, /WOMPI_SECRET_KEY: \$\{\{ secrets\.WOMPI_PRIVATE_KEY \}\}/);
 });
 
+test("release manifest accepts a historical commit available in the current checkout", () => {
+  const repositoryRoot = new URL("..", import.meta.url);
+  const parent = spawnSync("git", ["rev-parse", "HEAD^"], {
+    cwd: repositoryRoot,
+    encoding: "utf8"
+  });
+  assert.equal(parent.status, 0, parent.stderr);
+  assert.doesNotThrow(() => assertReleaseCommitAvailable(parent.stdout.trim()));
+  assert.throws(() => assertReleaseCommitAvailable("not-a-full-sha"), /full commit SHA/);
+  assert.throws(() => assertReleaseCommitAvailable("f".repeat(40)), /unavailable in checkout/);
+});
+
 test("package publishing stores a verified immutable manifest before v1 client dispatch", () => {
   const workflow = read(".github/workflows/publish-packages.yml");
   const dispatch = read("scripts/create-release-dispatch.mjs");
@@ -205,6 +218,7 @@ test("package publishing stores a verified immutable manifest before v1 client d
   assert.match(workflow, /node scripts\/create-release-manifest\.mjs/);
   assert.match(manifest, /if \(changedInRelease\) \{\s*verifyWorkspaceTarball/);
   assert.match(manifest, /verifyPublishedTarball\(name, version, metadata\.dist\.integrity\)/);
+  assert.match(manifest, /migrations: collectClientMigrations\(headSha\)/);
   assert.match(workflow, /gh release upload/);
   assert.match(workflow, /cmp -s "\$RELEASE_MANIFEST_PATH"/);
   assert.match(workflow, /manifest_sha256=.*sha256sum/);
