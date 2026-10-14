@@ -1,5 +1,11 @@
 # @aether-commerce/api-worker
 
+## 0.8.3
+
+### Patch Changes
+
+- b8d92e6: Invalidate catalog snapshots across Worker isolates when products or categories change, and keep public catalog responses current.
+
 ## 0.8.2
 
 ### Patch Changes
