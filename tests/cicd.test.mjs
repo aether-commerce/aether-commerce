@@ -203,10 +203,7 @@ test("package publishing stores a verified immutable manifest before v1 client d
   assert.match(workflow, /git ls-remote origin "refs\/tags\/\$tag"/);
   assert.match(workflow, /git push origin "refs\/tags\/\$tag"/);
   assert.match(workflow, /node scripts\/create-release-manifest\.mjs/);
-  assert.match(
-    manifest,
-    /verifyWorkspaceTarball\(name, version, packageDirectory, metadata\.dist\.integrity\)/
-  );
+  assert.match(manifest, /if \(changedInRelease\) \{\s*verifyWorkspaceTarball/);
   assert.match(manifest, /verifyPublishedTarball\(name, version, metadata\.dist\.integrity\)/);
   assert.match(workflow, /gh release upload/);
   assert.match(workflow, /cmp -s "\$RELEASE_MANIFEST_PATH"/);
@@ -339,12 +336,16 @@ test("client package distribution waits for successful main push CI and uses its
   assert.match(workflow, /workflows: \["Aether CI"\]/);
   assert.match(workflow, /workflow_run\.event == 'push'/);
   assert.match(workflow, /workflow_run\.conclusion == 'success'/);
-  assert.match(workflow, /ref: \$\{\{ github\.event\.workflow_run\.head_sha \|\| github\.sha \}\}/);
+  assert.match(workflow, /ref: \$\{\{ github\.event\.workflow_run\.head_sha \|\| inputs\.resume_release_sha \|\| github\.sha \}\}/);
   assert.match(
     workflow,
-    /RELEASE_SHA: \$\{\{ github\.event\.workflow_run\.head_sha \|\| github\.sha \}\}/
+    /RELEASE_SHA: \$\{\{ github\.event\.workflow_run\.head_sha \|\| inputs\.resume_release_sha \|\| github\.sha \}\}/
   );
   assert.match(workflow, /check-deploy-authorization\.mjs/);
+  assert.match(workflow, /check-package-release-resume\.mjs/);
+  assert.match(workflow, /resume_release_sha:/);
+  assert.match(workflow, /inputs\.resume_release_sha == '' && steps\.release\.outputs\.needed == 'true'/);
+  assert.match(workflow, /git diff --name-only .*RELEASE_SHA/);
   assert.doesNotMatch(workflow, /^\s{2}push:/m);
 });
 
