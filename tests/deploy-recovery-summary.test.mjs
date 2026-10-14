@@ -91,8 +91,8 @@ test("reports a later service failure after an earlier Worker has already deploy
   assert.equal(result.mutationAttempted, true);
   assert.equal(result.databaseState, "migration_step_succeeded");
   assert.match(result.nextAction, /each service revision before retrying/);
-  assert.match(markdown, /\\| api \\| success \\|/);
-  assert.match(markdown, /\\| assistant \\| failure \\|/);
+  assert.match(markdown, /\| api \| success \|/);
+  assert.match(markdown, /\| assistant \| failure \|/);
   assert.match(markdown, /does not claim that a failed remote operation made no changes/);
 });
 
