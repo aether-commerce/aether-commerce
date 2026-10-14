@@ -219,6 +219,9 @@ test("package publishing stores a verified immutable manifest before v1 client d
   assert.match(manifest, /if \(changedInRelease\) \{\s*verifyWorkspaceTarball/);
   assert.match(manifest, /verifyPublishedTarball\(name, version, metadata\.dist\.integrity\)/);
   assert.match(manifest, /migrations: collectClientMigrations\(headSha\)/);
+  assert.ok(workflow.includes("RELEASE_RESUME: ${{ inputs.resume_release_sha != '' }}"));
+  assert.ok(manifest.includes('resumeRelease: process.env.RELEASE_RESUME === "true"'));
+  assert.ok(manifest.includes("shouldVerifyWorkspaceTarball(changedInRelease, resumeRelease)"));
   assert.match(workflow, /gh release upload/);
   assert.match(workflow, /cmp -s "\$RELEASE_MANIFEST_PATH"/);
   assert.match(workflow, /manifest_sha256=.*sha256sum/);

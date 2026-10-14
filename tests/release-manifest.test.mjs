@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { collectClientMigrations } from "../scripts/create-release-manifest.mjs";
+import { collectClientMigrations, shouldVerifyWorkspaceTarball } from "../scripts/create-release-manifest.mjs";
 import { createReleaseDispatchPayload } from "../scripts/create-release-dispatch.mjs";
 import { createReleaseManifest, serializeReleaseManifest, sha256, validateReleaseManifest } from "../scripts/release-manifest.mjs";
 
@@ -101,6 +101,12 @@ test("release manifest rejects a changed package whose version tag is missing", 
     ...baseInput,
     packages: [{ ...baseInput.packages[0], tag: null, changedInRelease: true }]
   }), /newly released package must have its release tag/);
+});
+
+test("workspace tarball comparison runs for publication and is skipped for manifest recovery", () => {
+  assert.equal(shouldVerifyWorkspaceTarball(true), true);
+  assert.equal(shouldVerifyWorkspaceTarball(false), false);
+  assert.equal(shouldVerifyWorkspaceTarball(true, true), false);
 });
 
 test("client migration snapshot hashes the exact published migration set", () => {

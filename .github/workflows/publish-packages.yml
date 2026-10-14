@@ -150,6 +150,7 @@ jobs:
         if: ${{ !inputs.dry_run && steps.release.outputs.needed == 'true' }}
         env:
           RELEASE_SHA: ${{ github.event.workflow_run.head_sha || inputs.resume_release_sha || github.sha }}
+          RELEASE_RESUME: ${{ inputs.resume_release_sha != '' }}
           RELEASE_MANIFEST_PATH: ${{ runner.temp }}/aether-release-manifest/release-manifest.v1.json
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

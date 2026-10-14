@@ -55,3 +55,5 @@ La reanudación exige que el SHA pertenezca al historial actual de `main`, que e
 
 
 Para una reanudación manual, la automatización ejecuta sus validadores y scripts desde la punta actual de `main`; el SHA indicado en `resume_release_sha` identifica los paquetes, etiquetas y migraciones originales. La verificación de etiquetas debe compararlas con ese SHA original, no con el checkout actual. Esta separación también permite ejecutar el validador agregado después del release interrumpido.
+
+Durante una recuperación, `resume_release_sha` identifica el paquete publicado y sus tags. El workflow comprueba que el registro conserva el artefacto con su integridad y que el tag apunta al SHA original; no compara un nuevo empaquetado del workspace actual contra ese tarball. Esa comparación se mantiene en una publicación nueva, donde el artefacto se construye y valida en la misma ejecución.

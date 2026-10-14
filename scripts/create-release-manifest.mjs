@@ -20,7 +20,11 @@ function maybeGitShow(revision, path) {
   }
 }
 
-function packageDist(name, version, packageDirectory, changedInRelease) {
+export function shouldVerifyWorkspaceTarball(changedInRelease, resumeRelease = false) {
+  return changedInRelease && !resumeRelease;
+}
+
+function packageDist(name, version, packageDirectory, changedInRelease, resumeRelease) {
   let metadata;
   let lastError;
   for (let attempt = 1; attempt <= 6; attempt += 1) {
@@ -44,7 +48,7 @@ function packageDist(name, version, packageDirectory, changedInRelease) {
   if (!metadata.dist?.integrity || !metadata.dist?.tarball) {
     throw new Error(`Registry did not provide tarball integrity for ${name}@${version}.`);
   }
-  if (changedInRelease) {
+  if (shouldVerifyWorkspaceTarball(changedInRelease, resumeRelease)) {
     verifyWorkspaceTarball(name, version, packageDirectory, metadata.dist.integrity);
   }
   verifyPublishedTarball(name, version, metadata.dist.integrity);
@@ -123,7 +127,7 @@ export function assertReleaseCommitAvailable(releaseSha) {
   }
 }
 
-export function buildReleaseManifest({ baseSha, headSha, repository, createdAt }) {
+export function buildReleaseManifest({ baseSha, headSha, repository, createdAt, resumeRelease = false }) {
   const packagePaths = git(["ls-tree", "-r", "--name-only", headSha, "--", "packages"])
     .split(/\r?\n/)
     .filter((path) => /^packages\/[^/]+\/package\.json$/.test(path));
@@ -153,7 +157,7 @@ export function buildReleaseManifest({ baseSha, headSha, repository, createdAt }
     if (changedInRelease && taggedSha !== headSha) {
       throw new Error(`New package release tag ${tag} is missing or does not point to ${headSha}.`);
     }
-    const dist = packageDist(current.name, current.version, dirname(join(root, path)), changedInRelease);
+    const dist = packageDist(current.name, current.version, dirname(join(root, path)), changedInRelease, resumeRelease);
     packages.push({
       name: current.name,
       version: current.version,
@@ -182,7 +186,13 @@ function run() {
   assertReleaseCommitAvailable(headSha);
   const createdAt = git(["show", "-s", "--format=%cI", headSha]);
   const output = process.env.RELEASE_MANIFEST_PATH || join(root, "release-manifest.v1.json");
-  const manifest = buildReleaseManifest({ baseSha, headSha, repository, createdAt });
+  const manifest = buildReleaseManifest({
+    baseSha,
+    headSha,
+    repository,
+    createdAt,
+    resumeRelease: process.env.RELEASE_RESUME === "true"
+  });
   writeFileSync(output, serializeReleaseManifest(manifest), { flag: "wx" });
   console.log(`Created ${output} for ${manifest.packages.length} package(s), ${manifest.migrations.files.length} migration(s).`);
 }
