@@ -65,6 +65,56 @@ test("deploy jobs reuse the exact SHA CI gate without repeating workspace valida
   }
 });
 
+test("deployment workflows always write a SHA-scoped recovery snapshot", () => {
+  const stageBindings = [
+    ["authorize_release", "AUTHORIZATION"],
+    ["install_dependencies", "DEPENDENCIES"],
+    ["verify_runtime", "RUNTIME"],
+    ["build_workspace", "BUILD"],
+    ["generate_configs", "CONFIGS"],
+    ["build_storefront", "STOREFRONT_BUILD"],
+    ["stamp_build", "BUILD_METADATA"],
+    ["apply_migrations", "MIGRATIONS"],
+    ["deploy_api", "API"],
+    ["deploy_assistant", "ASSISTANT"],
+    ["deploy_storefront", "STOREFRONT"],
+    ["deploy_admin", "ADMIN"],
+    ["verify_smoke", "SMOKE"]
+  ];
+
+  for (const environment of ["development", "production"]) {
+    const workflow = read(`.github/workflows/deploy-${environment}.yml`);
+    const start = workflow.indexOf(`      - name: Summarize ${environment} recovery state`);
+    assert.notEqual(start, -1, `${environment} recovery summary exists`);
+    const summaryStep = workflow.slice(start);
+    assert.match(summaryStep, /if: \$\{\{ always\(\) \}\}/);
+    assert.match(summaryStep, /node scripts\/write-deploy-recovery-summary\.mjs/);
+    assert.match(
+      summaryStep,
+      /DEPLOYED_COMMIT_SHA: \$\{\{ github\.event\.workflow_run\.head_sha \|\| github\.sha \}\}/
+    );
+    assert.match(summaryStep, /DEPLOY_RUN_URL:/);
+    assert.doesNotMatch(summaryStep, /secrets\./);
+
+    for (const [stepId, outcome] of stageBindings) {
+      assert.match(workflow, new RegExp(`id: ${stepId}\\b`), `${stepId} has an outcome ID`);
+      const expectedOutcome =
+        "DEPLOY_OUTCOME_" + outcome + ": ${{ steps." + stepId + ".outcome || 'skipped' }}";
+      assert.ok(summaryStep.includes(expectedOutcome), `${environment} summary records ${stepId}`);
+    }
+
+    if (environment === "production") {
+      assert.match(workflow, /id: verify_catalog\b/);
+      assert.match(
+        summaryStep,
+        /DEPLOY_OUTCOME_CATALOG: \$\{\{ steps\.verify_catalog\.outcome \|\| 'skipped' \}\}/
+      );
+    } else {
+      assert.doesNotMatch(summaryStep, /DEPLOY_OUTCOME_CATALOG/);
+    }
+  }
+});
+
 test("Worker secrets are bound to the code version that the smoke test verifies", () => {
   for (const environment of ["production", "development"]) {
     const workflow = read(".github/workflows/deploy-" + environment + ".yml");

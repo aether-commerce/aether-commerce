@@ -59,6 +59,7 @@ jobs:
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - name: Authorize current production release SHA
+        id: authorize_release
         env:
           DEPLOY_TARGET_BRANCH: main
           EXPECTED_RELEASE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
@@ -79,8 +80,10 @@ jobs:
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
       - name: Install dependencies
+        id: install_dependencies
         run: pnpm install --frozen-lockfile
       - name: Verify deployment settings
+        id: verify_runtime
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -91,15 +94,19 @@ jobs:
           AI_OPERATIONS_TOKEN: ${{ secrets.AI_OPERATIONS_TOKEN }}
         run: node scripts/check-deploy-runtime.mjs
       - name: Build storefront, admin and Workers
+        id: build_workspace
         run: pnpm build
       - name: Generate production Worker configs
+        id: generate_configs
         run: |
           node scripts/write-api-wrangler-config.mjs
           node scripts/write-ai-wrangler-config.mjs
           node scripts/write-storefront-wrangler-config.mjs
       - name: Build storefront Worker bundle
+        id: build_storefront
         run: pnpm --filter @aether-commerce/storefront build:cloudflare
       - name: Stamp production build metadata
+        id: stamp_build
         env:
           DEPLOYED_COMMIT_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
           AETHER_DEPLOY_ENV: production
@@ -107,11 +114,13 @@ jobs:
           node scripts/write-deploy-build-info.mjs storefront
           node scripts/write-deploy-build-info.mjs admin
       - name: Apply D1 migrations
+        id: apply_migrations
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: pnpm exec wrangler d1 migrations apply DB --remote --config apps/api/wrangler.production.json
       - name: Deploy API Worker
+        id: deploy_api
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -146,6 +155,7 @@ jobs:
           if [ -f .api-secrets.json ]; then deploy_args+=(--secrets-file .api-secrets.json); fi
           node scripts/retry-cloudflare-command.mjs "${deploy_args[@]}"
       - name: Deploy AI assistant Worker
+        id: deploy_assistant
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -168,18 +178,44 @@ jobs:
           if [ -f .ai-secrets.json ]; then deploy_args+=(--secrets-file .ai-secrets.json); fi
           node scripts/retry-cloudflare-command.mjs "${deploy_args[@]}"
       - name: Deploy storefront Worker
+        id: deploy_storefront
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: node scripts/retry-cloudflare-command.mjs pnpm exec wrangler deploy --config apps/storefront/wrangler.production.json
       - name: Deploy admin Pages
+        id: deploy_admin
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: pnpm exec wrangler pages deploy apps/admin/out --project-name="${AETHER_ADMIN_PAGES_PROJECT}" --branch=main
       - name: Verify public services
+        id: verify_smoke
         env:
           DEPLOYED_COMMIT_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
         run: node scripts/check-deployment-smoke.mjs
       - name: Verify production catalog
+        id: verify_catalog
         run: node scripts/check-public-catalog.mjs
+      - name: Summarize production recovery state
+        if: ${{ always() }}
+        env:
+          AETHER_DEPLOY_ENV: production
+          DEPLOY_TARGET_BRANCH: main
+          DEPLOYED_COMMIT_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          DEPLOY_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          DEPLOY_OUTCOME_AUTHORIZATION: ${{ steps.authorize_release.outcome || 'skipped' }}
+          DEPLOY_OUTCOME_DEPENDENCIES: ${{ steps.install_dependencies.outcome || 'skipped' }}
+          DEPLOY_OUTCOME_RUNTIME: ${{ steps.verify_runtime.outcome || 'skipped' }}
+          DEPLOY_OUTCOME_BUILD: ${{ steps.build_workspace.outcome || 'skipped' }}
+          DEPLOY_OUTCOME_CONFIGS: ${{ steps.generate_configs.outcome || 'skipped' }}
+          DEPLOY_OUTCOME_STOREFRONT_BUILD: ${{ steps.build_storefront.outcome || 'skipped' }}
+          DEPLOY_OUTCOME_BUILD_METADATA: ${{ steps.stamp_build.outcome || 'skipped' }}
+          DEPLOY_OUTCOME_MIGRATIONS: ${{ steps.apply_migrations.outcome || 'skipped' }}
+          DEPLOY_OUTCOME_API: ${{ steps.deploy_api.outcome || 'skipped' }}
+          DEPLOY_OUTCOME_ASSISTANT: ${{ steps.deploy_assistant.outcome || 'skipped' }}
+          DEPLOY_OUTCOME_STOREFRONT: ${{ steps.deploy_storefront.outcome || 'skipped' }}
+          DEPLOY_OUTCOME_ADMIN: ${{ steps.deploy_admin.outcome || 'skipped' }}
+          DEPLOY_OUTCOME_SMOKE: ${{ steps.verify_smoke.outcome || 'skipped' }}
+          DEPLOY_OUTCOME_CATALOG: ${{ steps.verify_catalog.outcome || 'skipped' }}
+        run: node scripts/write-deploy-recovery-summary.mjs
