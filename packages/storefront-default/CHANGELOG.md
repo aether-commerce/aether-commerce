@@ -1,5 +1,11 @@
 # @aether-commerce/storefront-default
 
+## 0.5.14
+
+### Patch Changes
+
+- b979e85: Read the active store currency from the API at runtime so catalog prices and assistant requests stay aligned with admin settings.
+
 ## 0.5.13
 
 ### Patch Changes
