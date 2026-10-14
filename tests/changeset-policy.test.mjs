@@ -157,7 +157,7 @@ function runScript(root, script, env = {}) {
   return spawnSync(process.execPath, [script], {
     cwd: root,
     encoding: "utf8",
-    env: { ...process.env, GITHUB_BASE_REF: "develop", ...env }
+    env: { ...process.env, GITHUB_HEAD_REF: "", GITHUB_BASE_REF: "develop", ...env }
   });
 }
 
@@ -347,3 +347,4 @@ test("changeset preflight refuses an unavailable base instead of passing silentl
     cleanup(root);
   }
 });
+
