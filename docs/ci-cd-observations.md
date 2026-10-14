@@ -26,6 +26,12 @@ Las duraciones corresponden a ejecuciones separadas y pueden solaparse; no son u
 
 **Estado de credenciales verificado en esta promoción:** el CI, el despliegue y la publicación se completaron con las credenciales existentes; `AETHER_CLIENT_DISPATCH_TOKEN` permitió abrir el PR #120. Esto confirma que las credenciales funcionaban para estas acciones en esa fecha, no que deban copiarse, exponerse o dejar de rotarse si aparece evidencia posterior de compromiso o revocación. El error de la sesión local de `gh` debe tratarse como un problema distinto.
 
+## 2026-10-13 — Preflight limpio en Windows
+
+- El `pnpm` disponible en `PATH` era 8.6.0 aunque `package.json` fija 8.15.9. Se usó Corepack para ejecutar la versión declarada; conviene hacer que el setup local y CI respeten siempre el campo `packageManager`.
+- En el worktree aislado, el build no encontró el enlace local del binding opcional de Tailwind para Windows. El paquete sí estaba en la instalación bloqueada; un enlace temporal dentro de `node_modules` permitió resolverlo y el build completo pasó. No se modificó ningún archivo versionado para esta prueba. Investigar la resolución de dependencias opcionales en worktrees anidados antes de añadir workarounds al código.
+- El build del admin también requiere `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` durante prerender. Se usó un valor ficticio solo para la compilación local; nunca se leyó ni transmitió un secreto.
+
 **Candidatos para optimizar y medir**
 
 1. Añadir una comprobación automática de que `develop` contiene el historial de `main` antes de iniciar la promoción, con un mensaje accionable si hace falta un PR de sincronización.
@@ -33,3 +39,4 @@ Las duraciones corresponden a ejecuciones separadas y pueden solaparse; no son u
 3. Reducir ambigüedad entre checks de PR y de push, conservando el requisito de validar el head actual y el CI posterior al merge.
 4. Documentar el proceso de aprobación inicial de workflows de cliente y evaluar una política restringida para el bot/repositorio de confianza, sin aprobar código externo indiscriminadamente.
 5. Publicar un resumen único de release con CI, despliegue, publicación y actualización del cliente, manteniendo cada resultado y SHA verificables por separado.
+6. Reproducir la instalación de worktrees en Windows con pnpm 8.15.9 y corregir la causa del enlace faltante antes de incorporar cambios a dependencias.
