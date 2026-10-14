@@ -9,7 +9,7 @@
     "deploy": "wrangler deploy --config ./wrangler.production.json --keep-vars",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint worker.ts assistant.test.ts",
-    "test": "vitest run --root ../.. apps/ai-assistant/assistant.test.ts"
+    "test": "vitest run --root ../.. apps/ai-assistant/assistant.test.ts apps/ai-assistant/evaluation/assertions.test.ts"
   },
   "dependencies": {
     "@aether-commerce/core": "workspace:*",
