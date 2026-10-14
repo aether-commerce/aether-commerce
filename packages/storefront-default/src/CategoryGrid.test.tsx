@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
-import { AetherStorefrontProvider } from "./AetherStorefrontProvider";
+import { render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { AetherStorefrontProvider, useStorefrontConfig } from "./AetherStorefrontProvider";
 import { DefaultCategorySectionRenderer } from "./CategoryGrid";
 import { LanguageProvider } from "./LanguageProvider";
 
@@ -21,6 +21,15 @@ const testConfig = {
   agent: { enabled: false, publicUrlEnv: "NEXT_PUBLIC_AI_ASSISTANT_URL", defaultLocale: "en" },
   navigation: {}
 } as const;
+
+function RuntimeCurrencyProbe() {
+  const { config } = useStorefrontConfig();
+  return <span>{config.store.currency}</span>;
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe("DefaultCategorySectionRenderer", () => {
   it("renders configured categories in API order with canonical category URLs and computed counts", () => {
@@ -42,5 +51,30 @@ describe("DefaultCategorySectionRenderer", () => {
     expect(screen.getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual(["/categories/audio", "/categories/smartphones"]);
     expect(screen.getByText("12 products")).toBeInTheDocument();
     expect(screen.getByText("4 products")).toBeInTheDocument();
+  });
+});
+
+describe("AetherStorefrontProvider runtime currency", () => {
+  it("uses the API store currency instead of a stale build-time currency", async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = input instanceof Request ? input.url : input instanceof URL ? input.href : input;
+      if (url.endsWith("/api/v1/runtime-config")) {
+        return Promise.resolve(Response.json({ success: true, data: { currency: "COP" } }));
+      }
+      return Promise.resolve(Response.json({ success: true, data: { features: { reviews: true } } }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <AetherStorefrontProvider config={testConfig} apiBaseUrl="https://api.example.com">
+        <RuntimeCurrencyProbe />
+      </AetherStorefrontProvider>
+    );
+
+    await waitFor(() => expect(screen.getByText("COP")).toBeInTheDocument());
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.example.com/api/v1/runtime-config",
+      { headers: { accept: "application/json" } }
+    );
   });
 });
