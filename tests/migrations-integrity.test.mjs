@@ -27,6 +27,27 @@ test("all core D1 migrations apply with foreign keys enabled", () => {
   }
 
   assert.deepEqual(database.prepare("PRAGMA foreign_key_check;").all(), []);
+
+  const catalogSpecifications = [
+    ["cargador-gan-30w", "Potencia", "30 W"],
+    ["cargador-dual-usb-c-45w", "Potencia", "45 W"],
+    ["cargador-inalambrico-15w", "Potencia", "15 W"],
+    ["cargador-de-auto-20w", "Potencia", "20 W"],
+    ["cargador-gan-65w", "Potencia", "65 W"],
+    ["cargador-inalambrico-stand-10w", "Potencia", "10 W"],
+    ["power-bank-10000mah", "Capacidad", "10.000 mAh"],
+    ["power-bank-20000mah", "Capacidad", "20.000 mAh"],
+    ["power-bank-slim-5000mah", "Capacidad", "5.000 mAh"],
+    ["power-bank-solar-15000mah", "Capacidad", "15.000 mAh"],
+    ["power-bank-magsafe-5000mah", "Capacidad", "5.000 mAh"]
+  ];
+  for (const [slug, key, value] of catalogSpecifications) {
+    const row = database.prepare("SELECT details_json FROM products WHERE slug = ?;").get(slug);
+    assert.ok(row, `product should exist: ${slug}`);
+    const details = JSON.parse(row.details_json);
+    assert.equal(details.specs[key], value, `${slug} should have its explicit ${key}`);
+    assert.ok(details.highlights.includes(`${key}: ${value}`), `${slug} highlights should match its ${key}`);
+  }
   assert.ok(database.prepare("SELECT count(*) AS count FROM products;").get().count > 0);
   assert.ok(database.prepare("SELECT count(*) AS count FROM store_categories;").get().count > 0);
   const normalizedProduct = database.prepare("SELECT created_at, updated_at FROM products WHERE id = 'prd_0001';").get();
@@ -78,4 +99,24 @@ test("Wompi order-channel migration preserves existing orders and payment refere
     /CHECK constraint failed/
   );
   assert.deepEqual(database.prepare("PRAGMA foreign_key_check").all(), []);
+});
+
+test("demo catalog specification migration preserves administrator edits", () => {
+  const database = new DatabaseSync(":memory:");
+  database.exec(readFileSync(join(migrationsDirectory, "0013_products_table.sql"), "utf8"));
+  database.exec(readFileSync(join(migrationsDirectory, "0014_seed_products_from_json.sql"), "utf8"));
+  database.prepare(
+    "UPDATE products SET details_json = json_set(details_json, '$.specs.Potencia', ?, '$.highlights[0]', ?) WHERE slug = ?;"
+  ).run("Verified manually", "Potencia: verified manually", "cargador-gan-65w");
+
+  database.exec(readFileSync(join(migrationsDirectory, "0036_demo_catalog_specifications.sql"), "utf8"));
+  const details = JSON.parse(
+    database.prepare("SELECT details_json FROM products WHERE slug = ?;").get("cargador-gan-65w").details_json
+  );
+  assert.equal(details.specs.Potencia, "Verified manually");
+  assert.ok(details.highlights.includes("Potencia: verified manually"));
+  assert.equal(
+    JSON.parse(database.prepare("SELECT details_json FROM products WHERE slug = ?;").get("cargador-inalambrico-15w").details_json).specs.Potencia,
+    "15 W"
+  );
 });
