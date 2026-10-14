@@ -28,6 +28,18 @@ test("all core D1 migrations apply with foreign keys enabled", () => {
 
   assert.deepEqual(database.prepare("PRAGMA foreign_key_check;").all(), []);
 
+  const catalogPlan = database.prepare(`
+    EXPLAIN QUERY PLAN
+    SELECT p.*, c.name AS category_name
+    FROM products p
+    LEFT JOIN store_categories c ON c.id = p.store_category_id AND c.store_id = p.store_id
+    WHERE p.store_id = ?
+    ORDER BY p.updated_at DESC
+  `).all("store_default");
+  const catalogPlanDetails = catalogPlan.map((row) => row.detail).join("\n");
+  assert.ok(catalogPlanDetails.includes("SEARCH p USING INDEX idx_products_store_updated_at (store_id=?)"), catalogPlanDetails);
+  assert.doesNotMatch(catalogPlanDetails, /USE TEMP B-TREE FOR ORDER BY/);
+
   const catalogSpecifications = [
     ["cargador-gan-30w", "Potencia", "30 W"],
     ["cargador-dual-usb-c-45w", "Potencia", "45 W"],
@@ -53,6 +65,32 @@ test("all core D1 migrations apply with foreign keys enabled", () => {
   const normalizedProduct = database.prepare("SELECT created_at, updated_at FROM products WHERE id = 'prd_0001';").get();
   assert.equal(normalizedProduct.created_at, "2024-10-01T00:00:00.000Z");
   assert.equal(normalizedProduct.updated_at, "2026-10-10T00:41:10.000Z");
+  const generation = () => Number(database.prepare(
+    "SELECT payload_json FROM products_cache WHERE id = 'catalog-generation:store_default'"
+  ).get().payload_json);
+  const initialCatalogGeneration = generation();
+  database.prepare(
+    "INSERT INTO products (id, sku, slug, name, category, price_cents, final_price_cents, details_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+  ).run("prd_generation_insert", "SKU-GENERATION", "generation-insert", "Generation insert", "test", 100, 100, "{}");
+  assert.equal(generation(), initialCatalogGeneration + 1, "product inserts advance the shared catalog generation");
+  const productInsertGeneration = generation();
+  database.prepare(
+    "INSERT INTO store_categories (id, store_id, slug, name) VALUES (?, ?, ?, ?)"
+  ).run("cat_generation_test", "store_default", "generation-test", "Generation test");
+  assert.equal(generation(), productInsertGeneration + 1, "category inserts advance the shared catalog generation");
+  const categoryInsertGeneration = generation();
+  database.prepare("DELETE FROM store_categories WHERE id = 'cat_generation_test'").run();
+  assert.equal(generation(), categoryInsertGeneration + 1, "category deletions advance the shared catalog generation");
+  const beforeProductUpdate = generation();
+  database.prepare("UPDATE products SET price_cents = price_cents + 1 WHERE id = 'prd_0001'").run();
+  assert.equal(generation(), beforeProductUpdate + 1, "product edits advance the shared catalog generation");
+  const productGeneration = generation();
+  const categoryId = database.prepare("SELECT id FROM store_categories WHERE store_id = 'store_default' LIMIT 1").get().id;
+  database.prepare("UPDATE store_categories SET name = name || ' edited' WHERE id = ?").run(categoryId);
+  assert.equal(generation(), productGeneration + 1, "category edits advance the shared catalog generation");
+  const categoryGeneration = generation();
+  database.prepare("DELETE FROM products WHERE id = 'prd_0001'").run();
+  assert.equal(generation(), categoryGeneration + 1, "product deletion advances the shared catalog generation");
   for (const table of ["product_cache", "product_overrides", "category_overrides"]) {
     assert.equal(
       database.prepare("SELECT count(*) AS count FROM sqlite_master WHERE type = 'table' AND name = ?;").get(table).count,

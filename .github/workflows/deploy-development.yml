@@ -9,21 +9,20 @@ on:
 
 permissions:
   contents: read
+  actions: read
   deployments: write
 
 concurrency:
   group: aether-development
-  # workflow_run also fires for PR CI. Those runs skip the deploy job and must
-  # not cancel a real push or manual deployment already in progress.
-  cancel-in-progress: >-
-    ${{ github.event_name == 'workflow_dispatch' ||
-        (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success') }}
+  # Serialize automatic and manual releases. A manual retry must not interrupt
+  # an active deployment after it may have changed remote resources.
+  cancel-in-progress: false
 
 jobs:
   deploy:
     if: >-
       ${{
-        (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success') ||
+        (github.event_name == 'workflow_run' && github.event.workflow_run.name == 'Aether CI' && github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'develop' && github.event.workflow_run.repository.full_name == github.repository) ||
         (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/develop')
       }}
     runs-on: ubuntu-latest
@@ -57,6 +56,19 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - name: Authorize current development release SHA
+        id: authorize_release
+        env:
+          DEPLOY_TARGET_BRANCH: develop
+          EXPECTED_RELEASE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          UPSTREAM_WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
+          UPSTREAM_EVENT: ${{ github.event.workflow_run.event }}
+          UPSTREAM_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          UPSTREAM_REPOSITORY: ${{ github.event.workflow_run.repository.full_name }}
+          UPSTREAM_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          UPSTREAM_SHA: ${{ github.event.workflow_run.head_sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/check-deploy-authorization.mjs
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
         with:
           version: 8.15.9
@@ -66,8 +78,10 @@ jobs:
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
       - name: Install dependencies
+        id: install_dependencies
         run: pnpm install --frozen-lockfile
       - name: Verify development settings
+        id: verify_runtime
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -77,36 +91,43 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           AI_OPERATIONS_TOKEN: ${{ secrets.AI_OPERATIONS_TOKEN }}
         run: node scripts/check-deploy-runtime.mjs
-      - name: Validate workspace
-        run: pnpm validate
       - name: Build storefront, admin and Workers
+        id: build_workspace
         run: pnpm build
       - name: Generate development Worker configs
+        id: generate_configs
         run: |
           node scripts/write-api-wrangler-config.mjs
           node scripts/write-ai-wrangler-config.mjs
           node scripts/write-storefront-wrangler-config.mjs
       - name: Build development storefront Worker bundle
+        id: build_storefront
         run: pnpm --filter @aether-commerce/storefront build:cloudflare
+      - name: Stamp development build metadata
+        id: stamp_build
+        env:
+          DEPLOYED_COMMIT_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          AETHER_DEPLOY_ENV: development
+        run: |
+          node scripts/write-deploy-build-info.mjs storefront
+          node scripts/write-deploy-build-info.mjs admin
       - name: Apply development D1 migrations
+        id: apply_migrations
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: pnpm exec wrangler d1 migrations apply DB --remote --config apps/api/wrangler.development.json
       - name: Deploy development API Worker
+        id: deploy_api
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: node scripts/retry-cloudflare-command.mjs pnpm exec wrangler deploy --config apps/api/wrangler.development.json
-      - name: Configure development API secrets
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DEPLOYED_COMMIT_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
           AETHER_CART_TOKEN_SECRET: ${{ secrets.AETHER_CART_TOKEN_SECRET }}
           AETHER_SETTINGS_ENCRYPTION_KEY: ${{ secrets.AETHER_SETTINGS_ENCRYPTION_KEY }}
           CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
-          CLERK_JWT_ISSUER: ${{ secrets.CLERK_JWT_ISSUER }}
           CLERK_WEBHOOK_SECRET: ${{ secrets.CLERK_WEBHOOK_SECRET }}
+          CLERK_JWT_ISSUER: ${{ secrets.CLERK_JWT_ISSUER }}
           STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
           STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
@@ -118,39 +139,61 @@ jobs:
         run: |
           umask 077
           trap 'rm -f .api-secrets.json' EXIT
-          node -e "const fs=require('fs'); const keys=['AETHER_CART_TOKEN_SECRET','AETHER_SETTINGS_ENCRYPTION_KEY','CLERK_SECRET_KEY','CLERK_WEBHOOK_SECRET','CLERK_JWT_ISSUER','STRIPE_SECRET_KEY','STRIPE_WEBHOOK_SECRET','RESEND_API_KEY','CONTACT_RECIPIENT_EMAIL','CLOUDINARY_CLOUD_NAME','CLOUDINARY_API_KEY','CLOUDINARY_API_SECRET','GEMINI_API_KEY']; const out={}; for (const key of keys) if (process.env[key]) out[key]=process.env[key]; fs.writeFileSync('.api-secrets.json', JSON.stringify(out));"
-          node scripts/retry-cloudflare-command.mjs pnpm exec wrangler secret bulk .api-secrets.json --config apps/api/wrangler.development.json
+          node -e "const fs=require('fs'); const keys=['AETHER_CART_TOKEN_SECRET','AETHER_SETTINGS_ENCRYPTION_KEY','CLERK_SECRET_KEY','CLERK_WEBHOOK_SECRET','CLERK_JWT_ISSUER','STRIPE_SECRET_KEY','STRIPE_WEBHOOK_SECRET','RESEND_API_KEY','CONTACT_RECIPIENT_EMAIL','CLOUDINARY_CLOUD_NAME','CLOUDINARY_API_KEY','CLOUDINARY_API_SECRET','GEMINI_API_KEY']; const out={}; for (const key of keys) if (process.env[key]) out[key]=process.env[key]; if (Object.keys(out).length) fs.writeFileSync('.api-secrets.json', JSON.stringify(out));"
+          deploy_args=(pnpm exec wrangler deploy --config apps/api/wrangler.development.json --var "DEPLOYED_COMMIT_SHA:${DEPLOYED_COMMIT_SHA}")
+          if [ -f .api-secrets.json ]; then deploy_args+=(--secrets-file .api-secrets.json); fi
+          node scripts/retry-cloudflare-command.mjs "${deploy_args[@]}"
       - name: Deploy development AI assistant Worker
+        id: deploy_assistant
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: node scripts/retry-cloudflare-command.mjs pnpm exec wrangler deploy --config apps/ai-assistant/wrangler.development.json --keep-vars
-      - name: Configure development AI assistant secrets
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DEPLOYED_COMMIT_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           AI_OPERATIONS_TOKEN: ${{ secrets.AI_OPERATIONS_TOKEN }}
           AETHER_SETTINGS_ENCRYPTION_KEY: ${{ secrets.AETHER_SETTINGS_ENCRYPTION_KEY }}
         run: |
           umask 077
           trap 'rm -f .ai-secrets.json' EXIT
-          node -e "const fs=require('fs'); const keys=['GEMINI_API_KEY','AI_OPERATIONS_TOKEN','AETHER_SETTINGS_ENCRYPTION_KEY']; const out={}; for (const key of keys) if (process.env[key]) out[key]=process.env[key]; fs.writeFileSync('.ai-secrets.json', JSON.stringify(out));"
-          node scripts/retry-cloudflare-command.mjs pnpm exec wrangler secret bulk .ai-secrets.json --config apps/ai-assistant/wrangler.development.json
+          node -e "const fs=require('fs'); const keys=['GEMINI_API_KEY','AI_OPERATIONS_TOKEN','AETHER_SETTINGS_ENCRYPTION_KEY']; const out={}; for (const key of keys) if (process.env[key]) out[key]=process.env[key]; if (Object.keys(out).length) fs.writeFileSync('.ai-secrets.json', JSON.stringify(out));"
+          deploy_args=(pnpm exec wrangler deploy --config apps/ai-assistant/wrangler.development.json --keep-vars --var "DEPLOYED_COMMIT_SHA:${DEPLOYED_COMMIT_SHA}")
+          if [ -f .ai-secrets.json ]; then deploy_args+=(--secrets-file .ai-secrets.json); fi
+          node scripts/retry-cloudflare-command.mjs "${deploy_args[@]}"
       - name: Deploy development storefront Worker
+        id: deploy_storefront
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: node scripts/retry-cloudflare-command.mjs pnpm exec wrangler deploy --config apps/storefront/wrangler.development.json
       - name: Deploy development admin Pages
+        id: deploy_admin
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: pnpm exec wrangler pages deploy apps/admin/out --project-name="${AETHER_ADMIN_PAGES_PROJECT}" --branch=develop
       - name: Verify development services
-        run: |
-          curl --fail --retry 3 --retry-delay 5 "${APP_ORIGIN_STORE}"
-          curl --fail --retry 3 --retry-delay 5 "${NEXT_PUBLIC_AETHER_API_URL}/api/v1/health"
-          curl --fail --retry 3 --retry-delay 5 "${NEXT_PUBLIC_AETHER_AI_URL}/healthz"
-          curl --fail --retry 3 --retry-delay 5 "${APP_ORIGIN_ADMIN}"
-          curl --fail --retry 3 --retry-delay 5 "${NEXT_PUBLIC_PORTFOLIO_URL}"
+        id: verify_smoke
+        env:
+          DEPLOYED_COMMIT_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: node scripts/check-deployment-smoke.mjs
+      - name: Summarize development recovery state
+        if: ${{ always() }}
+        env:
+          AETHER_DEPLOY_ENV: development
+          DEPLOY_TARGET_BRANCH: develop
+          DEPLOYED_COMMIT_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          DEPLOY_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          DEPLOY_OUTCOME_AUTHORIZATION: ${{ steps.authorize_release.outcome || 'skipped' }}
+          DEPLOY_OUTCOME_DEPENDENCIES: ${{ steps.install_dependencies.outcome || 'skipped' }}
+          DEPLOY_OUTCOME_RUNTIME: ${{ steps.verify_runtime.outcome || 'skipped' }}
+          DEPLOY_OUTCOME_BUILD: ${{ steps.build_workspace.outcome || 'skipped' }}
+          DEPLOY_OUTCOME_CONFIGS: ${{ steps.generate_configs.outcome || 'skipped' }}
+          DEPLOY_OUTCOME_STOREFRONT_BUILD: ${{ steps.build_storefront.outcome || 'skipped' }}
+          DEPLOY_OUTCOME_BUILD_METADATA: ${{ steps.stamp_build.outcome || 'skipped' }}
+          DEPLOY_OUTCOME_MIGRATIONS: ${{ steps.apply_migrations.outcome || 'skipped' }}
+          DEPLOY_OUTCOME_API: ${{ steps.deploy_api.outcome || 'skipped' }}
+          DEPLOY_OUTCOME_ASSISTANT: ${{ steps.deploy_assistant.outcome || 'skipped' }}
+          DEPLOY_OUTCOME_STOREFRONT: ${{ steps.deploy_storefront.outcome || 'skipped' }}
+          DEPLOY_OUTCOME_ADMIN: ${{ steps.deploy_admin.outcome || 'skipped' }}
+          DEPLOY_OUTCOME_SMOKE: ${{ steps.verify_smoke.outcome || 'skipped' }}
+        run: node scripts/write-deploy-recovery-summary.mjs

@@ -29,6 +29,8 @@
     "0032_refund_ledger.sql",
     "0033_currency_price_books.sql",
     "0034_product_timestamps_iso.sql",
-    "0035_order_wompi_channel.sql"
+    "0035_order_wompi_channel.sql",
+    "0037_catalog_cache_generation.sql",
+    "0038_products_store_updated_at.sql"
   ]
 }

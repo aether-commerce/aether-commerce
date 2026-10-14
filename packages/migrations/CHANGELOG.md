@@ -1,5 +1,17 @@
 # @aether-commerce/migrations
 
+## 0.4.4
+
+### Patch Changes
+
+- d37664c: Add a store-scoped index for catalog ordering by update time.
+
+## 0.4.3
+
+### Patch Changes
+
+- b8d92e6: Invalidate catalog snapshots across Worker isolates when products or categories change, and keep public catalog responses current.
+
 ## 0.4.2
 
 ### Patch Changes

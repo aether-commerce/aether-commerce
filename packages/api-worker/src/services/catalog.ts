@@ -50,10 +50,11 @@ export type ProductRow = {
   store_id?: string | undefined;
 };
 
-export const catalogCacheKey = "products-v2";
+export const catalogCacheKey = "products-v3";
+const catalogGenerationPrefix = "catalog-generation:";
 const storeId = (env: Env) => env.STORE_ID?.trim() || "store_default";
 const memoryCacheTtlMs = 5 * 60 * 1000;
-const memoryCatalogCache = new Map<string, { expiresAt: number; products: Product[] }>();
+const memoryCatalogCache = new Map<string, { generation: number; expiresAt: number; products: Product[] }>();
 
 function storefrontOrigin(env: Env) {
   return env.APP_ORIGIN_STORE ?? "http://localhost:3000";
@@ -207,13 +208,26 @@ async function readAllRows(env: Env): Promise<ProductRow[]> {
   return rows.results || [];
 }
 
-async function readCachedProducts(env: Env): Promise<Product[] | null> {
-  const key = `${catalogCacheKey}:${storeId(env)}`;
-  const memory = memoryCatalogCache.get(key);
-  if (memory && memory.expiresAt > Date.now()) {
+async function readCatalogGeneration(env: Env): Promise<number> {
+  const row = await env.DB.prepare("select payload_json from products_cache where id = ? and source = 'catalog-generation'")
+    .bind(`${catalogGenerationPrefix}${storeId(env)}`)
+    .first<{ payload_json: string }>();
+  if (!row) return 0;
+  const generation = Number(row.payload_json);
+  if (!Number.isSafeInteger(generation) || generation < 0) {
+    throw new Error(`Invalid catalog generation for store ${storeId(env)}.`);
+  }
+  return generation;
+}
+
+async function readCachedProducts(env: Env, generation: number): Promise<Product[] | null> {
+  const currentStoreId = storeId(env);
+  const memory = memoryCatalogCache.get(currentStoreId);
+  if (memory && memory.generation === generation && memory.expiresAt > Date.now()) {
     return memory.products;
   }
 
+  const key = `${catalogCacheKey}:${currentStoreId}:${generation}`;
   try {
     const row = await env.DB.prepare(
       "select payload_json from products_cache where id = ? and expires_at > datetime('now')"
@@ -224,15 +238,16 @@ async function readCachedProducts(env: Env): Promise<Product[] | null> {
       return null;
     }
     const products = JSON.parse(row.payload_json) as Product[];
-    memoryCatalogCache.set(key, { products, expiresAt: Date.now() + memoryCacheTtlMs });
+    memoryCatalogCache.set(currentStoreId, { generation, products, expiresAt: Date.now() + memoryCacheTtlMs });
     return products;
   } catch {
     return null;
   }
 }
 
-async function writeCachedProducts(env: Env, products: Product[]) {
-  const key = `${catalogCacheKey}:${storeId(env)}`;
+async function writeCachedProducts(env: Env, products: Product[], generation: number) {
+  const currentStoreId = storeId(env);
+  const key = `${catalogCacheKey}:${currentStoreId}:${generation}`;
   try {
     await env.DB.prepare(
       `insert into products_cache (id, source, payload_json, expires_at, created_at, updated_at)
@@ -241,7 +256,7 @@ async function writeCachedProducts(env: Env, products: Product[]) {
     )
       .bind(key, JSON.stringify(products))
       .run();
-    memoryCatalogCache.set(key, { products, expiresAt: Date.now() + memoryCacheTtlMs });
+    memoryCatalogCache.set(currentStoreId, { generation, products, expiresAt: Date.now() + memoryCacheTtlMs });
   } catch {
     // Cache failures should never block the storefront.
   }
@@ -253,12 +268,13 @@ async function writeCachedProducts(env: Env, products: Product[]) {
 // entirely) so admin management always sees drafts/hidden products and
 // never a stale cached view of its own just-made edit.
 async function getCatalogSource(env: Env): Promise<Product[]> {
-  const { currency } = await getStoreConfig(env);
-  const cached = await readCachedProducts(env);
+  const generation = await readCatalogGeneration(env);
+  const cached = await readCachedProducts(env, generation);
   const all = cached ?? (await (async () => {
+    const { currency } = await getStoreConfig(env);
     const rows = await readAllRows(env);
     const products = rows.map((row) => normalizeRow(env, row, currency));
-    await writeCachedProducts(env, products);
+    await writeCachedProducts(env, products, generation);
     return products;
   })());
   return all.filter((product) => product.visibility === "visible");
@@ -313,12 +329,37 @@ export async function getCategoryCounts(env: Env) {
 }
 
 export async function clearCatalogCache(env: Env) {
-  const key = `${catalogCacheKey}:${storeId(env)}`;
-  memoryCatalogCache.delete(key);
+  const currentStoreId = storeId(env);
+  memoryCatalogCache.delete(currentStoreId);
+  const prefix = `${catalogCacheKey}:${currentStoreId}:`;
   try {
-    await env.DB.prepare("delete from products_cache where id = ?").bind(key).run();
+    await env.DB.prepare("delete from products_cache where substr(id, 1, ?) = ?").bind(prefix.length, prefix).run();
   } catch {
-    // Best-effort - a stale cache row just means a slower next read, not a failure.
+    // Generation checks already make old snapshots unreachable; this is cleanup only.
+  }
+}
+
+/**
+ * Use for an explicit cache refresh that does not follow a product/category
+ * write. Normal catalog writes advance this value in the database migration
+ * triggers, so all Worker isolates stop using the previous generation.
+ */
+export async function bumpCatalogGeneration(env: Env) {
+  const currentStoreId = storeId(env);
+  const generationId = `${catalogGenerationPrefix}${currentStoreId}`;
+  const prefix = `${catalogCacheKey}:${currentStoreId}:`;
+  await env.DB.prepare(
+    `insert into products_cache (id, source, payload_json, expires_at, created_at, updated_at)
+     values (?, 'catalog-generation', '1', '9999-12-31 23:59:59', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+     on conflict(id) do update set source = 'catalog-generation',
+       payload_json = cast(cast(products_cache.payload_json as integer) + 1 as text),
+       expires_at = excluded.expires_at, updated_at = CURRENT_TIMESTAMP`
+  ).bind(generationId).run();
+  memoryCatalogCache.delete(currentStoreId);
+  try {
+    await env.DB.prepare("delete from products_cache where substr(id, 1, ?) = ?").bind(prefix.length, prefix).run();
+  } catch {
+    // The generation bump invalidates old snapshots even if cleanup fails.
   }
 }
 
@@ -338,5 +379,8 @@ export const __testables = {
   normalizeRow,
   flagsFor,
   foldText,
-  readAllRows
+  readAllRows,
+  readCatalogGeneration,
+  readCachedProducts,
+  writeCachedProducts
 };

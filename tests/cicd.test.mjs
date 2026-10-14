@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
+import { nextBuildArguments } from "../templates/client/scripts/next-build.mjs";
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
@@ -43,21 +44,104 @@ test("deployments wait for a successful CI run and deploy its exact SHA", () => 
     assert.match(workflow, /workflow_run:/);
     assert.match(workflow, /workflow_run\.event == 'push'/);
     assert.match(workflow, /workflow_run\.conclusion == 'success'/);
+    assert.match(workflow, /workflow_run\.repository\.full_name == github\.repository/);
     assert.match(workflow, /workflow_run\.head_sha \|\| github\.sha/);
+    assert.match(workflow, /check-deploy-authorization\.mjs/);
+    assert.match(workflow, /^  actions: read$/m);
     assert.match(workflow, /check-deploy-runtime\.mjs/);
     assert.doesNotMatch(workflow, /^\s{2}push:/m);
   }
 });
 
-test("Worker deployments retry only transient Cloudflare API failures", () => {
-  for (const environment of ["production", "development"]) {
+test("deploy jobs reuse the exact SHA CI gate without repeating workspace validation", () => {
+  const ci = read(".github/workflows/ci.yml");
+  assert.match(ci, /pnpm validate/);
+
+  for (const file of ["deploy-production.yml", "deploy-development.yml"]) {
+    const workflow = read(`.github/workflows/${file}`);
+    assert.match(workflow, /check-deploy-authorization\.mjs/);
+    assert.doesNotMatch(workflow, /pnpm validate/);
+    assert.doesNotMatch(workflow, /name: Validate workspace/);
+  }
+});
+
+test("deployment workflows always write a SHA-scoped recovery snapshot", () => {
+  const stageBindings = [
+    ["authorize_release", "AUTHORIZATION"],
+    ["install_dependencies", "DEPENDENCIES"],
+    ["verify_runtime", "RUNTIME"],
+    ["build_workspace", "BUILD"],
+    ["generate_configs", "CONFIGS"],
+    ["build_storefront", "STOREFRONT_BUILD"],
+    ["stamp_build", "BUILD_METADATA"],
+    ["apply_migrations", "MIGRATIONS"],
+    ["deploy_api", "API"],
+    ["deploy_assistant", "ASSISTANT"],
+    ["deploy_storefront", "STOREFRONT"],
+    ["deploy_admin", "ADMIN"],
+    ["verify_smoke", "SMOKE"]
+  ];
+
+  for (const environment of ["development", "production"]) {
     const workflow = read(`.github/workflows/deploy-${environment}.yml`);
-    for (const worker of ["api", "ai-assistant", "storefront"]) {
-      assert.match(workflow, new RegExp(`retry-cloudflare-command\\.mjs pnpm exec wrangler deploy --config apps/${worker}/wrangler\\.${environment}\\.json`));
+    const start = workflow.indexOf(`      - name: Summarize ${environment} recovery state`);
+    assert.notEqual(start, -1, `${environment} recovery summary exists`);
+    const summaryStep = workflow.slice(start);
+    assert.match(summaryStep, /if: \$\{\{ always\(\) \}\}/);
+    assert.match(summaryStep, /node scripts\/write-deploy-recovery-summary\.mjs/);
+    assert.match(
+      summaryStep,
+      /DEPLOYED_COMMIT_SHA: \$\{\{ github\.event\.workflow_run\.head_sha \|\| github\.sha \}\}/
+    );
+    assert.match(summaryStep, /DEPLOY_RUN_URL:/);
+    assert.doesNotMatch(summaryStep, /secrets\./);
+
+    for (const [stepId, outcome] of stageBindings) {
+      assert.match(workflow, new RegExp(`id: ${stepId}\\b`), `${stepId} has an outcome ID`);
+      const expectedOutcome =
+        "DEPLOY_OUTCOME_" + outcome + ": ${{ steps." + stepId + ".outcome || 'skipped' }}";
+      assert.ok(summaryStep.includes(expectedOutcome), `${environment} summary records ${stepId}`);
     }
-    for (const worker of ["api", "ai-assistant"]) {
-      assert.match(workflow, new RegExp(`retry-cloudflare-command\\.mjs pnpm exec wrangler secret bulk \\.${worker === "api" ? "api" : "ai"}-secrets\\.json --config apps/${worker}/wrangler\\.${environment}\\.json`));
+
+    if (environment === "production") {
+      assert.match(workflow, /id: verify_catalog\b/);
+      assert.match(
+        summaryStep,
+        /DEPLOY_OUTCOME_CATALOG: \$\{\{ steps\.verify_catalog\.outcome \|\| 'skipped' \}\}/
+      );
+    } else {
+      assert.doesNotMatch(summaryStep, /DEPLOY_OUTCOME_CATALOG/);
     }
+  }
+});
+
+test("Worker secrets are bound to the code version that the smoke test verifies", () => {
+  for (const environment of ["production", "development"]) {
+    const workflow = read(".github/workflows/deploy-" + environment + ".yml");
+    const steps = environment === "development"
+      ? [
+          ["Deploy development API Worker", "Deploy development AI assistant Worker", ".api-secrets.json"],
+          ["Deploy development AI assistant Worker", "Deploy development storefront Worker", ".ai-secrets.json"]
+        ]
+      : [
+          ["Deploy API Worker", "Deploy AI assistant Worker", ".api-secrets.json"],
+          ["Deploy AI assistant Worker", "Deploy storefront Worker", ".ai-secrets.json"]
+        ];
+
+    for (const [name, nextName, secretsFile] of steps) {
+      const start = workflow.indexOf("      - name: " + name);
+      const end = workflow.indexOf("      - name: " + nextName, start + 1);
+      assert.notEqual(start, -1, name + " exists in " + environment);
+      assert.notEqual(end, -1, nextName + " follows " + name + " in " + environment);
+      const step = workflow.slice(start, end);
+      assert.match(step, /retry-cloudflare-command\.mjs/);
+      assert.match(step, /wrangler deploy/);
+      assert.match(step, /--secrets-file/);
+      assert.ok(step.includes(secretsFile));
+      assert.match(step, /DEPLOYED_COMMIT_SHA/);
+    }
+
+    assert.doesNotMatch(workflow, /wrangler secret bulk/);
   }
 });
 
@@ -66,9 +150,18 @@ test("development deployment never defaults its D1 binding to production", () =>
   const apiConfig = read("scripts/write-api-wrangler-config.mjs");
   const assistantConfig = read("scripts/write-ai-wrangler-config.mjs");
 
-  assert.match(workflow, /AETHER_D1_DATABASE_NAME: \$\{\{ vars\.AETHER_D1_DATABASE_NAME \|\| 'aether-development' \}\}/);
-  assert.match(apiConfig, /deployEnvironment === "production" \? "aether-production-live" : "aether-development"/);
-  assert.match(assistantConfig, /deployEnvironment === "production" \? "aether-production-live" : "aether-development"/);
+  assert.match(
+    workflow,
+    /AETHER_D1_DATABASE_NAME: \$\{\{ vars\.AETHER_D1_DATABASE_NAME \|\| 'aether-development' \}\}/
+  );
+  assert.match(
+    apiConfig,
+    /deployEnvironment === "production" \? "aether-production-live" : "aether-development"/
+  );
+  assert.match(
+    assistantConfig,
+    /deployEnvironment === "production" \? "aether-production-live" : "aether-development"/
+  );
   assert.doesNotMatch(workflow, /AETHER_D1_DATABASE_NAME:.*aether-production['\"]?\s*\}\}/);
 });
 
@@ -78,7 +171,10 @@ test("assistant daily request budget is environment-configurable and validated",
     const workflow = read(`.github/workflows/deploy-${environment}.yml`);
     assert.match(workflow, /AI_DAILY_REQUEST_BUDGET: \$\{\{ vars\.AI_DAILY_REQUEST_BUDGET \}\}/);
   }
-  assert.match(configWriter, /AI_DAILY_REQUEST_BUDGET: dailyRequestBudget \|\| config\.vars\.AI_DAILY_REQUEST_BUDGET/);
+  assert.match(
+    configWriter,
+    /AI_DAILY_REQUEST_BUDGET: dailyRequestBudget \|\| config\.vars\.AI_DAILY_REQUEST_BUDGET/
+  );
   assert.match(configWriter, /AI_DAILY_REQUEST_BUDGET must be a positive integer/);
 });
 
@@ -89,23 +185,79 @@ test("Wompi sandbox stays isolated to production", () => {
   const production = read(".github/workflows/deploy-production.yml");
   assert.doesNotMatch(config, /WOMPI_DEV_API|WOMPI_DEV_WEBHOOK_URL/);
   assert.doesNotMatch(webhook, /WOMPI_DEV_API|WOMPI_DEV_WEBHOOK_URL/);
-  assert.doesNotMatch(development, /WOMPI_(SECRET_KEY|EVENTS_SECRET|PUBLIC_KEY|INTEGRITY_KEY|PRIVATE_KEY|EVENT_KEY)/);
+  assert.doesNotMatch(
+    development,
+    /WOMPI_(SECRET_KEY|EVENTS_SECRET|PUBLIC_KEY|INTEGRITY_KEY|PRIVATE_KEY|EVENT_KEY)/
+  );
   assert.match(production, /WOMPI_SECRET_KEY: \$\{\{ secrets\.WOMPI_PRIVATE_KEY \}\}/);
 });
 
-test("package publishing configures a tag author and verifies tags before client notification", () => {
+test("package publishing stores a verified immutable manifest before v1 client dispatch", () => {
   const workflow = read(".github/workflows/publish-packages.yml");
+  const dispatch = read("scripts/create-release-dispatch.mjs");
+  const manifest = read("scripts/create-release-manifest.mjs");
   assert.match(workflow, /fetch-tags: true/);
   assert.match(workflow, /git config user\.name "github-actions\[bot\]"/);
   assert.match(workflow, /git show-ref --verify --quiet "refs\/tags\/\$tag"/);
-  assert.ok(workflow.indexOf("- name: Push release tags") < workflow.indexOf("- name: Notify Liminal client"));
+  assert.match(workflow, /npm view "\$\{name\}@\$\{version\}" version/);
+  assert.match(workflow, /git ls-remote origin "refs\/tags\/\$tag"/);
+  assert.match(workflow, /git push origin "refs\/tags\/\$tag"/);
+  assert.match(workflow, /node scripts\/create-release-manifest\.mjs/);
+  assert.match(
+    manifest,
+    /verifyWorkspaceTarball\(name, version, packageDirectory, metadata\.dist\.integrity\)/
+  );
+  assert.match(manifest, /verifyPublishedTarball\(name, version, metadata\.dist\.integrity\)/);
+  assert.match(workflow, /gh release upload/);
+  assert.match(workflow, /cmp -s "\$RELEASE_MANIFEST_PATH"/);
+  assert.match(workflow, /manifest_sha256=.*sha256sum/);
+  assert.match(workflow, /AETHER_V1_CLIENT_UPDATES_ENABLED/);
+  assert.match(dispatch, /event_type: "aether-release-v1"/);
+  assert.match(dispatch, /manifest_json: input\.manifestJson/);
+  assert.match(workflow, /node scripts\/create-release-dispatch\.mjs/);
+  assert.match(workflow, /--input "\$DISPATCH_PAYLOAD_PATH"/);
+  assert.doesNotMatch(workflow, /event_type=aether-release\s/);
+  assert.ok(
+    workflow.indexOf("- name: Verify package publication and ensure release tags") <
+      workflow.indexOf("- name: Create and publish immutable release manifest")
+  );
+  assert.ok(
+    workflow.indexOf("- name: Create and publish immutable release manifest") <
+      workflow.indexOf("- name: Notify compatible Liminal updater")
+  );
 });
 
-test("skipped PR CI cannot cancel a real development deployment", () => {
+test("development deployments serialize without canceling an active release", () => {
   const workflow = read(".github/workflows/deploy-development.yml");
-  assert.match(workflow, /cancel-in-progress: >-/);
-  assert.match(workflow, /github\.event_name == 'workflow_dispatch'/);
-  assert.match(workflow, /github\.event_name == 'workflow_run' && github\.event\.workflow_run\.event == 'push' && github\.event\.workflow_run\.conclusion == 'success'/);
+  assert.match(workflow, /group:\s*aether-development/);
+  assert.match(workflow, /cancel-in-progress:\s*false/);
+  assert.doesNotMatch(workflow, /cancel-in-progress:\s*>-/);
+  assert.match(
+    workflow,
+    /github\.event_name == 'workflow_run' && github\.event\.workflow_run\.name == 'Aether CI' && github\.event\.workflow_run\.event == 'push' && github\.event\.workflow_run\.conclusion == 'success' && github\.event\.workflow_run\.head_branch == 'develop'/
+  );
+  assert.match(
+    workflow,
+    /github\.event_name == 'workflow_dispatch' && github\.ref == 'refs\/heads\/develop'/
+  );
+});
+
+test("Aether deployments stamp and verify the exact release revision", () => {
+  for (const file of [
+    ".github/workflows/deploy-development.yml",
+    ".github/workflows/deploy-production.yml"
+  ]) {
+    const workflow = read(file);
+    assert.match(workflow, /write-deploy-build-info\.mjs storefront/);
+    assert.match(workflow, /write-deploy-build-info\.mjs admin/);
+    assert.match(
+      workflow,
+      /DEPLOYED_COMMIT_SHA: \$\{\{ github\.event\.workflow_run\.head_sha \|\| github\.sha \}\}/
+    );
+    assert.match(workflow, /--var "DEPLOYED_COMMIT_SHA:\$\{DEPLOYED_COMMIT_SHA\}"/);
+    assert.match(workflow, /node scripts\/check-deployment-smoke\.mjs/);
+    assert.doesNotMatch(workflow, /curl --fail.*APP_ORIGIN_STORE/);
+  }
 });
 
 test("CI enforces the single develop to main release path", () => {
@@ -118,6 +270,19 @@ test("CI enforces the single develop to main release path", () => {
   assert.match(policy, /head !== "develop"/);
   assert.match(policy, /automation\/aether-release-main/);
   assert.match(policy, /skip ci|ci skip/);
+});
+
+test("Next builds use Webpack only on Windows and share the client template helper", () => {
+  assert.deepEqual(nextBuildArguments("win32"), ["build", "--webpack"]);
+  assert.deepEqual(nextBuildArguments("linux"), ["build"]);
+  for (const file of [
+    "apps/admin/package.json",
+    "apps/storefront/package.json",
+    "templates/client/apps/admin/package.json",
+    "templates/client/apps/storefront/package.json"
+  ]) {
+    assert.match(JSON.parse(read(file)).scripts.build, /next-build\.mjs/);
+  }
 });
 
 test("CI builds and tests the Cloudflare LangGraph assistant", () => {
@@ -135,8 +300,9 @@ test("CI accepts version releases that consume existing changesets", () => {
   assert.match(workflow, /git diff --name-status/);
   assert.match(workflow, /Version release detected/);
   assert.match(checker, /status === "D"/);
-  assert.match(checker, /consumesChangeset/);
-  assert.match(checker, /versionedPublicPackage/);
+  assert.match(checker, /Only the Changesets release PR may consume notes/);
+  assert.match(checker, /Validated generated Changesets release/);
+  assert.match(workflow, /check-promotion-readiness\.mjs/);
 });
 
 test("Changesets release preparation generates package changelogs", () => {
@@ -144,9 +310,13 @@ test("Changesets release preparation generates package changelogs", () => {
   const config = JSON.parse(read(".changeset/config.json"));
 
   assert.equal(config.changelog, "@changesets/cli/changelog");
-  assert.match(workflow, /createGithubReleases: false/);
+  assert.match(workflow, /node scripts\/check-changesets\.mjs --validate-pending/);
+  assert.match(workflow, /ref: \$\{\{ github\.sha \}\}/);
   assert.match(workflow, /AETHER_RELEASE_TOKEN/);
-  assert.doesNotMatch(workflow, /github-token: \$\{\{ secrets\.GITHUB_TOKEN \}\}/);
+  assert.match(workflow, /wait-for-release-ci\.mjs/);
+  assert.match(workflow, /git merge --no-ff --no-edit origin\/develop/);
+  assert.match(workflow, /git push origin HEAD:refs\/heads\/changeset-release\/develop/);
+  assert.doesNotMatch(workflow, /--force|changesets\/action@/);
 });
 
 test("package publishing builds with deterministic public application configuration", () => {
@@ -159,7 +329,8 @@ test("package publishing builds with deterministic public application configurat
   assert.match(workflow, /run: pnpm build/);
   assert.doesNotMatch(workflow, /pnpm changeset status/);
   assert.match(workflow, /pnpm --filter "\.\/packages\/\*" exec pnpm pack --pack-destination/);
-  assert.match(workflow, /git push origin --tags/);
+  assert.match(workflow, /git push origin "refs\/tags\/\$tag"/);
+  assert.doesNotMatch(workflow, /git push origin --tags/);
 });
 
 test("client package distribution waits for successful main push CI and uses its SHA", () => {
@@ -169,7 +340,11 @@ test("client package distribution waits for successful main push CI and uses its
   assert.match(workflow, /workflow_run\.event == 'push'/);
   assert.match(workflow, /workflow_run\.conclusion == 'success'/);
   assert.match(workflow, /ref: \$\{\{ github\.event\.workflow_run\.head_sha \|\| github\.sha \}\}/);
-  assert.match(workflow, /RELEASE_SHA: \$\{\{ github\.event\.workflow_run\.head_sha \|\| github\.sha \}\}/);
+  assert.match(
+    workflow,
+    /RELEASE_SHA: \$\{\{ github\.event\.workflow_run\.head_sha \|\| github\.sha \}\}/
+  );
+  assert.match(workflow, /check-deploy-authorization\.mjs/);
   assert.doesNotMatch(workflow, /^\s{2}push:/m);
 });
 

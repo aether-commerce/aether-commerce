@@ -10,7 +10,13 @@ export const healthRoutes = new Hono<AppBindings>();
 // no dependency checks, no D1 access, nothing that could itself be slow or
 // flaky. A monitor hitting this and getting anything other than 200 means
 // "restart/reroute", nothing more nuanced than that.
-healthRoutes.get("/live", (c) => ok(c, { status: "ok", timestamp: new Date().toISOString() }));
+healthRoutes.get("/live", (c) =>
+  ok(c, {
+    status: "ok",
+    revision: c.env.DEPLOYED_COMMIT_SHA ?? null,
+    timestamp: new Date().toISOString()
+  })
+);
 
 // Readiness: can this instance actually serve real traffic right now - the
 // one thing worth checking is D1 connectivity, since every route depends
@@ -28,5 +34,9 @@ healthRoutes.get("/ready", async (c) => {
     });
     return fail(c, 503, "SERVICE_UNAVAILABLE", "The API is not ready to serve traffic.");
   }
-  return ok(c, { status: "ok", timestamp: new Date().toISOString() });
+  return ok(c, {
+    status: "ok",
+    revision: c.env.DEPLOYED_COMMIT_SHA ?? null,
+    timestamp: new Date().toISOString()
+  });
 });

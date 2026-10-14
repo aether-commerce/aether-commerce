@@ -28,6 +28,7 @@ type Fetcher = {
 };
 
 type Env = {
+  DEPLOYED_COMMIT_SHA?: string;
   AETHER_API_BASE_URL: string;
   // Service binding to the aether-api Worker. Cloudflare blocks a Worker on a
   // *.workers.dev subdomain from fetching another Worker's *.workers.dev URL
@@ -265,6 +266,7 @@ export default {
       return json(request, env, {
         status: "ok",
         service: "aether-ai",
+        revision: env.DEPLOYED_COMMIT_SHA ?? null,
         runtime: "cloudflare-worker",
         orchestration: "langgraph-js",
         langgraph: "1.4.8",

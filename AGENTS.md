@@ -67,6 +67,14 @@ escribir fechas ISO 8601 UTC: `strftime('%Y-%m-%dT%H:%M:%fZ', 'now')`.
 catálogo público. Ver `database/core/README.md` y cubrir toda migración masiva
 de productos con una prueba de lectura del catálogo.
 
+Al cambiar productos o categorías con una migración, no edites migraciones ya
+aplicadas y conserva la invalidación por generación de catálogo. El esquema
+instala triggers que avanzan `catalog-generation:<store_id>` dentro de la misma
+transacción; si una migración reemplaza esos triggers, debe avanzar la misma
+generación explícitamente. No hagas cambios operativos de catálogo desde la
+consola de D1: usa Products/Categories en el panel. Ver `database/core/README.md`
+y prueba datos con caché caliente y con una lectura posterior al cambio.
+
 Antes de abrir cada PR, crear un archivo nuevo `.changeset/<nombre>.md` para
 cada cambio que modifique un paquete público de `packages/*` y listar todos los
 paquetes públicos afectados con el nivel `patch`, `minor` o `major` adecuado.

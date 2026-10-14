@@ -17,11 +17,16 @@ describe("GET /health/live", () => {
   it("returns ok without touching the database", async () => {
     const app = buildApp();
     const db = { prepare: vi.fn() };
-    const res = await app.request("/health/live", {}, { DB: db });
-    const body = await res.json<{ success: boolean; data: { status: string; timestamp: string } }>();
+    const revision = "a".repeat(40);
+    const res = await app.request("/health/live", {}, { DB: db, DEPLOYED_COMMIT_SHA: revision });
+    const body = await res.json<{
+      success: boolean;
+      data: { status: string; revision: string; timestamp: string };
+    }>();
 
     expect(res.status).toBe(200);
     expect(body.data.status).toBe("ok");
+    expect(body.data.revision).toBe(revision);
     expect(typeof body.data.timestamp).toBe("string");
     expect(db.prepare).not.toHaveBeenCalled();
   });
@@ -32,19 +37,36 @@ describe("GET /health/ready", () => {
     const db = { prepare: vi.fn(() => ({ first: vi.fn(() => Promise.resolve({ ok: 1 })) })) };
     const app = buildApp();
 
-    const res = await app.request("/health/ready", {}, { DB: db });
-    const body = await res.json<{ success: boolean; data: { status: string; timestamp: string } }>();
+    const revision = "b".repeat(40);
+    const res = await app.request("/health/ready", {}, { DB: db, DEPLOYED_COMMIT_SHA: revision });
+    const body = await res.json<{
+      success: boolean;
+      data: { status: string; revision: string; timestamp: string };
+    }>();
 
     expect(res.status).toBe(200);
     expect(body.data.status).toBe("ok");
+    expect(body.data.revision).toBe(revision);
     expect(typeof body.data.timestamp).toBe("string");
     // Never leaks internal check names/environment - see GET /admin/system-health for that.
     expect(body.data).not.toHaveProperty("checks");
     expect(body.data).not.toHaveProperty("environment");
   });
 
+  it("returns a null revision when the deployment has no source SHA", async () => {
+    const db = { prepare: vi.fn(() => ({ first: vi.fn(() => Promise.resolve({ ok: 1 })) })) };
+    const app = buildApp();
+
+    const res = await app.request("/health/ready", {}, { DB: db });
+    const body = await res.json<{ data: { revision: string | null } }>();
+
+    expect(body.data.revision).toBeNull();
+  });
+
   it("returns 503 when D1 is unreachable, without exposing why", async () => {
-    const db = { prepare: vi.fn(() => ({ first: vi.fn(() => Promise.reject(new Error("D1 unavailable"))) })) };
+    const db = {
+      prepare: vi.fn(() => ({ first: vi.fn(() => Promise.reject(new Error("D1 unavailable"))) }))
+    };
     const app = buildApp();
 
     const res = await app.request("/health/ready", {}, { DB: db });

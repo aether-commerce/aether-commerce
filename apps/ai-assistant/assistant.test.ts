@@ -273,6 +273,15 @@ describe("LangGraph Worker orchestration", () => {
     });
   });
 
+  it("reports the exact deployed source revision in health checks", async () => {
+    const revision = "c".repeat(40);
+    const response = await worker.fetch(
+      new Request("https://assistant.example.test/healthz"),
+      { ...env(), DEPLOYED_COMMIT_SHA: revision }
+    );
+    await expect(response.json()).resolves.toMatchObject({ status: "ok", revision });
+  });
+
   it("allows the browser Authorization header", async () => {
     const response = await worker.fetch(
       new Request("https://assistant.example.test/v1/assistant/messages", {

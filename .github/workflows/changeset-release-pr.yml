@@ -3,47 +3,98 @@ name: Prepare Aether package release
 on:
   push:
     branches: [develop]
-  workflow_dispatch:
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 concurrency:
-  group: aether-release-${{ github.ref }}
+  group: aether-package-release
   cancel-in-progress: false
 
 jobs:
   release-pr:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      actions: read
+      contents: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
+          ref: ${{ github.sha }}
           fetch-depth: 0
-          token: ${{ github.token }}
+          token: ${{ secrets.AETHER_RELEASE_TOKEN || github.token }}
+      - name: Validate pending changesets
+        id: notes
+        run: node scripts/check-changesets.mjs --validate-pending
+      - name: Require release bot token
+        if: steps.notes.outputs.release_needed == 'true'
+        env:
+          AETHER_RELEASE_TOKEN: ${{ secrets.AETHER_RELEASE_TOKEN }}
+        run: |
+          if [ -z "$AETHER_RELEASE_TOKEN" ]; then
+            echo "::error::AETHER_RELEASE_TOKEN must be configured before package releases can create or update a PR."
+            exit 1
+          fi
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        if: steps.notes.outputs.release_needed == 'true'
         with:
           version: 8.15.9
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        if: steps.notes.outputs.release_needed == 'true'
         with:
           node-version: 22
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
       - name: Install dependencies
+        if: steps.notes.outputs.release_needed == 'true'
         run: pnpm install --frozen-lockfile
-      - name: Require release bot token
+      - name: Wait for Aether CI on the exact develop push
+        if: steps.notes.outputs.release_needed == 'true'
         env:
-          AETHER_RELEASE_TOKEN: ${{ secrets.AETHER_RELEASE_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SOURCE_SHA: ${{ github.sha }}
         run: |
-          if [ -z "$AETHER_RELEASE_TOKEN" ]; then
-            echo "::error::AETHER_RELEASE_TOKEN must be configured as a GitHub App or bot token before creating release PRs."
-            exit 1
+          git fetch origin develop
+          CURRENT_DEVELOP_SHA="$(git rev-parse origin/develop)" node scripts/wait-for-release-ci.mjs
+      - name: Prepare the stable release branch without rewriting history
+        if: steps.notes.outputs.release_needed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.AETHER_RELEASE_TOKEN }}
+        run: |
+          git fetch origin develop
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git ls-remote --exit-code --heads origin changeset-release/develop >/dev/null 2>&1; then
+            git fetch origin refs/heads/changeset-release/develop:refs/remotes/origin/changeset-release/develop
+            git switch --create changeset-release/develop --track origin/changeset-release/develop
+            if [ "$(git rev-list --count origin/develop..HEAD)" -gt 0 ]; then
+              release_base="$(git merge-base origin/develop HEAD)"
+              node scripts/check-release-branch.mjs --base="$release_base"
+            fi
+            git merge --no-ff --no-edit origin/develop
+          else
+            git switch --create changeset-release/develop origin/develop
           fi
-      - name: Create or update release PR
-        uses: changesets/action@v1
-        with:
-          version: pnpm version:packages
-          title: "chore: prepare Aether package release"
-          commit: "chore: prepare Aether package release"
-          createGithubReleases: false
-          github-token: ${{ secrets.AETHER_RELEASE_TOKEN }}
+          if find .changeset -maxdepth 1 -type f -name '*.md' ! -name 'README.md' -print -quit | grep -q .; then
+            pnpm version:packages
+            git add -A -- .changeset packages
+          fi
+          node scripts/check-release-branch.mjs --base=origin/develop
+          if ! git diff --cached --quiet; then
+            node scripts/check-changesets.mjs --base=origin/develop
+            git commit -m "chore: prepare Aether package release"
+          fi
+          git push origin HEAD:refs/heads/changeset-release/develop
+          pull_request="$(gh pr list --state open --base develop --head changeset-release/develop --json number --jq '.[0].number // empty')"
+          if [ -z "$pull_request" ]; then
+            cat > "$RUNNER_TEMP/aether-release-pr-body.md" <<'EOF'
+          This pull request contains the package versions, changelogs, and consumed Changesets prepared from a successful push to develop.
+
+          The release branch is updated by merging the latest develop commit and pushing a normal fast-forward update. Review and merge this PR through the required CI checks.
+          EOF
+            gh pr create --base develop --head changeset-release/develop --title "chore: prepare Aether package release" --body-file "$RUNNER_TEMP/aether-release-pr-body.md"
+          else
+            gh pr view "$pull_request" --json url --jq .url
+          fi
