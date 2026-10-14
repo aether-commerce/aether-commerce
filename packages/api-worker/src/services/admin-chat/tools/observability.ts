@@ -16,7 +16,7 @@ import type { ActivityItemArtifact, OrderSummaryArtifact } from "../artifacts";
 export const getSystemHealthTool = defineAdminChatTool({
   name: "get_system_health",
   description:
-    "Gets the current operational status of the store: errors, webhook failures, payment failures, blocked orders, negative inventory, admin security events, and scheduled task staleness. Use this when asked about system health, why something is flagged as critical/degraded, or whether everything is working normally.",
+    "Gets the current operational status of the store: errors, webhook failures, approved Wompi callbacks without a local order, payment failures, blocked orders, negative inventory, admin security events, and the exact scheduled task that failed or went stale. Use this when asked about system health, why something is flagged as critical/degraded, or whether everything is working normally.",
   schema: z.object({}),
   requires: { permission: "audit.read" },
   run: async (_args, ctx) => {
@@ -73,8 +73,9 @@ export const getSystemHealthTool = defineAdminChatTool({
           negativeInventoryCount: snapshot.stats.negativeInventoryCount,
           blockedOrdersCount: snapshot.stats.blockedOrdersCount,
           avgLatencyMs: snapshot.stats.avgLatencyMs,
+          scheduledTasks: snapshot.stats.criticalTasks.map((task) => `${task.name}: ${task.status ?? pick(ctx.language, "never run", "nunca se ejecutó")}`).join("; "),
           lastCriticalTask: snapshot.stats.lastCriticalTask
-            ? `${snapshot.stats.lastCriticalTask.status} (${formatDurationMinutes(
+            ? `${snapshot.stats.lastCriticalTask.name}: ${snapshot.stats.lastCriticalTask.status} (${formatDurationMinutes(
                 Math.round((Date.now() - new Date(snapshot.stats.lastCriticalTask.lastRunAt.replace(" ", "T") + "Z").getTime()) / 60_000)
               )} ago)`
             : pick(ctx.language, "never run", "nunca se ejecutó")
@@ -95,10 +96,10 @@ export const getSystemHealthTool = defineAdminChatTool({
 export const getWebhookActivityTool = defineAdminChatTool({
   name: "get_webhook_activity",
   description:
-    "Gets recent Stripe/Clerk webhook deliveries and their processing status (received, processing, processed, failed, retrying). Use this when asked whether a webhook or payment notification actually arrived and processed, or to investigate 'webhooks failed' shown in System health.",
+    "Gets recent Stripe, Wompi, and Clerk webhook deliveries and their processing status (received, processing, processed, failed, retrying). Use this when asked whether a webhook or payment notification actually arrived and processed, or to investigate 'webhooks failed' shown in System health.",
   schema: z.object({
     status: z.enum(["received", "processing", "processed", "failed", "retrying", "ignored"]).optional(),
-    provider: z.enum(["stripe", "clerk"]).optional(),
+    provider: z.enum(["stripe", "wompi", "clerk"]).optional(),
     limit: z.number().int().min(1).max(50).default(20)
   }),
   requires: { permission: "audit.read" },

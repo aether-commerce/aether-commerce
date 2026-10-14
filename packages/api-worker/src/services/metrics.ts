@@ -67,9 +67,9 @@ export async function getTaskRun(env: Env, taskName: string): Promise<TaskRunRow
   return row ?? null;
 }
 
-// Retention for sampled/aggregated data only (Fase 18) - never touches
-// audit_logs, which is kept indefinitely by design. Safe to call from a
-// cron trigger; deletes buckets older than the retention window.
+// Optional bucket-based cleanup helper retained for targeted maintenance.
+// The scheduled retention task uses created_at and applies the same
+// HEALTH_METRICS_RETENTION_DAYS window alongside the other retained tables.
 export async function cleanupOldMetrics(env: Env, retentionDays: number): Promise<number> {
   const cutoffBucket = hourBucket(new Date(Date.now() - retentionDays * 86_400_000));
   const result = await env.DB.prepare("delete from operational_metrics where bucket < ?").bind(cutoffBucket).run();

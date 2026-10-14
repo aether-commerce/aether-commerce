@@ -861,7 +861,7 @@ export const adminDictionaries = {
         "Approximate average response time for admin routes, sampled at a low rate over the last hour. Not a true p95 percentile.",
       componentWebhooks: "Webhooks",
       componentWebhooksTooltip:
-        "Flags when recent Stripe/Clerk webhook deliveries have failed to process, most recent first.",
+        "Flags when recent Stripe, Wompi or Clerk webhook deliveries have failed to process, most recent first.",
       componentOrders: "Orders",
       componentOrdersTooltip:
         "Flags a paid order stuck unfulfilled past the expected window, or (when detectable) a payment with no matching local order.",
@@ -883,6 +883,7 @@ export const adminDictionaries = {
       statAvgLatency: "Avg. admin latency",
       statNoData: "No data",
       statLastCriticalTask: "Last critical task",
+      statScheduledTasks: "Scheduled tasks",
       neverRunYet: "Never run yet",
       blockedOrdersOne: "Blocked order - oldest first",
       blockedOrdersOther: "Blocked orders - oldest first",
@@ -1764,7 +1765,7 @@ export const adminDictionaries = {
         "Tiempo de respuesta promedio aproximado de las rutas de admin, muestreado a baja tasa durante la última hora. No es un percentil p95 real.",
       componentWebhooks: "Webhooks",
       componentWebhooksTooltip:
-        "Marca cuando entregas recientes de webhooks de Stripe/Clerk no se procesaron correctamente, la más reciente primero.",
+        "Marca cuando entregas recientes de webhooks de Stripe, Wompi o Clerk no se procesaron correctamente, la más reciente primero.",
       componentOrders: "Pedidos",
       componentOrdersTooltip:
         "Marca un pedido pagado atascado sin cumplir más allá de la ventana esperada, o (cuando es detectable) un pago sin pedido local correspondiente.",
@@ -1786,6 +1787,7 @@ export const adminDictionaries = {
       statAvgLatency: "Latencia promedio de admin",
       statNoData: "Sin datos",
       statLastCriticalTask: "Última tarea crítica",
+      statScheduledTasks: "Tareas programadas",
       neverRunYet: "Aún no se ha ejecutado",
       blockedOrdersOne: "Pedido bloqueado - más antiguo primero",
       blockedOrdersOther: "Pedidos bloqueados - más antiguo primero",

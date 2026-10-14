@@ -18,7 +18,8 @@ describe("admin Wompi environment guidance", () => {
 
   it("distinguishes a failed order save from a rejected payment", () => {
     expect(ADMIN_CHAT_SYSTEM_PROMPT.text).toContain('"Payment not confirmed" return can also mean an approved payment failed to save an order');
-    expect(ADMIN_CHAT_SYSTEM_PROMPT.text).toContain("check webhook activity and system health before advising a retry");
+    expect(ADMIN_CHAT_SYSTEM_PROMPT.text).toContain("check Wompi webhook activity and system health before advising a retry");
+    expect(ADMIN_CHAT_SYSTEM_PROMPT.text).toContain("cannot detect a callback that Wompi never delivered");
     expect(ADMIN_CHAT_SYSTEM_PROMPT.text).toContain("older orders can have shorter numbers");
   });
 

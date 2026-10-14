@@ -9,6 +9,8 @@ const HEALTHY_SIGNALS: HealthSignals = {
   negativeInventoryCount: 0,
   oldestPaidOrderBlockedMinutes: null,
   recentAdminFailedAttempts: 0,
+  criticalTaskFailed: false,
+  criticalTaskName: null,
   criticalTaskStaleMinutes: null
 };
 
@@ -105,6 +107,16 @@ describe("evaluateSystemHealth", () => {
       criticalTaskStaleMinutes: DEFAULT_HEALTH_THRESHOLDS.staleCriticalTaskMinutesDegraded + 1
     });
     expect(result.components.scheduledTasks.level).toBe("degraded");
+  });
+
+  it("identifies a failed scheduled task even when it ran recently", () => {
+    const result = evaluateSystemHealth({
+      ...HEALTHY_SIGNALS,
+      criticalTaskFailed: true,
+      criticalTaskName: "data_retention_cleanup",
+      criticalTaskStaleMinutes: 1
+    });
+    expect(result.components.scheduledTasks).toEqual({ level: "degraded", reason: "Scheduled task data_retention_cleanup failed" });
   });
 
   it("rolls up to the single worst component level across the whole system", () => {

@@ -48,6 +48,8 @@ describe("scheduled handler", () => {
     const taskRunStatement = statements.find((entry) => entry.sql.includes("task_runs"));
     expect(taskRunStatement?.args).toEqual(["inventory_reservation_expiry", "ok", null]);
     expect(statements.some((entry) => entry.sql.includes("checkout_snapshots"))).toBe(true);
+    expect(statements.some((entry) => entry.sql.includes("operational_metrics"))).toBe(true);
+    expect(statements.some((entry) => entry.sql.includes("admin_chat_conversations"))).toBe(true);
     expect(statements.some((entry) => entry.sql.includes("webhook_events"))).toBe(true);
   });
 
@@ -75,9 +77,9 @@ describe("scheduled handler", () => {
     const ctx = { waitUntil: vi.fn(), passThroughOnException: vi.fn() } as unknown as ExecutionContext;
     const controller = { scheduledTime: Date.now(), cron: "" } as ScheduledController;
 
-    await expect(worker.scheduled(controller, { DB: db } as unknown as Env, ctx)).rejects.toThrow("D1 unavailable");
+    await expect(worker.scheduled(controller, { DB: db } as unknown as Env, ctx)).rejects.toThrow("Scheduled tasks failed");
 
-    const taskRunStatement = statements.find((s) => s.sql.includes("task_runs"));
+    const taskRunStatement = statements.find((s) => s.sql.includes("task_runs") && s.args[0] === "inventory_reservation_expiry");
     expect(taskRunStatement?.args).toEqual(["inventory_reservation_expiry", "failed", "D1 unavailable"]);
   });
 });
