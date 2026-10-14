@@ -92,3 +92,11 @@ Servicios esperados:
 - Admin: `https://admin.diferez.com`
 
 Ejecuta `pnpm deploy:preflight` después de configurar el environment `production` del repositorio.
+
+## Tokens del flujo CI/CD
+
+Los tokens tienen responsabilidades separadas. `GITHUB_TOKEN` es el token temporal que GitHub Actions entrega a cada workflow según sus permisos; los PRs automatizados de release usan el secreto `AETHER_RELEASE_TOKEN`, y la notificación del repositorio cliente usa `AETHER_CLIENT_DISPATCH_TOKEN`. Los despliegues a Cloudflare usan `CLOUDFLARE_API_TOKEN`.
+
+Las credenciales configuradas se validaron con la promoción y publicación de `@aether-commerce/storefront-default@0.5.14`: el CI de producción y el despliegue terminaron correctamente, se publicaron el paquete y sus etiquetas, y el dispatch abrió el PR de actualización del cliente. No se deben rotar esos secretos por un error de autenticación de una sesión local de `gh`: esa sesión es independiente de los secrets de Actions. Nunca copiar valores de tokens a este README, logs ni salidas de CI.
+
+Consulta `docs/ci-cd-observations.md` para los bloqueos, tiempos observados y oportunidades de optimización de esa promoción.
