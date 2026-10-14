@@ -138,7 +138,11 @@ webhookRoutes.post("/wompi", async (c) => {
     provider: "wompi",
     eventId,
     requestId,
-    summary: { event: payload.event, transactionId: transaction?.id }
+    summary: {
+      event: payload.event,
+      transactionId: transaction?.id,
+      transactionStatus: transaction?.status
+    }
   });
 
   if (!shouldProcess) {

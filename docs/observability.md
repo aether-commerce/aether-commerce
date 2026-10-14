@@ -49,7 +49,7 @@ placeholders.
 | `SENTRY_ENVIRONMENT` | Worker | Defaults to `AETHER_ENV`. |
 | `SENTRY_RELEASE` | Worker | Set from CI to your commit SHA or tag for release tracking. |
 | `AUDIT_LOG_ENABLED` | Worker | Reserved for a future kill-switch; audit writes are unconditional today. |
-| `HEALTH_METRICS_RETENTION_DAYS` | Worker | Passed to the metrics cleanup job (see Retention below). Default 14. |
+| `HEALTH_METRICS_RETENTION_DAYS` | Worker | Operational metrics retention in days. Defaults to 90; configured values are rounded and clamped to 7-730 days. |
 | `NEXT_PUBLIC_SENTRY_DSN` | admin, storefront | Browser Sentry DSN - DSNs are meant to be public, safe in a client bundle. |
 | `NEXT_PUBLIC_SENTRY_ENABLED` | admin, storefront | `"true"` to initialize the browser SDK. |
 | `NEXT_PUBLIC_SENTRY_ENVIRONMENT` / `NEXT_PUBLIC_SENTRY_RELEASE` | admin, storefront | Same as the Worker's, browser-side. |
@@ -164,21 +164,25 @@ circular references, and the address/ip/email/phone cases specifically.
 | --- | --- |
 | Cloudflare Workers Logs | Cloudflare-managed (not configurable here). |
 | Sentry events | Whatever the Sentry plan provides (90 days on the free Developer plan at time of writing). |
-| `audit_logs` | Indefinite. Append-only; nothing in the API can update or delete a row. Never auto-deleted. |
-| `operational_metrics` | `HEALTH_METRICS_RETENTION_DAYS` (default 14) - delete via `cleanupOldMetrics()` in `services/metrics.ts`. |
-| `webhook_events` | Indefinite today (small, one row per delivery) - revisit if volume grows. |
-| Payloads inside `webhook_events` | Never stored in full - see Sensitive data policy above. |
+| `audit_logs` | 365 days; the scheduled `data_retention_cleanup` task removes older rows. |
+| `operational_metrics` | `HEALTH_METRICS_RETENTION_DAYS` (default 90; allowed range 7-730 days), removed by `data_retention_cleanup`. |
+| `webhook_events` | 90 days; the scheduled `data_retention_cleanup` task removes older rows. |
+| Checkout snapshots | Expired snapshots are retained for 30 days, then removed by `checkout_snapshot_maintenance`. |
+| Admin assistant conversations, messages and pending actions | 30 days after the conversation's last update; removed by `admin_chat_retention`. |
+| Payloads inside `webhook_events` | Full provider payloads are never stored. Wompi rows retain only event type, transaction id and transaction status so an unresolved approved payment can be identified. |
 
-`cleanupOldMetrics()` is not yet wired to a cron trigger. To automate it,
-add to `apps/api/wrangler.production.json`:
+The API Worker cron runs every five minutes. Each scheduled job records its
+own row in `task_runs`: `inventory_reservation_expiry`,
+`checkout_snapshot_maintenance`, `data_retention_cleanup`,
+`admin_chat_retention`, `restock_notifications`, and `low_stock_alerts`.
+System health reports the specific failed task and flags a recent failure as
+degraded; it also flags tasks that have not run in over two hours.
 
-```jsonc
-"triggers": { "crons": ["17 3 * * *"] }
-```
-
-and call `cleanupOldMetrics(env, Number(env.HEALTH_METRICS_RETENTION_DAYS ?? 14))`
-from the existing `scheduled()` handler in `apps/api/src/index.ts`
-(currently only the inventory-reservation-expiry sweep runs there).
+System health can detect an approved Wompi webhook that remains failed or
+stuck and has no matching local order. It cannot infer that a provider event
+was never delivered; detecting that case requires querying Wompi's API and
+is not enabled in this demo deployment. The webhook activity view remains
+the source for inspecting received and retried deliveries.
 
 ## Migrations
 

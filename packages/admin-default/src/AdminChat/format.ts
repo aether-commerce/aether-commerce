@@ -50,6 +50,7 @@ function getStatFieldMeta(t: AdminDictionary, currency: string, locale: string):
     blockedOrdersCount: { label: t.chat.statBlockedOrders },
     avgLatencyMs: { label: t.chat.statAvgLatency, format: (v) => (typeof v === "number" ? `${Math.round(v)}ms` : t.chat.statNoData) },
     lastCriticalTask: { label: t.chat.statLastCriticalTask },
+    scheduledTasks: { label: t.systemHealthPage.statScheduledTasks },
     revenue: { label: t.chat.statRevenue, format: (v) => (typeof v === "number" ? money(v, currency, locale) : String(v ?? "-")) },
     orders: { label: t.chat.statOrders },
     averageTicket: { label: t.chat.statAverageTicket, format: (v) => (typeof v === "number" ? money(v, currency, locale) : String(v ?? "-")) },
