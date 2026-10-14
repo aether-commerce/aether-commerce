@@ -17,6 +17,12 @@ export type StorefrontRuntimeConfig = {
 
 type ResolvedStorefrontRuntimeConfig = StorefrontRuntimeConfig & {
   reviewsEnabled: boolean;
+  runtimeCurrency: "USD" | "COP" | null;
+};
+
+type PublicRuntimeConfigPayload = {
+  success: boolean;
+  data?: { currency?: unknown };
 };
 
 const StorefrontConfigContext = createContext<ResolvedStorefrontRuntimeConfig | null>(null);
@@ -24,6 +30,7 @@ const StorefrontConfigContext = createContext<ResolvedStorefrontRuntimeConfig | 
 /** Wraps a storefront app (the reference Aether deployment, or a generated client) so every default-skin component reads its brand/theme/API config from here instead of a build-time import - a shared package can't have one client's config baked in. */
 export function AetherStorefrontProvider({ config, apiBaseUrl, aiAssistantUrl, basePath, children }: StorefrontRuntimeConfig & { children: ReactNode }) {
   const [reviewsEnabled, setReviewsEnabled] = useState(config.features.reviews);
+  const [runtimeCurrency, setRuntimeCurrency] = useState<"USD" | "COP" | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -40,9 +47,37 @@ export function AetherStorefrontProvider({ config, apiBaseUrl, aiAssistantUrl, b
     };
   }, [apiBaseUrl, config.features.reviews]);
 
+  useEffect(() => {
+    let cancelled = false;
+    void fetch(`${apiBaseUrl}/api/v1/runtime-config`, {
+      headers: { accept: "application/json" }
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Runtime store configuration unavailable.");
+        return response.json() as Promise<PublicRuntimeConfigPayload>;
+      })
+      .then((payload) => {
+        const currency = payload.data?.currency;
+        if (!cancelled && payload.success && (currency === "USD" || currency === "COP")) {
+          setRuntimeCurrency(currency);
+        }
+      })
+      .catch(() => {
+        // Keep the build-time currency if the optional runtime settings read fails.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [apiBaseUrl]);
+
+  const resolvedConfig = useMemo(
+    () => runtimeCurrency ? { ...config, store: { ...config.store, currency: runtimeCurrency } } : config,
+    [config, runtimeCurrency]
+  );
+
   const value = useMemo<ResolvedStorefrontRuntimeConfig>(
-    () => ({ config, apiBaseUrl, reviewsEnabled, ...(aiAssistantUrl !== undefined ? { aiAssistantUrl } : {}), ...(basePath !== undefined ? { basePath } : {}) }),
-    [config, apiBaseUrl, reviewsEnabled, aiAssistantUrl, basePath]
+    () => ({ config: resolvedConfig, apiBaseUrl, reviewsEnabled, runtimeCurrency, ...(aiAssistantUrl !== undefined ? { aiAssistantUrl } : {}), ...(basePath !== undefined ? { basePath } : {}) }),
+    [resolvedConfig, apiBaseUrl, reviewsEnabled, runtimeCurrency, aiAssistantUrl, basePath]
   );
   return <StorefrontConfigContext.Provider value={value}>{children}</StorefrontConfigContext.Provider>;
 }

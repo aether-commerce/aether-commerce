@@ -92,7 +92,7 @@ const privacyStorageKey = "aether.assistant.privacy.v1";
 // depending on unrelated legal content.
 export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVersion: string }>) {
   const { locale } = useLanguage();
-  const { config, apiBaseUrl, aiAssistantUrl: configuredAiAssistantUrl } = useStorefrontConfig();
+  const { config, apiBaseUrl, aiAssistantUrl: configuredAiAssistantUrl, runtimeCurrency } = useStorefrontConfig();
   const aiAssistantUrl = configuredAiAssistantUrl ?? "";
   const cartClient = useMemo(() => createCartClient(apiBaseUrl), [apiBaseUrl]);
   const [isOpen, setIsOpen] = useState(false);
@@ -112,8 +112,10 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const activeRequestRef = useRef<AbortController | null>(null);
   const enabled = config.features.aiAssistant && Boolean(aiAssistantUrl);
-  const formatUsd = (cents: number, displayLocale: string) =>
-    formatMoney(cents, config.store.currency, displayLocale);
+  const formatStoreMoney = (cents: number, displayLocale: string, currency?: string) => {
+    const supportedCurrency = currency === "COP" || currency === "USD" ? currency : config.store.currency;
+    return formatMoney(cents, supportedCurrency, displayLocale);
+  };
 
   const copy = useMemo(
     () =>
@@ -410,7 +412,7 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
       thread_id: threadId,
       message,
       locale: locale === "es" ? "es-CO" : "en-US",
-      currency: config.store.currency,
+      ...(runtimeCurrency ? { currency: runtimeCurrency } : {}),
       client_context: context,
       privacy_consent: privacyAccepted,
       privacy_version: legalPolicyVersion
@@ -874,9 +876,10 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
                             {product.name}
                           </p>
                           <p className="text-[15px] font-bold text-chat-success">
-                            {formatUsd(
+                            {formatStoreMoney(
                               Math.round(Number(product.price) * 100),
-                              locale === "es" ? "es-CO" : "en-US"
+                              locale === "es" ? "es-CO" : "en-US",
+                              product.currency
                             )}
                           </p>
                           {product.recommendation_reason ? (
@@ -952,9 +955,10 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
                             </p>
                           </div>
                           <p className="shrink-0 text-sm font-bold text-chat-text">
-                            {formatUsd(
+                            {formatStoreMoney(
                               Math.round(Number(order.total) * 100),
-                              locale === "es" ? "es-CO" : "en-US"
+                              locale === "es" ? "es-CO" : "en-US",
+                              order.currency
                             )}
                           </p>
                         </div>
@@ -981,9 +985,10 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
                         </p>
                       </div>
                       <p className="text-sm font-semibold text-chat-text">
-                        {formatUsd(
+                        {formatStoreMoney(
                           Math.round(Number(message.cart.subtotal) * 100),
-                          locale === "es" ? "es-CO" : "en-US"
+                          locale === "es" ? "es-CO" : "en-US",
+                          message.cart.currency
                         )}
                       </p>
                     </div>
@@ -1027,9 +1032,10 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
                                 ) : null}
                               </span>
                               <span className="shrink-0 font-medium text-chat-text">
-                                {formatUsd(
+                                {formatStoreMoney(
                                   Math.round(lineTotal),
-                                  locale === "es" ? "es-CO" : "en-US"
+                                  locale === "es" ? "es-CO" : "en-US",
+                                  message.cart?.currency
                                 )}
                               </span>
                             </li>
@@ -1091,7 +1097,7 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
                 </span>
               </div>
               <span className="text-sm font-bold text-chat-text">
-                {formatUsd(footerTotal, locale === "es" ? "es-CO" : "en-US")}
+                {formatStoreMoney(footerTotal, locale === "es" ? "es-CO" : "en-US", footerCart?.totals.currency)}
               </span>
             </div>
             {!privacyAccepted ? (
