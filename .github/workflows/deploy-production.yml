@@ -115,14 +115,7 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        # --var stamps in the commit this deploy is actually building from -
-        # the admin panel's platform page reads it back (DEPLOYED_COMMIT_SHA)
-        # to tell an admin whether main has moved on since the last deploy.
-        run: node scripts/retry-cloudflare-command.mjs pnpm exec wrangler deploy --config apps/api/wrangler.production.json --var DEPLOYED_COMMIT_SHA:${{ github.event.workflow_run.head_sha || github.sha }}
-      - name: Configure API secrets
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DEPLOYED_COMMIT_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
           AETHER_CART_TOKEN_SECRET: ${{ secrets.AETHER_CART_TOKEN_SECRET }}
           AETHER_SETTINGS_ENCRYPTION_KEY: ${{ secrets.AETHER_SETTINGS_ENCRYPTION_KEY }}
           CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
@@ -143,20 +136,20 @@ jobs:
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           SENTRY_ENABLED: ${{ secrets.SENTRY_ENABLED }}
           SENTRY_ENVIRONMENT: ${{ secrets.SENTRY_ENVIRONMENT }}
+        # Upload code and secret bindings in one Cloudflare version so the
+        # revision observed by the smoke test matches the active deployment.
         run: |
           umask 077
           trap 'rm -f .api-secrets.json' EXIT
-          node -e "const fs=require('fs'); const keys=['AETHER_CART_TOKEN_SECRET','AETHER_SETTINGS_ENCRYPTION_KEY','CLERK_SECRET_KEY','CLERK_JWT_ISSUER','CLERK_WEBHOOK_SECRET','STRIPE_SECRET_KEY','STRIPE_WEBHOOK_SECRET','WOMPI_SECRET_KEY','WOMPI_EVENTS_SECRET','WOMPI_PUBLIC_KEY','WOMPI_INTEGRITY_KEY','RESEND_API_KEY','CONTACT_RECIPIENT_EMAIL','CLOUDINARY_CLOUD_NAME','CLOUDINARY_API_KEY','CLOUDINARY_API_SECRET','GEMINI_API_KEY','SENTRY_DSN','SENTRY_ENABLED','SENTRY_ENVIRONMENT']; const out={}; for (const key of keys) if (process.env[key]) out[key]=process.env[key]; fs.writeFileSync('.api-secrets.json', JSON.stringify(out));"
-          node scripts/retry-cloudflare-command.mjs pnpm exec wrangler secret bulk .api-secrets.json --config apps/api/wrangler.production.json
+          node -e "const fs=require('fs'); const keys=['AETHER_CART_TOKEN_SECRET','AETHER_SETTINGS_ENCRYPTION_KEY','CLERK_SECRET_KEY','CLERK_JWT_ISSUER','CLERK_WEBHOOK_SECRET','STRIPE_SECRET_KEY','STRIPE_WEBHOOK_SECRET','WOMPI_SECRET_KEY','WOMPI_EVENTS_SECRET','WOMPI_PUBLIC_KEY','WOMPI_INTEGRITY_KEY','RESEND_API_KEY','CONTACT_RECIPIENT_EMAIL','CLOUDINARY_CLOUD_NAME','CLOUDINARY_API_KEY','CLOUDINARY_API_SECRET','GEMINI_API_KEY','SENTRY_DSN','SENTRY_ENABLED','SENTRY_ENVIRONMENT']; const out={}; for (const key of keys) if (process.env[key]) out[key]=process.env[key]; if (Object.keys(out).length) fs.writeFileSync('.api-secrets.json', JSON.stringify(out));"
+          deploy_args=(pnpm exec wrangler deploy --config apps/api/wrangler.production.json --var "DEPLOYED_COMMIT_SHA:${DEPLOYED_COMMIT_SHA}")
+          if [ -f .api-secrets.json ]; then deploy_args+=(--secrets-file .api-secrets.json); fi
+          node scripts/retry-cloudflare-command.mjs "${deploy_args[@]}"
       - name: Deploy AI assistant Worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: node scripts/retry-cloudflare-command.mjs pnpm exec wrangler deploy --config apps/ai-assistant/wrangler.production.json --keep-vars --var DEPLOYED_COMMIT_SHA:${{ github.event.workflow_run.head_sha || github.sha }}
-      - name: Configure AI assistant secrets
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DEPLOYED_COMMIT_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           AI_OPERATIONS_TOKEN: ${{ secrets.AI_OPERATIONS_TOKEN }}
           # Same passphrase apps/api uses to encrypt/decrypt the shared
@@ -165,11 +158,15 @@ jobs:
           # d1_databases block) to resolve an admin-configured Gemini key
           # before falling back to GEMINI_API_KEY above.
           AETHER_SETTINGS_ENCRYPTION_KEY: ${{ secrets.AETHER_SETTINGS_ENCRYPTION_KEY }}
+        # Upload code and secret bindings in one Cloudflare version so the
+        # revision observed by the smoke test matches the active deployment.
         run: |
           umask 077
           trap 'rm -f .ai-secrets.json' EXIT
-          node -e "const fs=require('fs'); const keys=['GEMINI_API_KEY','AI_OPERATIONS_TOKEN','AETHER_SETTINGS_ENCRYPTION_KEY']; const out={}; for (const key of keys) if (process.env[key]) out[key]=process.env[key]; fs.writeFileSync('.ai-secrets.json', JSON.stringify(out));"
-          node scripts/retry-cloudflare-command.mjs pnpm exec wrangler secret bulk .ai-secrets.json --config apps/ai-assistant/wrangler.production.json
+          node -e "const fs=require('fs'); const keys=['GEMINI_API_KEY','AI_OPERATIONS_TOKEN','AETHER_SETTINGS_ENCRYPTION_KEY']; const out={}; for (const key of keys) if (process.env[key]) out[key]=process.env[key]; if (Object.keys(out).length) fs.writeFileSync('.ai-secrets.json', JSON.stringify(out));"
+          deploy_args=(pnpm exec wrangler deploy --config apps/ai-assistant/wrangler.production.json --keep-vars --var "DEPLOYED_COMMIT_SHA:${DEPLOYED_COMMIT_SHA}")
+          if [ -f .ai-secrets.json ]; then deploy_args+=(--secrets-file .ai-secrets.json); fi
+          node scripts/retry-cloudflare-command.mjs "${deploy_args[@]}"
       - name: Deploy storefront Worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
