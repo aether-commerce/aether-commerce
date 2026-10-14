@@ -1,6 +1,6 @@
 # Plan de corrección de la auditoría CI/CD de Aether y Liminal
 
-Fecha: 14 de octubre de 2026. Estado: **en ejecución; P1 y P2 de Aether integrados en `develop` (PR #307; CI de PR y push verdes); P1 de Liminal integrado en `development` (PR #122; CI de PR y push verdes); P3-A en implementación; P0 parcial; resto de P3–P7 abierto**. No se ha promovido este trabajo a `main` ni se ha desplegado a producción.
+Fecha: 14 de octubre de 2026. Estado: **en ejecución; P1 y P2 de Aether integrados en `develop` (PR #307; CI de PR y push verdes); P1 de Liminal integrado en `development` (PR #122; CI de PR y push verdes); correcciones P3 integradas en Aether (PR #308) y Liminal (PR #123), con aceptación operativa pendiente; P4-A en implementación; P0 parcial; P4-B/C y P5–P7 abiertos**. No se ha promovido este trabajo a `main` ni se ha desplegado a producción.
 
 Fuentes: [auditoría H01–H12](2026-10-14-cicd-liminal.md), [ampliación Changesets H13–H18](2026-10-14-changesets-agent-release.md) y [mediciones](2026-10-14-cicd-timings.json).
 
@@ -105,7 +105,7 @@ Se puede preparar P4 mientras se desarrolla P3 porque modifica otra parte del si
 
 ## P3 — Reparar la distribución de paquetes y la actualización de Liminal
 
-**Estado:** P3-A se está preparando en la rama `feat/release-manifest-v1`. El manifiesto v1 registra un snapshot de todos los paquetes públicos (incluidos los que no cambiaron en ese release), versiones exactas, tags disponibles, `dist.integrity`, enlaces de tarball y hashes de todas las migraciones de cliente; cada archivo fuente se contrasta con el tarball publicado para detectar cambios sin versionar. El publicador también valida el tarball descargado y persiste el manifiesto como asset de GitHub Release. Un reintento vuelve a publicar solo versiones ausentes según Changesets y completa tags faltantes únicamente tras confirmar versión exacta en el registro y SHA del tag; el resumen conserva el estado por paquete. El evento nuevo `aether-release-v1` transporta el manifiesto y su digest y queda desactivado hasta integrar el consumidor compatible en Liminal. P3-B/C y la entrega end-to-end siguen pendientes; no se habilitó dispatch ni se ejecutó una release real.
+**Estado:** las correcciones de distribución y actualización de P3 quedaron integradas en Aether (PR #308) y Liminal (PR #123), con CI de integración verde. La aceptación operativa sigue abierta: todavía falta observar una release nueva que recorra publicación con manifiesto, dispatch, actualización del cliente y smoke end-to-end; no se debe confundir el merge de los controles con la certificación completa de una entrega.
 
 **P3-A: manifiesto y publicación recuperable.**
 
@@ -145,6 +145,8 @@ Se puede preparar P4 mientras se desarrolla P3 porque modifica otra parte del si
 ## P4 — Probar lo desplegado y estabilizar recuperación
 
 **P4-A: verificación funcional y de revisión.**
+
+**Estado:** implementación preparada en las ramas `feat/cicd-live-smoke-verification` de Aether y Liminal. Esta entrega añade revisión visible de API, asistente y frontends, smoke semántico con reintento acotado de metadatos en propagación, snapshot de paquetes/migraciones para Liminal y evidencia de casos/SHA del evaluador. En local pasan `pnpm validate`, `pnpm build`, la plantilla de cliente y `pnpm check:changesets` de Aether; en Liminal pasan `pnpm validate`, la verificación de sus 23 migraciones publicadas y los builds de admin, storefront y API. Las pruebas dirigidas de smoke/evaluación pasan en ambos repositorios. OpenNext no pudo crear symlinks en Windows (`EPERM`), así que ambos bundles Cloudflare quedan pendientes de la CI Ubuntu de los PR. La integración en ramas canónicas y el despliegue de producción no están hechos.
 
 - Exponer una marca verificable de revisión por servicio y asociarla al manifiesto. No exponer secretos ni datos internos.
 - Ampliar smoke de Aether: storefront, API health, asistente health/readiness, admin y portfolio. Verificar la revisión esperada para los componentes desplegados; para servicios independientes, registrar revisión compatible esperada en lugar de exigirles un SHA que no les corresponde.

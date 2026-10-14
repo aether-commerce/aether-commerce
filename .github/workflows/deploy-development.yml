@@ -101,6 +101,13 @@ jobs:
           node scripts/write-storefront-wrangler-config.mjs
       - name: Build development storefront Worker bundle
         run: pnpm --filter @aether-commerce/storefront build:cloudflare
+      - name: Stamp development build metadata
+        env:
+          DEPLOYED_COMMIT_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          AETHER_DEPLOY_ENV: development
+        run: |
+          node scripts/write-deploy-build-info.mjs storefront
+          node scripts/write-deploy-build-info.mjs admin
       - name: Apply development D1 migrations
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -110,7 +117,7 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: node scripts/retry-cloudflare-command.mjs pnpm exec wrangler deploy --config apps/api/wrangler.development.json
+        run: node scripts/retry-cloudflare-command.mjs pnpm exec wrangler deploy --config apps/api/wrangler.development.json --var DEPLOYED_COMMIT_SHA:${{ github.event.workflow_run.head_sha || github.sha }}
       - name: Configure development API secrets
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -137,7 +144,7 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: node scripts/retry-cloudflare-command.mjs pnpm exec wrangler deploy --config apps/ai-assistant/wrangler.development.json --keep-vars
+        run: node scripts/retry-cloudflare-command.mjs pnpm exec wrangler deploy --config apps/ai-assistant/wrangler.development.json --keep-vars --var DEPLOYED_COMMIT_SHA:${{ github.event.workflow_run.head_sha || github.sha }}
       - name: Configure development AI assistant secrets
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -161,9 +168,6 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: pnpm exec wrangler pages deploy apps/admin/out --project-name="${AETHER_ADMIN_PAGES_PROJECT}" --branch=develop
       - name: Verify development services
-        run: |
-          curl --fail --retry 3 --retry-delay 5 "${APP_ORIGIN_STORE}"
-          curl --fail --retry 3 --retry-delay 5 "${NEXT_PUBLIC_AETHER_API_URL}/api/v1/health"
-          curl --fail --retry 3 --retry-delay 5 "${NEXT_PUBLIC_AETHER_AI_URL}/healthz"
-          curl --fail --retry 3 --retry-delay 5 "${APP_ORIGIN_ADMIN}"
-          curl --fail --retry 3 --retry-delay 5 "${NEXT_PUBLIC_PORTFOLIO_URL}"
+        env:
+          DEPLOYED_COMMIT_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: node scripts/check-deployment-smoke.mjs
