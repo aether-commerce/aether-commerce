@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 import {
   absoluteStorefrontUrl,
   buildProductJsonLd,
-  fetchAllCatalogProducts,
   fetchProductBySlug,
   ProductDetailClient,
   StorefrontJsonLd
@@ -14,9 +13,10 @@ import { storefrontSiteUrl } from "../../seo-config";
 
 export const revalidate = 300;
 
+// Product data is live and can change independently of a deployment. Generate
+// detail pages on first request so one unavailable catalog item cannot fail the build.
 export async function generateStaticParams() {
-  const products = await fetchAllCatalogProducts(apiBaseUrl);
-  return (products ?? []).map(({ slug }) => ({ slug }));
+  return [];
 }
 
 async function productForRequest(slug: string) {

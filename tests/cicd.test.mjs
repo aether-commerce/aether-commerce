@@ -461,3 +461,15 @@ test("runtime deployment preflight permits Clerk development keys only with an e
   assert.match(result.stdout, /deploy_runtime_config_ok/);
   assert.match(result.stderr, /explicitly using Clerk development keys/);
 });
+
+
+test("storefront product pages are generated on demand without querying the live catalog during build", () => {
+  const productRoute = read("apps/storefront/app/products/[slug]/page.tsx");
+
+  assert.match(productRoute, /export const revalidate = 300/);
+  assert.match(
+    productRoute,
+    /export async function generateStaticParams\(\)\s*\{\s*return \[\];?\s*\}/
+  );
+  assert.doesNotMatch(productRoute, /fetchAllCatalogProducts/);
+});
