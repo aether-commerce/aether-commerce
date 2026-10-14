@@ -6,7 +6,7 @@ Este procedimiento sirve para aislar un deploy parcial y recuperar el servicio d
 
 En la ejecución fallida de GitHub Actions registra el enlace y run ID, evento, rama, SHA fuente completo, último paso exitoso, paso fallido, conclusión de CI que autorizó el deploy y revisiones que reportan los endpoints. Guarda nombres de variables/configuración y migraciones aplicadas, nunca valores de secretos ni datos de clientes.
 
-El workflow despliega en este orden: autorización del SHA, instalación, preflight de configuración, build, generación de configuraciones, bundle del storefront, metadatos de build, migraciones D1, API Worker, secretos del API, asistente Worker, secretos del asistente, storefront Worker, Admin Pages y smoke. En producción agrega la comprobación del catálogo después del smoke. Consulta el YAML del [workflow de desarrollo](../../.github/workflows/deploy-development.yml) o el [workflow de producción](../../.github/workflows/deploy-production.yml) para ver el orden vigente.
+El workflow despliega en este orden: autorización del SHA, instalación, preflight de configuración, build, generación de configuraciones, bundle del storefront, metadatos de build, migraciones D1, API Worker, secretos del API, asistente Worker, secretos del asistente, storefront Worker, Admin Pages y smoke. En producción agrega la comprobación del catálogo después del smoke. Consulta el YAML del [workflow de desarrollo](../.github/workflows/deploy-development.yml) o el [workflow de producción](../.github/workflows/deploy-production.yml) para ver el orden vigente.
 
 ## Clasificar el punto de fallo
 
@@ -36,4 +36,9 @@ Cloudflare Pages permite volver a una publicación de producción construida cor
 
 La restauración de D1 con Time Travel es una acción distinta, destructiva y fuera de la automatización normal: sobrescribe la base, cancela consultas en vuelo y requiere seleccionar conscientemente un bookmark. Antes de considerarla, confirma el backend/función de Time Travel habilitada para esa base, el punto temporal, el efecto sobre escrituras posteriores y el plan para deshacer la restauración. No se ejecuta como respuesta automática a un rollback de Worker. La retención indicada por Cloudflare depende del plan (7 días en Free y 30 en Paid): [D1 Time Travel](https://developers.cloudflare.com/d1/reference/time-travel/).
 
-Wrangler aplica migraciones pendientes en secuencia y registra las aplicadas; si una migración falla, esa migración se revierte y la última anterior exitosa permanece aplicada. Valida el estado con pnpm exec wrangler d1 migrations list --remote usando el archivo de configuración del ambiente correcto. No ejecutes comandos contra D1 sin revisar antes el nombre e ID del ambiente. Consulta [D1 migrations](https://developers.cloudflare.com/d1/reference/migrations/) y [comandos de Wrangler D1](https://developers.cloudflare.com/d1/wrangler-commands/).
+Wrangler aplica migraciones pendientes en secuencia y registra las aplicadas; si una migración falla, esa migración se revierte y la última anterior exitosa permanece aplicada. Valida el estado con uno de estos comandos, usando el archivo del ambiente correcto:
+
+- Desarrollo: pnpm exec wrangler d1 migrations list DB --remote --config apps/api/wrangler.development.json
+- Producción: pnpm exec wrangler d1 migrations list DB --remote --config apps/api/wrangler.production.json
+
+No ejecutes comandos contra D1 sin revisar antes el nombre e ID del ambiente. Consulta [D1 migrations](https://developers.cloudflare.com/d1/reference/migrations/) y [comandos de Wrangler D1](https://developers.cloudflare.com/d1/wrangler-commands/).
