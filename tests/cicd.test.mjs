@@ -97,12 +97,30 @@ test("Wompi sandbox stays isolated to production", () => {
   assert.match(production, /WOMPI_SECRET_KEY: \$\{\{ secrets\.WOMPI_PRIVATE_KEY \}\}/);
 });
 
-test("package publishing configures a tag author and verifies tags before client notification", () => {
+test("package publishing stores a verified immutable manifest before v1 client dispatch", () => {
   const workflow = read(".github/workflows/publish-packages.yml");
+  const dispatch = read("scripts/create-release-dispatch.mjs");
+  const manifest = read("scripts/create-release-manifest.mjs");
   assert.match(workflow, /fetch-tags: true/);
   assert.match(workflow, /git config user\.name "github-actions\[bot\]"/);
   assert.match(workflow, /git show-ref --verify --quiet "refs\/tags\/\$tag"/);
-  assert.ok(workflow.indexOf("- name: Push release tags") < workflow.indexOf("- name: Notify Liminal client"));
+  assert.match(workflow, /npm view "\$\{name\}@\$\{version\}" version/);
+  assert.match(workflow, /git ls-remote origin "refs\/tags\/\$tag"/);
+  assert.match(workflow, /git push origin "refs\/tags\/\$tag"/);
+  assert.match(workflow, /node scripts\/create-release-manifest\.mjs/);
+  assert.match(manifest, /verifyWorkspaceTarball\(name, version, packageDirectory, metadata\.dist\.integrity\)/);
+  assert.match(manifest, /verifyPublishedTarball\(name, version, metadata\.dist\.integrity\)/);
+  assert.match(workflow, /gh release upload/);
+  assert.match(workflow, /cmp -s "\$RELEASE_MANIFEST_PATH"/);
+  assert.match(workflow, /manifest_sha256=.*sha256sum/);
+  assert.match(workflow, /AETHER_V1_CLIENT_UPDATES_ENABLED/);
+  assert.match(dispatch, /event_type: "aether-release-v1"/);
+  assert.match(dispatch, /manifest_json: input\.manifestJson/);
+  assert.match(workflow, /node scripts\/create-release-dispatch\.mjs/);
+  assert.match(workflow, /--input "\$DISPATCH_PAYLOAD_PATH"/);
+  assert.doesNotMatch(workflow, /event_type=aether-release\s/);
+  assert.ok(workflow.indexOf("- name: Verify package publication and ensure release tags") < workflow.indexOf("- name: Create and publish immutable release manifest"));
+  assert.ok(workflow.indexOf("- name: Create and publish immutable release manifest") < workflow.indexOf("- name: Notify compatible Liminal updater"));
 });
 
 test("skipped PR CI cannot cancel a real development deployment", () => {
@@ -181,7 +199,8 @@ test("package publishing builds with deterministic public application configurat
   assert.match(workflow, /run: pnpm build/);
   assert.doesNotMatch(workflow, /pnpm changeset status/);
   assert.match(workflow, /pnpm --filter "\.\/packages\/\*" exec pnpm pack --pack-destination/);
-  assert.match(workflow, /git push origin --tags/);
+  assert.match(workflow, /git push origin "refs\/tags\/\$tag"/);
+  assert.doesNotMatch(workflow, /git push origin --tags/);
 });
 
 test("client package distribution waits for successful main push CI and uses its SHA", () => {
