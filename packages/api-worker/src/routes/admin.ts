@@ -20,7 +20,7 @@ import {
 import type { AppBindings } from "../types";
 import { collection, fail, ok } from "../http";
 import { requirePermission } from "../middleware/admin";
-import { clearCatalogCache } from "../services/catalog";
+import { bumpCatalogGeneration, clearCatalogCache } from "../services/catalog";
 import { getStoreConfig } from "../services/store-config";
 import { CurrencySwitchError, switchStoreCurrency } from "../services/currency-switch";
 import { createCouponService } from "../services/coupons";
@@ -702,7 +702,7 @@ adminRoutes.post(
 );
 
 adminRoutes.post("/products/:id/cache-refresh", requirePermission("products.write"), async (c) => {
-  await clearCatalogCache(c.env);
+  await bumpCatalogGeneration(c.env);
   return ok(c, { productId: c.req.param("id"), refreshed: true });
 });
 
