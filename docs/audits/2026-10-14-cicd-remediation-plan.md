@@ -1,6 +1,6 @@
 # Plan de corrección de la auditoría CI/CD de Aether y Liminal
 
-Fecha: 14 de octubre de 2026. Estado: **en ejecución; P1/P2 de Aether y P1 de Liminal integrados en sus ramas canónicas; P3 integrado con aceptación de release operativa pendiente; P4-A/B integrados y P4-C parcialmente verificado; P6 parcialmente integrado y con primer despliegue corregido exitoso; PR #315 pasó CI, push a develop y deploy/smoke exacto; P0 parcial; P5 y P7 abiertos**. Este plan aún no se promueve a main ni a producción.
+Fecha: 14 de octubre de 2026. Estado: **en ejecución; P1/P2 de Aether y P1 de Liminal integrados en sus ramas canónicas; P3 integrado con aceptación de release operativa pendiente; P4-A/B integrados y P4-C parcialmente verificado; P6 parcialmente integrado y con primer despliegue corregido exitoso; PR #315 pasó CI, push a develop y deploy/smoke exacto; P0 parcial; P5 en fase 1 de lectura; P5 mutaciones y P7 abiertos**. Este plan aún no se promueve a main ni a producción.
 
 Fuentes: [auditoría H01–H12](2026-10-14-cicd-liminal.md), [ampliación Changesets H13–H18](2026-10-14-changesets-agent-release.md) y [mediciones](2026-10-14-cicd-timings.json).
 
@@ -178,6 +178,8 @@ Se puede preparar P4 mientras se desarrolla P3 porque modifica otra parte del si
 **Aceptación:** T13–T17. Probar caché caliente y lectura concurrente, cero evaluaciones, revisión incorrecta, build limpio y fallo posterior a un componente ya desplegado. Las pruebas destructivas de recuperación usan fixtures/local/desarrollo aislado; no se restaura D1 de producción como ejercicio.
 
 ## P5 — Automatizar el recorrido completo para agentes
+
+**Estado, fase 1:** la rama añade `pnpm release:status` y `pnpm release:plan` con salida humana o JSON versionada. Consultan el árbol local, referencias de `main`/`develop`, PR abiertos, el check requerido del SHA exacto y la protección/App que GitHub reporta. El plan clasifica publicación de paquetes y entrega a Liminal como `required`, `not_applicable` con motivo o `unknown` si las referencias están desactualizadas. Solo hacen lecturas; no crean PR, publican ni despliegan. Bloquean un snapshot incompleto, trabajo local sucio, ancestry sin reconciliar, check fallido/viejo o App ID que no coincide. En la consulta inicial el App ID de `main` no se pudo verificar, así que el plan no autoriza promoción. Quedan abiertos `resume`, `verify`, persistencia/reanudación externa y la certificación T07/T18/T21; las mutaciones siguen deshabilitadas hasta validar P1–P4.
 
 **Trabajo:**
 
