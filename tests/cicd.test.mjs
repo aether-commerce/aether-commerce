@@ -53,25 +53,95 @@ test("deployments wait for a successful CI run and deploy its exact SHA", () => 
   }
 });
 
-test("Worker deployments retry only transient Cloudflare API failures", () => {
-  for (const environment of ["production", "development"]) {
+test("deploy jobs reuse the exact SHA CI gate without repeating workspace validation", () => {
+  const ci = read(".github/workflows/ci.yml");
+  assert.match(ci, /pnpm validate/);
+
+  for (const file of ["deploy-production.yml", "deploy-development.yml"]) {
+    const workflow = read(`.github/workflows/${file}`);
+    assert.match(workflow, /check-deploy-authorization\.mjs/);
+    assert.doesNotMatch(workflow, /pnpm validate/);
+    assert.doesNotMatch(workflow, /name: Validate workspace/);
+  }
+});
+
+test("deployment workflows always write a SHA-scoped recovery snapshot", () => {
+  const stageBindings = [
+    ["authorize_release", "AUTHORIZATION"],
+    ["install_dependencies", "DEPENDENCIES"],
+    ["verify_runtime", "RUNTIME"],
+    ["build_workspace", "BUILD"],
+    ["generate_configs", "CONFIGS"],
+    ["build_storefront", "STOREFRONT_BUILD"],
+    ["stamp_build", "BUILD_METADATA"],
+    ["apply_migrations", "MIGRATIONS"],
+    ["deploy_api", "API"],
+    ["deploy_assistant", "ASSISTANT"],
+    ["deploy_storefront", "STOREFRONT"],
+    ["deploy_admin", "ADMIN"],
+    ["verify_smoke", "SMOKE"]
+  ];
+
+  for (const environment of ["development", "production"]) {
     const workflow = read(`.github/workflows/deploy-${environment}.yml`);
-    for (const worker of ["api", "ai-assistant", "storefront"]) {
-      assert.match(
-        workflow,
-        new RegExp(
-          `retry-cloudflare-command\\.mjs pnpm exec wrangler deploy --config apps/${worker}/wrangler\\.${environment}\\.json`
-        )
-      );
+    const start = workflow.indexOf(`      - name: Summarize ${environment} recovery state`);
+    assert.notEqual(start, -1, `${environment} recovery summary exists`);
+    const summaryStep = workflow.slice(start);
+    assert.match(summaryStep, /if: \$\{\{ always\(\) \}\}/);
+    assert.match(summaryStep, /node scripts\/write-deploy-recovery-summary\.mjs/);
+    assert.match(
+      summaryStep,
+      /DEPLOYED_COMMIT_SHA: \$\{\{ github\.event\.workflow_run\.head_sha \|\| github\.sha \}\}/
+    );
+    assert.match(summaryStep, /DEPLOY_RUN_URL:/);
+    assert.doesNotMatch(summaryStep, /secrets\./);
+
+    for (const [stepId, outcome] of stageBindings) {
+      assert.match(workflow, new RegExp(`id: ${stepId}\\b`), `${stepId} has an outcome ID`);
+      const expectedOutcome =
+        "DEPLOY_OUTCOME_" + outcome + ": ${{ steps." + stepId + ".outcome || 'skipped' }}";
+      assert.ok(summaryStep.includes(expectedOutcome), `${environment} summary records ${stepId}`);
     }
-    for (const worker of ["api", "ai-assistant"]) {
+
+    if (environment === "production") {
+      assert.match(workflow, /id: verify_catalog\b/);
       assert.match(
-        workflow,
-        new RegExp(
-          `retry-cloudflare-command\\.mjs pnpm exec wrangler secret bulk \\.${worker === "api" ? "api" : "ai"}-secrets\\.json --config apps/${worker}/wrangler\\.${environment}\\.json`
-        )
+        summaryStep,
+        /DEPLOY_OUTCOME_CATALOG: \$\{\{ steps\.verify_catalog\.outcome \|\| 'skipped' \}\}/
       );
+    } else {
+      assert.doesNotMatch(summaryStep, /DEPLOY_OUTCOME_CATALOG/);
     }
+  }
+});
+
+test("Worker secrets are bound to the code version that the smoke test verifies", () => {
+  for (const environment of ["production", "development"]) {
+    const workflow = read(".github/workflows/deploy-" + environment + ".yml");
+    const steps = environment === "development"
+      ? [
+          ["Deploy development API Worker", "Deploy development AI assistant Worker", ".api-secrets.json"],
+          ["Deploy development AI assistant Worker", "Deploy development storefront Worker", ".ai-secrets.json"]
+        ]
+      : [
+          ["Deploy API Worker", "Deploy AI assistant Worker", ".api-secrets.json"],
+          ["Deploy AI assistant Worker", "Deploy storefront Worker", ".ai-secrets.json"]
+        ];
+
+    for (const [name, nextName, secretsFile] of steps) {
+      const start = workflow.indexOf("      - name: " + name);
+      const end = workflow.indexOf("      - name: " + nextName, start + 1);
+      assert.notEqual(start, -1, name + " exists in " + environment);
+      assert.notEqual(end, -1, nextName + " follows " + name + " in " + environment);
+      const step = workflow.slice(start, end);
+      assert.match(step, /retry-cloudflare-command\.mjs/);
+      assert.match(step, /wrangler deploy/);
+      assert.match(step, /--secrets-file/);
+      assert.ok(step.includes(secretsFile));
+      assert.match(step, /DEPLOYED_COMMIT_SHA/);
+    }
+
+    assert.doesNotMatch(workflow, /wrangler secret bulk/);
   }
 });
 
@@ -157,13 +227,18 @@ test("package publishing stores a verified immutable manifest before v1 client d
   );
 });
 
-test("skipped PR CI cannot cancel a real development deployment", () => {
+test("development deployments serialize without canceling an active release", () => {
   const workflow = read(".github/workflows/deploy-development.yml");
-  assert.match(workflow, /cancel-in-progress: >-/);
-  assert.match(workflow, /github\.event_name == 'workflow_dispatch'/);
+  assert.match(workflow, /group:\s*aether-development/);
+  assert.match(workflow, /cancel-in-progress:\s*false/);
+  assert.doesNotMatch(workflow, /cancel-in-progress:\s*>-/);
   assert.match(
     workflow,
-    /github\.event_name == 'workflow_run' && github\.event\.workflow_run\.event == 'push' && github\.event\.workflow_run\.conclusion == 'success'/
+    /github\.event_name == 'workflow_run' && github\.event\.workflow_run\.name == 'Aether CI' && github\.event\.workflow_run\.event == 'push' && github\.event\.workflow_run\.conclusion == 'success' && github\.event\.workflow_run\.head_branch == 'develop'/
+  );
+  assert.match(
+    workflow,
+    /github\.event_name == 'workflow_dispatch' && github\.ref == 'refs\/heads\/develop'/
   );
 });
 
@@ -177,8 +252,9 @@ test("Aether deployments stamp and verify the exact release revision", () => {
     assert.match(workflow, /write-deploy-build-info\.mjs admin/);
     assert.match(
       workflow,
-      /--var DEPLOYED_COMMIT_SHA:\$\{\{ github\.event\.workflow_run\.head_sha \|\| github\.sha \}\}/
+      /DEPLOYED_COMMIT_SHA: \$\{\{ github\.event\.workflow_run\.head_sha \|\| github\.sha \}\}/
     );
+    assert.match(workflow, /--var "DEPLOYED_COMMIT_SHA:\$\{DEPLOYED_COMMIT_SHA\}"/);
     assert.match(workflow, /node scripts\/check-deployment-smoke\.mjs/);
     assert.doesNotMatch(workflow, /curl --fail.*APP_ORIGIN_STORE/);
   }

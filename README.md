@@ -12,13 +12,13 @@ Tienda tecnológica bilingüe desplegable como proyecto independiente en Cloudfl
 
 ## Desarrollo local
 
-Requiere Node.js 22 y pnpm 8.15.
+Requiere Node.js 22 y Corepack. `package.json` fija `pnpm@8.15.9`; usa `corepack pnpm` para ejecutar los comandos con esa versión.
 
 ```bash
-pnpm install --frozen-lockfile
-pnpm dev:api
-pnpm dev:storefront
-pnpm dev:admin
+corepack pnpm install --frozen-lockfile
+corepack pnpm dev:api
+corepack pnpm dev:storefront
+corepack pnpm dev:admin
 ```
 
 URLs locales:
@@ -26,7 +26,7 @@ URLs locales:
 - Tienda: `http://localhost:3000`
 - Admin: `http://localhost:3001`
 - API: `http://localhost:8787/api/v1/health`
-- Asistente: `pnpm --filter @aether-commerce/ai-assistant exec wrangler dev`
+- Asistente: `corepack pnpm --filter @aether-commerce/ai-assistant exec wrangler dev`
 
 ## Conexión con el portafolio
 
@@ -42,19 +42,19 @@ La tienda se construye en `/`; `NEXT_PUBLIC_AETHER_BASE_PATH` y `APP_STORE_BASE_
 ## Validación
 
 ```bash
-pnpm validate
-pnpm build
-pnpm test:e2e:assistant
+corepack pnpm validate
+corepack pnpm build
+corepack corepack pnpm test:e2e:assistant
 ```
 
 Para el asistente LangGraph:
 
 ```bash
 cd apps/ai-assistant
-pnpm typecheck
-pnpm lint
-pnpm test
-pnpm build
+corepack pnpm typecheck
+corepack pnpm lint
+corepack pnpm test
+corepack pnpm build
 ```
 
 La operación del asistente se documenta en `docs/ai-assistant/acceptance-status.md`. Sus valores server-side incluyen `GEMINI_API_KEY`, `AI_OPERATIONS_TOKEN` y `AI_ASSISTANT_ENABLED`; el storefront solo recibe `NEXT_PUBLIC_AETHER_AI_URL`. Conversaciones, auditoría y límites se almacenan en el D1 aislado de cada ambiente.
@@ -91,7 +91,7 @@ Servicios esperados:
 - Asistente: `https://aether-ai-production.pickofwow.workers.dev`
 - Admin: `https://admin.diferez.com`
 
-Ejecuta `pnpm deploy:preflight` después de configurar el environment `production` del repositorio.
+Ejecuta `corepack pnpm deploy:preflight` después de configurar el environment `production` del repositorio.
 
 ## Tokens del flujo CI/CD
 
