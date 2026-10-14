@@ -37,7 +37,7 @@ test("all core D1 migrations apply with foreign keys enabled", () => {
     ORDER BY p.updated_at DESC
   `).all("store_default");
   const catalogPlanDetails = catalogPlan.map((row) => row.detail).join("\n");
-  assert.match(catalogPlanDetails, /SEARCH p USING INDEX idx_products_store_updated_at \\(store_id=\\?\\)/);
+  assert.ok(catalogPlanDetails.includes("SEARCH p USING INDEX idx_products_store_updated_at (store_id=?)"), catalogPlanDetails);
   assert.doesNotMatch(catalogPlanDetails, /USE TEMP B-TREE FOR ORDER BY/);
 
   const catalogSpecifications = [
