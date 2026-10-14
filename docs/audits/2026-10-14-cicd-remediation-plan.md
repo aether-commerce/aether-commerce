@@ -1,7 +1,6 @@
 # Plan de corrección de la auditoría CI/CD de Aether y Liminal
 
-Fecha: 14 de octubre de 2026. Estado: **en ejecución; P1/P2 de Aether integrados en `develop` (PR #307 y release PR #310; CI de PR y push verdes); P1 de Liminal integrado en `development` (PR #122); P3 integrado en Aether (PR #308) y Liminal (PR #123), con aceptación operativa pendiente; P4-A integrado en Aether (PR #309) y Liminal (PR #124, #126); P4-B catálogo integrado por PR #312 y su changeset por PR #313; CI de PR/push y deploy de desarrollo verdes, con migración 0037 aplicada; P6 en implementación en `chore/skip-duplicate-deploy-validate`; P0 parcial; P4-C, P5–P7 abiertos**. No se ha promovido este trabajo a `main` ni se ha desplegado a producción.
-Fecha: 14 de octubre de 2026. Estado: **en ejecución; P1/P2 de Aether integrados en `develop` (PR #307 y release PR #310; CI de PR y push verdes); P1 de Liminal integrado en `development` (PR #122); P3 integrado en Aether (PR #308) y Liminal (PR #123), con aceptación operativa pendiente; P4-A integrado en Aether (PR #309) y Liminal (PR #124, #126); Aether y Liminal desarrollo desplegados con smoke verde; PR #312 de catálogo abierto, con una corrección de lint pendiente de CI; P0 parcial; P4-C y P5–P7 abiertos**. No se ha promovido este trabajo a `main` ni se ha desplegado a producción.
+Fecha: 14 de octubre de 2026. Estado: **en ejecución; P1/P2 de Aether y P1 de Liminal integrados en sus ramas canónicas; P3 integrado con aceptación de release operativa pendiente; P4-A/B integrados y P4-C parcialmente verificado; P6 parcialmente integrado y con primer despliegue corregido exitoso; PR #315 pasó CI, push a develop y deploy/smoke exacto; P0 parcial; P5 y P7 abiertos**. Este plan aún no se promueve a main ni a producción.
 
 Fuentes: [auditoría H01–H12](2026-10-14-cicd-liminal.md), [ampliación Changesets H13–H18](2026-10-14-changesets-agent-release.md) y [mediciones](2026-10-14-cicd-timings.json).
 
@@ -166,7 +165,7 @@ Se puede preparar P4 mientras se desarrolla P3 porque modifica otra parte del si
 
 **P4-C: build y recuperación.**
 
-**Estado:** el commit `b225723` reemplazó `next/font/google` por el paquete local `@fontsource-variable/inter`, conservando Inter sin la consulta de fuentes de Turbopack; los builds Ubuntu recientes de Aether y Liminal pasaron. La firma histórica dejó de aplicar al código actual. La reproducción Windows de Tailwind no puede completarse en esta copia porque pnpm no resuelve `node_modules` (`EPERM`); el lockfile sí incluye los paquetes opcionales para Win32. Mantener T16 abierto hasta validar una instalación limpia en Windows y registrar la etapa exacta de recuperación.
+**Estado:** los cambios previos de build están integrados. El run de desarrollo [38562639663](https://github.com/aether-commerce/aether-commerce/actions/runs/38562639663) tuvo API en la revisión esperada, pero el asistente devolvió `unknown` frente a `d4d073c`. El PR [#315](https://github.com/aether-commerce/aether-commerce/pull/315) integró el deploy atómico de código y secretos. El CI de push [38566386174](https://github.com/aether-commerce/aether-commerce/actions/runs/38566386174) pasó; el deploy corregido [38567723863](https://github.com/aether-commerce/aether-commerce/actions/runs/38567723863) terminó verde y verificó storefront, API, asistente y Admin con revisión exacta `cdf3c1b`, además del portafolio como servicio independiente. El fallo no se reprodujo. Mantener T16 abierto hasta validar instalación Windows limpia y pruebas de recuperación parcial.
 
 - Reproducir el fallo Inter/Turbopack con el lockfile exacto. Elegir una corrección comprobada: fuente local con licencia y apariencia conservadas, o versión/corrección de Next demostrada. No atribuirlo a la red sin evidencia.
 - Reproducir el binding opcional de Tailwind en un worktree Windows limpio con pnpm declarado; corregir la causa si se confirma. No convertir el enlace manual en requisito permanente.
@@ -201,7 +200,7 @@ Se puede preparar P4 mientras se desarrolla P3 porque modifica otra parte del si
 
 ## P6 — Optimizar costo y duración con controles ya fiables
 
-**Estado:** el deploy de desarrollo [38557956077](https://github.com/aether-commerce/aether-commerce/actions/runs/38557956077) ejecutó `pnpm validate` después de que el CI exitoso del mismo SHA ya lo había validado. El workflow también conserva la autorización del SHA exacto y la búsqueda de CI verde. La rama `chore/skip-duplicate-deploy-validate` retira solo el paso duplicado de los deploys dev/prod y añade una prueba de regresión; el CI de esta rama y el resultado post-merge quedan pendientes.
+**Estado:** PR #314 integró la eliminación del `pnpm validate` duplicado y su prueba de regresión; PR #315 integró el despliegue atómico. CI de push [38566386174](https://github.com/aether-commerce/aether-commerce/actions/runs/38566386174) pasó. El deploy de desarrollo corregido [38567723863](https://github.com/aether-commerce/aether-commerce/actions/runs/38567723863) pasó en 2m54s sin repetir `pnpm validate`, y el smoke confirmó el SHA exacto. El workflow automático anterior seguía ejecutando la definición vieja de `main`; se canceló en `Validate workspace` a los 4m06s antes de mutar recursos. Es una muestra inicial favorable, no una comparación controlada; mantener la observación de diez releases para cerrar P6.
 
 **Trabajo:**
 
