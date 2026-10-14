@@ -13,12 +13,12 @@ class FakeD1 {
   prepare(sql: string) {
     return {
       bind: (...values: unknown[]) => ({
-        first: async <T>() => {
+        first: <T>() => {
           const id = String(values[0]);
           this.reads.push(id);
           return (this.rows.get(id) ?? null) as T | null;
         },
-        run: async () => {
+        run: () => {
           if (/^\s*insert into products_cache/i.test(sql)) {
             const id = String(values[0]);
             const isGeneration = sql.includes("'catalog-generation'");

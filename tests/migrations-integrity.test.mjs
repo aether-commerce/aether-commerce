@@ -57,8 +57,21 @@ test("all core D1 migrations apply with foreign keys enabled", () => {
     "SELECT payload_json FROM products_cache WHERE id = 'catalog-generation:store_default'"
   ).get().payload_json);
   const initialCatalogGeneration = generation();
+  database.prepare(
+    "INSERT INTO products (id, sku, slug, name, category, price_cents, final_price_cents, details_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+  ).run("prd_generation_insert", "SKU-GENERATION", "generation-insert", "Generation insert", "test", 100, 100, "{}");
+  assert.equal(generation(), initialCatalogGeneration + 1, "product inserts advance the shared catalog generation");
+  const productInsertGeneration = generation();
+  database.prepare(
+    "INSERT INTO store_categories (id, store_id, slug, name) VALUES (?, ?, ?, ?)"
+  ).run("cat_generation_test", "store_default", "generation-test", "Generation test");
+  assert.equal(generation(), productInsertGeneration + 1, "category inserts advance the shared catalog generation");
+  const categoryInsertGeneration = generation();
+  database.prepare("DELETE FROM store_categories WHERE id = 'cat_generation_test'").run();
+  assert.equal(generation(), categoryInsertGeneration + 1, "category deletions advance the shared catalog generation");
+  const beforeProductUpdate = generation();
   database.prepare("UPDATE products SET price_cents = price_cents + 1 WHERE id = 'prd_0001'").run();
-  assert.equal(generation(), initialCatalogGeneration + 1, "product edits advance the shared catalog generation");
+  assert.equal(generation(), beforeProductUpdate + 1, "product edits advance the shared catalog generation");
   const productGeneration = generation();
   const categoryId = database.prepare("SELECT id FROM store_categories WHERE store_id = 'store_default' LIMIT 1").get().id;
   database.prepare("UPDATE store_categories SET name = name || ' edited' WHERE id = ?").run(categoryId);
