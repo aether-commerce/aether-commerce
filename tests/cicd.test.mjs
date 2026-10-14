@@ -216,7 +216,7 @@ test("package publishing stores a verified immutable manifest before v1 client d
   assert.match(workflow, /git ls-remote origin "refs\/tags\/\$tag"/);
   assert.match(workflow, /git push origin "refs\/tags\/\$tag"/);
   assert.match(workflow, /node scripts\/create-release-manifest\.mjs/);
-  assert.match(manifest, /if \(changedInRelease\) \{\s*verifyWorkspaceTarball/);
+  assert.match(manifest, /if \(shouldVerifyWorkspaceTarball\(changedInRelease, resumeRelease\)\) \{\s*verifyWorkspaceTarball/);
   assert.match(manifest, /verifyPublishedTarball\(name, version, metadata\.dist\.integrity\)/);
   assert.match(manifest, /migrations: collectClientMigrations\(headSha\)/);
   assert.ok(workflow.includes("RELEASE_RESUME: ${{ inputs.resume_release_sha != '' }}"));
