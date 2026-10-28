@@ -30,9 +30,11 @@ continuar con el procedimiento de recuperación de paquetes.
 
 Tras un CI de push exitoso en `main`, `Sync Aether main history` crea o actualiza
 un PR desde `chore/sync-main-to-develop` hacia `develop`, sin force push. Si el
-merge no cambia archivos, habilita auto-merge bajo la protección y el check del
-head actual; otro job elimina la rama tras el CI del push a `develop` y solo si
-su head es ancestro de `develop`. Si cambia archivos o hay conflictos, deja el
+merge no cambia archivos, habilita auto-merge y además espera el CI real del
+PR. Al terminar ese CI, un job comprueba otra vez el SHA del head, el diff vacío,
+que contiene los heads actuales de `main` y `develop`, y fusiona el PR si GitHub
+aún no aplicó auto-merge. Otro job elimina la rama tras el CI del push a
+`develop` y solo si su head es ancestro de `develop`. Si cambia archivos o hay conflictos, deja el
 PR para revisión. Una promoción posterior debe esperar a que
 `main` sea ancestro de `develop`.
 
