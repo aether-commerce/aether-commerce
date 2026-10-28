@@ -50,6 +50,7 @@ test("reports a fully verified development deployment and omits production-only 
   assert.equal(result.stages.find(({ key }) => key === "catalog").outcome, "not_applicable");
   assert.equal(result.mutationAttempted, true);
   assert.equal(result.databaseState, "migration_step_succeeded");
+  assert.match(result.nextAction, /No recovery action is needed/);
 });
 
 test("reports an API failure after migration as partial and requires remote inspection", () => {
@@ -94,6 +95,25 @@ test("reports a later service failure after an earlier Worker has already deploy
   assert.match(markdown, /\| api \| success \|/);
   assert.match(markdown, /\| assistant \| failure \|/);
   assert.match(markdown, /does not claim that a failed remote operation made no changes/);
+});
+
+test("development recovery drill is manual-only, fails after API, and leaves production untouched", () => {
+  const developmentWorkflow = readFileSync(
+    new URL("../.github/workflows/deploy-development.yml", import.meta.url),
+    "utf8"
+  );
+  const productionWorkflow = readFileSync(
+    new URL("../.github/workflows/deploy-production.yml", import.meta.url),
+    "utf8"
+  );
+  assert.match(developmentWorkflow, /recovery_drill_fail_after_api:/);
+  assert.match(developmentWorkflow, /github\.event_name }}" = 'workflow_dispatch'/);
+  assert.match(developmentWorkflow, /Intentional development recovery drill: API deployed/);
+  assert.ok(
+    developmentWorkflow.indexOf("Intentional development recovery drill") >
+      developmentWorkflow.indexOf("Deploy development API Worker")
+  );
+  assert.doesNotMatch(productionWorkflow, /recovery_drill_fail_after_api/);
 });
 
 test("treats a failed migration operation as remotely uncertain", () => {
