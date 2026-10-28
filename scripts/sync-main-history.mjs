@@ -29,6 +29,16 @@ export function syncDecision({
   };
 }
 
+export function cleanupDecision({ branchSha, developSha, sourceSha, openPr, branchIsAncestor }) {
+  if (sourceSha !== developSha)
+    return { action: "block", reason: "The successful develop CI run is stale." };
+  if (!branchSha) return { action: "done", reason: "No temporary history branch remains." };
+  if (openPr) return { action: "wait", reason: "The history PR is still open." };
+  if (!branchIsAncestor)
+    return { action: "block", reason: "The temporary branch has commits outside develop." };
+  return { action: "delete", reason: "The merged history branch can be deleted safely." };
+}
+
 export function runHistorySync() {
   if (!process.env.GH_TOKEN)
     throw new Error("AETHER_RELEASE_TOKEN is required for the history PR.");
@@ -75,6 +85,8 @@ export function runHistorySync() {
       throw new Error(
         `${BRANCH} exists without an open PR and has commits outside develop; inspect it before reuse.`
       );
+    if (git("ls-remote", "--heads", "origin", BRANCH).split(/\s+/)[0] !== remoteBranch)
+      throw new Error("The temporary history branch advanced during cleanup.");
     git("push", "origin", "--delete", BRANCH);
     branchExists = false;
   }
@@ -123,6 +135,49 @@ export function runHistorySync() {
   return { action: "create", url, changedFiles };
 }
 
+export function runHistoryCleanup() {
+  if (!process.env.GH_TOKEN)
+    throw new Error("AETHER_RELEASE_TOKEN is required for history cleanup.");
+  git("fetch", "origin", "develop");
+  const developSha = git("rev-parse", "origin/develop");
+  const branchSha = git("ls-remote", "--heads", "origin", BRANCH).split(/\s+/)[0];
+  if (branchSha) git("fetch", "origin", `refs/heads/${BRANCH}:refs/remotes/origin/${BRANCH}`);
+  const openPr =
+    branchSha &&
+    gh(
+      "pr",
+      "list",
+      "--state",
+      "open",
+      "--base",
+      "develop",
+      "--head",
+      BRANCH,
+      "--json",
+      "number",
+      "--jq",
+      ".[0].number // empty"
+    );
+  const decision = cleanupDecision({
+    branchSha,
+    developSha,
+    sourceSha: process.env.RELEASE_SOURCE_SHA ?? "",
+    openPr,
+    branchIsAncestor: branchSha ? gitAncestor(branchSha, developSha) : false
+  });
+  if (decision.action === "block") throw new Error(decision.reason);
+  if (decision.action === "delete") {
+    const currentDevelopSha = git("ls-remote", "origin", "refs/heads/develop").split(/\s+/)[0];
+    if (currentDevelopSha !== developSha)
+      throw new Error("develop advanced during cleanup; retry on its next successful CI run.");
+    if (git("ls-remote", "--heads", "origin", BRANCH).split(/\s+/)[0] !== branchSha)
+      throw new Error("The temporary history branch advanced during cleanup.");
+    git("push", "origin", "--delete", BRANCH);
+  }
+  console.log(decision.reason);
+  return decision;
+}
+
 function enableHistoryAutoMerge(url, changedFiles) {
   if (changedFiles.length) {
     console.log(
@@ -131,7 +186,7 @@ function enableHistoryAutoMerge(url, changedFiles) {
     return;
   }
   const headSha = git("rev-parse", "HEAD");
-  gh("pr", "merge", url, "--auto", "--merge", "--delete-branch", "--match-head-commit", headSha);
+  gh("pr", "merge", url, "--auto", "--merge", "--match-head-commit", headSha);
   console.log(`Enabled protected auto-merge for history-only PR ${url} @ ${headSha}.`);
 }
 
@@ -146,7 +201,9 @@ function gitAncestor(ancestor, descendant) {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
-    runHistorySync();
+    if (process.argv[2] === "cleanup") runHistoryCleanup();
+    else if (!process.argv[2]) runHistorySync();
+    else throw new Error("Usage: node scripts/sync-main-history.mjs [cleanup]");
   } catch (error) {
     console.error(`::error::History sync failed: ${error.message}`);
     process.exitCode = 1;
