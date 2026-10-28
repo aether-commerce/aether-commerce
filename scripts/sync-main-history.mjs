@@ -39,6 +39,29 @@ export function cleanupDecision({ branchSha, developSha, sourceSha, openPr, bran
   return { action: "delete", reason: "The merged history branch can be deleted safely." };
 }
 
+export function mergeDecision({
+  sourceSha,
+  headSha,
+  remoteHeadSha,
+  mainIsAncestor,
+  developIsAncestor,
+  changedFiles
+}) {
+  if (sourceSha !== headSha || headSha !== remoteHeadSha)
+    return { action: "block", reason: "The successful PR CI run is not on the current head." };
+  if (!mainIsAncestor || !developIsAncestor)
+    return {
+      action: "block",
+      reason: "The PR head does not contain both current permanent branches."
+    };
+  if (changedFiles.length)
+    return {
+      action: "review",
+      reason: `${changedFiles.length} file(s) changed; review before merge.`
+    };
+  return { action: "merge", reason: "History-only PR passed CI on its exact head." };
+}
+
 export function runHistorySync() {
   if (!process.env.GH_TOKEN)
     throw new Error("AETHER_RELEASE_TOKEN is required for the history PR.");
@@ -178,6 +201,66 @@ export function runHistoryCleanup() {
   return decision;
 }
 
+export function runHistoryMerge() {
+  if (!process.env.GH_TOKEN) throw new Error("AETHER_RELEASE_TOKEN is required for history merge.");
+  git("fetch", "origin", "develop", "main");
+  const existingPr = gh(
+    "pr",
+    "list",
+    "--state",
+    "open",
+    "--base",
+    "develop",
+    "--head",
+    BRANCH,
+    "--json",
+    "number",
+    "--jq",
+    ".[0].number // empty"
+  );
+  if (!existingPr) {
+    console.log("No open history PR remains.");
+    return { action: "done" };
+  }
+  const pr = JSON.parse(gh("pr", "view", existingPr, "--json", "headRefOid,baseRefName,state,url"));
+  if (pr.baseRefName !== "develop" || pr.state !== "OPEN")
+    throw new Error("History PR target changed.");
+  git("fetch", "origin", `refs/heads/${BRANCH}:refs/remotes/origin/${BRANCH}`);
+  const headSha = pr.headRefOid;
+  const remoteHeadSha = git("rev-parse", `origin/${BRANCH}`);
+  const mainSha = git("rev-parse", "origin/main");
+  const developSha = git("rev-parse", "origin/develop");
+  const changedFiles = git("diff", "--name-only", "origin/develop", `origin/${BRANCH}`)
+    .split(/\r?\n/)
+    .filter(Boolean);
+  const decision = mergeDecision({
+    sourceSha: process.env.RELEASE_SOURCE_SHA ?? "",
+    headSha,
+    remoteHeadSha,
+    mainIsAncestor: gitAncestor(mainSha, headSha),
+    developIsAncestor: gitAncestor(developSha, headSha),
+    changedFiles
+  });
+  if (decision.action === "block") throw new Error(decision.reason);
+  if (decision.action === "review") {
+    console.log(`${pr.url}: ${decision.reason}`);
+    return decision;
+  }
+  if (
+    git("ls-remote", "origin", "refs/heads/main").split(/\s+/)[0] !== mainSha ||
+    git("ls-remote", "origin", "refs/heads/develop").split(/\s+/)[0] !== developSha
+  )
+    throw new Error(
+      "A permanent branch advanced during the CI gate; wait for a refreshed history PR."
+    );
+  gh("pr", "merge", pr.url, "--merge", "--match-head-commit", headSha);
+  git("fetch", "origin", "develop");
+  if (!gitAncestor(headSha, git("rev-parse", "origin/develop")))
+    throw new Error("GitHub did not confirm the PR head in develop; branch retained.");
+  console.log(`Merged ${pr.url} after exact-head CI; cleanup follows successful develop push CI.`);
+  return decision;
+}
+
 function enableHistoryAutoMerge(url, changedFiles) {
   if (changedFiles.length) {
     console.log(
@@ -202,8 +285,9 @@ function gitAncestor(ancestor, descendant) {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
     if (process.argv[2] === "cleanup") runHistoryCleanup();
+    else if (process.argv[2] === "merge") runHistoryMerge();
     else if (!process.argv[2]) runHistorySync();
-    else throw new Error("Usage: node scripts/sync-main-history.mjs [cleanup]");
+    else throw new Error("Usage: node scripts/sync-main-history.mjs [cleanup|merge]");
   } catch (error) {
     console.error(`::error::History sync failed: ${error.message}`);
     process.exitCode = 1;
