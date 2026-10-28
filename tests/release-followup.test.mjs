@@ -115,6 +115,7 @@ test("release scripts and a bot-authenticated history workflow are wired", () =>
     "utf8"
   );
   assert.match(workflow, /AETHER_RELEASE_TOKEN/);
+  assert.match(workflow, /actions: read/);
   assert.match(workflow, /check-deploy-authorization\.mjs/);
   assert.match(workflow, /sync-main-history\.mjs/);
   assert.doesNotMatch(workflow, /pull_request_target/);
