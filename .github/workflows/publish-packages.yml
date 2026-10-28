@@ -13,7 +13,7 @@ on:
         default: false
         type: boolean
       resume_release_sha:
-        description: Resume manifest and client delivery for an already published main release SHA
+        description: Resume missing packages, manifest and client delivery for an authorized main release SHA
         required: false
         type: string
 
@@ -99,12 +99,16 @@ jobs:
         if: ${{ inputs.dry_run && steps.release.outputs.needed == 'true' }}
         run: pnpm --filter "./packages/*" exec pnpm pack --pack-destination "${{ runner.temp }}/aether-packages"
       - name: Publish packages
-        if: ${{ !inputs.dry_run && inputs.resume_release_sha == '' && steps.release.outputs.needed == 'true' }}
+        if: ${{ !inputs.dry_run && steps.release.outputs.needed == 'true' }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ -n "${{ inputs.resume_release_sha }}" ]; then
+            node scripts/check-package-publish-resume.mjs
+          fi
           pnpm publish:packages
         env:
+          RELEASE_SHA: ${{ github.event.workflow_run.head_sha || inputs.resume_release_sha || github.sha }}
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Verify package publication and ensure release tags
         if: ${{ !inputs.dry_run && steps.release.outputs.needed == 'true' }}
