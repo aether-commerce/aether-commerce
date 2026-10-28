@@ -52,4 +52,3 @@ DROP TABLE webhook_events;
 ALTER TABLE webhook_events_hardened RENAME TO webhook_events;
 CREATE INDEX idx_webhook_events_status ON webhook_events(status);
 CREATE INDEX idx_webhook_events_provider_created_at ON webhook_events(provider, created_at);
-
