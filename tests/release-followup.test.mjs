@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { decideResume, runPhase } from "../scripts/release-followup.mjs";
-import { cleanupDecision, syncDecision } from "../scripts/sync-main-history.mjs";
+import { cleanupDecision, mergeDecision, syncDecision } from "../scripts/sync-main-history.mjs";
 
 const sha = "a".repeat(40);
 const developSha = "b".repeat(40);
@@ -81,6 +81,23 @@ test("cleanup deletes only a merged temporary history branch after exact develop
   assert.equal(cleanupDecision({ ...base, branchSha: "" }).action, "done");
 });
 
+test("history PR merges only for exact-head CI, current branch ancestry, and zero file diff", () => {
+  const base = {
+    sourceSha: sha,
+    headSha: sha,
+    remoteHeadSha: sha,
+    mainIsAncestor: true,
+    developIsAncestor: true,
+    changedFiles: []
+  };
+  assert.equal(mergeDecision(base).action, "merge");
+  assert.equal(mergeDecision({ ...base, sourceSha: developSha }).action, "block");
+  assert.equal(mergeDecision({ ...base, remoteHeadSha: developSha }).action, "block");
+  assert.equal(mergeDecision({ ...base, mainIsAncestor: false }).action, "block");
+  assert.equal(mergeDecision({ ...base, developIsAncestor: false }).action, "block");
+  assert.equal(mergeDecision({ ...base, changedFiles: ["package.json"] }).action, "review");
+});
+
 test("resume waits for an existing run and never dispatches without successful exact main CI", () => {
   assert.equal(
     decideResume(verification({ ci: { status: "failed" }, deployment: { status: "missing" } }))
@@ -134,5 +151,7 @@ test("release scripts and a bot-authenticated history workflow are wired", () =>
   assert.match(workflow, /check-deploy-authorization\.mjs/);
   assert.match(workflow, /sync-main-history\.mjs/);
   assert.match(workflow, /node scripts\/sync-main-history\.mjs cleanup/);
+  assert.match(workflow, /node scripts\/sync-main-history\.mjs merge/);
+  assert.match(workflow, /head_branch == 'chore\/sync-main-to-develop'/);
   assert.doesNotMatch(workflow, /pull_request_target/);
 });
