@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { resumeRelease, verifyRelease } from "./release-followup.mjs";
 
 export const REQUIRED_CHECK = "Aether CI / validate";
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
@@ -513,15 +514,58 @@ function formatHumanPlan(plan) {
   ].join("\n");
 }
 
+function formatHumanVerification(result) {
+  return [
+    `Release ${result.releaseSha}: ${result.overall} (plan ${result.planId})`,
+    ...Object.entries(result.phases).map(
+      ([name, phase]) =>
+        `${name}: ${phase.status} — ${phase.reason}${phase.url ? ` ${phase.url}` : ""}`
+    ),
+    `Next: ${result.nextAction.action} — ${result.nextAction.reason}`
+  ].join("\n");
+}
+
+function option(name) {
+  const index = process.argv.indexOf(name);
+  return index >= 0 ? process.argv[index + 1] : null;
+}
+
 async function main() {
   const command = process.argv[2];
   const json = process.argv.includes("--json");
-  if (command !== "status" && command !== "plan") {
-    console.error("Usage: node scripts/release-coordinator.mjs <status|plan> [--json]");
+  if (!["status", "plan", "verify", "resume"].includes(command)) {
+    console.error(
+      "Usage: node scripts/release-coordinator.mjs <status|plan|verify|resume> [--sha <main SHA>] [--plan <id>] [--json]"
+    );
     process.exitCode = 2;
     return;
   }
   try {
+    if (command === "verify" || command === "resume") {
+      const repository = repositorySlug();
+      const releaseSha = option("--sha");
+      if (!repository || !releaseSha)
+        throw new Error("Repository and --sha <current main SHA> are required.");
+      const verification = await verifyRelease(repository, releaseSha);
+      if (command === "verify") {
+        console.log(
+          json ? JSON.stringify(verification, null, 2) : formatHumanVerification(verification)
+        );
+        if (verification.overall === "failed" || verification.overall === "unknown")
+          process.exitCode = 1;
+      } else {
+        const planId = option("--plan");
+        if (!planId) throw new Error("--plan <id> from the latest release:verify is required.");
+        const result = await resumeRelease(verification, planId);
+        console.log(
+          json
+            ? JSON.stringify(result, null, 2)
+            : `${result.action}: ${result.reason}${result.dispatched ? " Workflow dispatched." : ""}`
+        );
+        if (result.action === "block") process.exitCode = 1;
+      }
+      return;
+    }
     const status = await collectStatus();
     if (command === "status") {
       console.log(json ? JSON.stringify(status, null, 2) : formatHumanStatus(status));
