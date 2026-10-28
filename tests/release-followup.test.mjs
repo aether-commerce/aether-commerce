@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { decideResume, runPhase } from "../scripts/release-followup.mjs";
-import { syncDecision } from "../scripts/sync-main-history.mjs";
+import { cleanupDecision, syncDecision } from "../scripts/sync-main-history.mjs";
 
 const sha = "a".repeat(40);
 const developSha = "b".repeat(40);
@@ -66,6 +66,21 @@ test("history sync never acts on a stale CI SHA and is idempotent when ancestry 
   );
 });
 
+test("cleanup deletes only a merged temporary history branch after exact develop push CI", () => {
+  const base = {
+    branchSha: sha,
+    developSha,
+    sourceSha: developSha,
+    openPr: "",
+    branchIsAncestor: true
+  };
+  assert.equal(cleanupDecision(base).action, "delete");
+  assert.equal(cleanupDecision({ ...base, sourceSha: sha }).action, "block");
+  assert.equal(cleanupDecision({ ...base, openPr: "348" }).action, "wait");
+  assert.equal(cleanupDecision({ ...base, branchIsAncestor: false }).action, "block");
+  assert.equal(cleanupDecision({ ...base, branchSha: "" }).action, "done");
+});
+
 test("resume waits for an existing run and never dispatches without successful exact main CI", () => {
   assert.equal(
     decideResume(verification({ ci: { status: "failed" }, deployment: { status: "missing" } }))
@@ -118,5 +133,6 @@ test("release scripts and a bot-authenticated history workflow are wired", () =>
   assert.match(workflow, /actions: read/);
   assert.match(workflow, /check-deploy-authorization\.mjs/);
   assert.match(workflow, /sync-main-history\.mjs/);
+  assert.match(workflow, /node scripts\/sync-main-history\.mjs cleanup/);
   assert.doesNotMatch(workflow, /pull_request_target/);
 });
