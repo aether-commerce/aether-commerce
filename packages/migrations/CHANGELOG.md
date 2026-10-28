@@ -1,5 +1,11 @@
 # @aether-commerce/migrations
 
+## 0.4.5
+
+### Patch Changes
+
+- 7dcc055: Trim the trailing blank line from the security hardening migration so downstream client update validation passes.
+
 ## 0.4.4
 
 ### Patch Changes
