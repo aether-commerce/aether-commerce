@@ -76,11 +76,14 @@ export function buildDeployRecoveryReport({
       : stages.find((stage) => stage.key === "migrations")?.outcome === "skipped"
         ? "not_touched"
         : "unknown";
-  const nextAction = mutationAttempted
-    ? "Inspect the target D1 migration history and each service revision before retrying. Resume only the current authorized SHA after confirming the cause."
-    : failure
-      ? "Fix the failed authorization, configuration, dependency, or build stage on a new branch and rerun CI before deployment."
-      : "Complete the remaining deployment and verification stages for this SHA.";
+  const nextAction =
+    status === "verified"
+      ? "No recovery action is needed; all required stages passed for this SHA."
+      : mutationAttempted
+        ? "Inspect the target D1 migration history and each service revision before retrying. Resume only the current authorized SHA after confirming the cause."
+        : failure
+          ? "Fix the failed authorization, configuration, dependency, or build stage on a new branch and rerun CI before deployment."
+          : "Complete the remaining deployment and verification stages for this SHA.";
 
   return {
     schemaVersion: 1,
