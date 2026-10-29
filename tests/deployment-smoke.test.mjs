@@ -113,6 +113,47 @@ test("deployment smoke retries a temporarily missing build metadata asset", asyn
   assert.equal(missingMetadataCount, 1);
 });
 
+test("deployment smoke retries stale API and assistant revisions and still requires the exact SHA", async () => {
+  let apiCalls = 0, assistantCalls = 0;
+  const fetcher = async (input, options) => {
+    const url = new URL(input);
+    if (url.hostname === "api.example.test" && url.pathname === "/api/v1/health/ready") {
+      apiCalls += 1;
+      return json({ success: true, data: { status: "ok", revision: apiCalls === 1 ? "e".repeat(40) : revision } });
+    }
+    if (url.hostname === "ai.example.test" && url.pathname === "/healthz") {
+      assistantCalls += 1;
+      return json({ status: "ok", service: "aether-ai", revision: assistantCalls === 1 ? "e".repeat(40) : revision });
+    }
+    return makeFetcher()(input, options);
+  };
+  const result = await checkDeploymentSmoke(config, fetcher, { attempts: 2, retryDelayMs: 0 });
+  assert.equal(result.status, "verified");
+  assert.equal(apiCalls, 2);
+  assert.equal(assistantCalls, 2);
+  await assert.rejects(checkDeploymentSmoke(config, makeFetcher({ apiRevision: "e".repeat(40) }), {
+    attempts: 2, retryDelayMs: 0
+  }), /API serves revision/);
+});
+
+test("default retry window allows a delayed revision but rejects persistent staleness", async () => {
+  let calls = 0;
+  const fetcher = async (input, options) => {
+    const url = new URL(input);
+    if (url.hostname === "store.example.test" && url.pathname === "/build-info.json") {
+      calls += 1;
+      return json({ schemaVersion: 1, service: "aether-storefront", environment: "production", revision: calls <= 5 ? "e".repeat(40) : revision });
+    }
+    return makeFetcher()(input, options);
+  };
+  const result = await checkDeploymentSmoke(config, fetcher, { retryDelayMs: 0 });
+  assert.equal(result.status, "verified");
+  assert.equal(calls, 6);
+  await assert.rejects(checkDeploymentSmoke(config, makeFetcher({ storefrontRevision: "e".repeat(40) }), {
+    retryDelayMs: 0
+  }), /aether-storefront serves revision/);
+});
+
 test("deployment smoke rejects an unready assistant", async () => {
   const fetcher = async (input) => {
     const url = new URL(input);
