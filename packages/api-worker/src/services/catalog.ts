@@ -248,17 +248,35 @@ async function readCachedProducts(env: Env, generation: number): Promise<Product
 async function writeCachedProducts(env: Env, products: Product[], generation: number) {
   const currentStoreId = storeId(env);
   const key = `${catalogCacheKey}:${currentStoreId}:${generation}`;
+  const prefix = `${catalogCacheKey}:${currentStoreId}:`;
   try {
     await env.DB.prepare(
       `insert into products_cache (id, source, payload_json, expires_at, created_at, updated_at)
-       values (?, 'local', ?, datetime('now', '+15 minutes'), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+       select ?, 'local', ?, datetime('now', '+15 minutes'), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+       where coalesce((select cast(payload_json as integer) from products_cache
+         where id = ? and source = 'catalog-generation'), 0) = ?
        on conflict(id) do update set source = 'local', payload_json = excluded.payload_json, expires_at = excluded.expires_at, updated_at = CURRENT_TIMESTAMP`
     )
-      .bind(key, JSON.stringify(products))
+      .bind(key, JSON.stringify(products), `${catalogGenerationPrefix}${currentStoreId}`, generation)
       .run();
     memoryCatalogCache.set(currentStoreId, { generation, products, expiresAt: Date.now() + memoryCacheTtlMs });
   } catch {
     // Cache failures should never block the storefront.
+    return;
+  }
+
+  // Keep only the current generation after a successful fill. A slow request
+  // from an older generation cannot recreate a snapshot after a newer one is
+  // committed because the insert above checks the generation atomically.
+  // Restrict the suffix to digits so store IDs containing ':' cannot overlap.
+  try {
+    await env.DB.prepare(
+      `delete from products_cache where source = 'local' and substr(id, 1, ?) = ?
+       and length(substr(id, ?)) > 0 and substr(id, ?) not glob '*[^0-9]*'
+       and cast(substr(id, ?) as integer) < ?`
+    ).bind(prefix.length, prefix, prefix.length + 1, prefix.length + 1, prefix.length + 1, generation).run();
+  } catch {
+    // Cleanup is best effort and never invalidates an otherwise usable cache.
   }
 }
 
