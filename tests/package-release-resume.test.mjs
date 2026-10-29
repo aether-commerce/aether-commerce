@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { hasSuccessfulPushCiRun, packageReleaseResumeErrors } from "../scripts/check-package-release-resume.mjs";
+import { areRecoveryBuildInputsSafe, hasSuccessfulPushCiRun, packageReleaseResumeErrors } from "../scripts/check-package-release-resume.mjs";
+
+test("manifest-only recovery permits tooling lock changes but not package or build source changes", () => {
+  assert.equal(areRecoveryBuildInputsSafe(["package.json", "pnpm-lock.yaml"], true), true);
+  assert.equal(areRecoveryBuildInputsSafe(["package.json"], false), false);
+  assert.equal(areRecoveryBuildInputsSafe(["package.json", "packages/core/src/index.ts"], true), false);
+  assert.equal(areRecoveryBuildInputsSafe(["tsconfig.json"], true), false);
+});
 
 const sha = "a".repeat(40);
 const mainSha = "b".repeat(40);

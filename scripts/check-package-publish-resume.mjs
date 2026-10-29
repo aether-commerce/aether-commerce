@@ -1,10 +1,8 @@
-import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { pathToFileURL } from "node:url";
+import { verifyWorkspacePackage } from "./package-archive-integrity.mjs";
 
 const registry = "https://npm.pkg.github.com";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -13,7 +11,7 @@ function git(args) {
   return execFileSync("git", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
 }
 
-export function planPackagePublishResume(packages, verifyIntegrity = () => {}) {
+export function planPackagePublishResume(packages, verifyIntegrity = () => {}, manifestOnly = false) {
   const missing = [];
   for (const pkg of packages) {
     if (pkg.published) continue;
@@ -22,7 +20,8 @@ export function planPackagePublishResume(packages, verifyIntegrity = () => {}) {
     }
     missing.push(`${pkg.name}@${pkg.version}`);
   }
-  if (missing.length) {
+  if (manifestOnly && missing.length) throw new Error("Manifest-only recovery requires every release package to be published.");
+  if (missing.length || manifestOnly) {
     for (const pkg of packages) {
       if (pkg.published && pkg.changedInRelease) verifyIntegrity(pkg);
     }
@@ -48,23 +47,7 @@ function isPublished(name, version) {
 }
 
 function verifyWorkspaceTarball(pkg) {
-  const directory = mkdtempSync(join(tmpdir(), "aether-resume-integrity-"));
-  try {
-    const packageDirectory = join(root, dirname(pkg.path));
-    execFileSync("pnpm", ["pack", "--pack-destination", directory], {
-      cwd: packageDirectory,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"]
-    });
-    const archive = readdirSync(directory).find((filename) => filename.endsWith(".tgz"));
-    if (!archive) throw new Error(`Workspace pack did not produce a tarball for ${pkg.name}@${pkg.version}.`);
-    const digest = `sha512-${createHash("sha512").update(readFileSync(join(directory, archive))).digest("base64")}`;
-    if (digest !== pkg.integrity) {
-      throw new Error(`Published integrity differs from the authorized release source for ${pkg.name}@${pkg.version}.`);
-    }
-  } finally {
-    rmSync(directory, { recursive: true, force: true });
-  }
+  verifyWorkspacePackage(pkg.name, pkg.version, join(root, dirname(pkg.path)), pkg.integrity);
 }
 
 function run() {
@@ -88,7 +71,7 @@ function run() {
     }
     return { ...pkg, ...isPublished(pkg.name, pkg.version) };
   });
-  const missing = planPackagePublishResume(states, verifyWorkspaceTarball);
+  const missing = planPackagePublishResume(states, verifyWorkspaceTarball, process.env.RELEASE_MANIFEST_ONLY === "true");
   console.log(missing.length ? `Missing release versions: ${missing.join(", ")}.` : "All release versions already exist; publish will skip them.");
 }
 
