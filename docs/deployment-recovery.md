@@ -14,13 +14,13 @@ Incidente resuelto en el primer smoke posterior al arreglo: el run de desarrollo
 
 ## Clasificar el punto de fallo
 
-| Último paso completado | Posible estado remoto | Acción inicial |
-| --- | --- | --- |
-| Antes de «Apply development D1 migrations» o «Apply D1 migrations» | El preflight y los builds no despliegan servicios ni aplican cambios a D1. | Corregir configuración/build en una rama y PR hacia **develop**; repetir CI. |
-| Aplicación de migraciones | Puede haber una o más migraciones anteriores aplicadas. Wrangler registra el avance en la tabla de migraciones. | Consultar migraciones aplicadas y pendientes para la D1 del ambiente; conservar los SQL ya aplicados. La migración que falla se revierte; las anteriores exitosas siguen aplicadas. Corregir mediante una migración nueva si el esquema requiere reparación. |
-| API Worker o configuración de sus secretos | D1 puede estar en el esquema nuevo mientras API, asistente y frontends siguen en revisiones anteriores. | Comprobar /api/v1/health/ready y el SHA que reporta; continuar con una corrección hacia delante compatible con el esquema aplicado. |
-| Asistente Worker, storefront Worker o Admin Pages | Uno o más servicios pueden servir la revisión nueva y los demás la anterior. | Consultar /healthz y /readyz del asistente, /build-info.json del storefront y Admin, y registrar el SHA por servicio. Desplegar la revisión compatible que falta. |
-| Smoke o catálogo | Los servicios pueden estar desplegados aunque la ejecución termine fallida. | Tratar el release como incompleto. Revisar las respuestas y SHA de cada verificación; no reportar éxito por HTTP 200 aislado. |
+| Último paso completado                                             | Posible estado remoto                                                                                           | Acción inicial                                                                                                                                                                                                                                               |
+| ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Antes de «Apply development D1 migrations» o «Apply D1 migrations» | El preflight y los builds no despliegan servicios ni aplican cambios a D1.                                      | Corregir configuración/build en una rama y PR hacia **develop**; repetir CI.                                                                                                                                                                                 |
+| Aplicación de migraciones                                          | Puede haber una o más migraciones anteriores aplicadas. Wrangler registra el avance en la tabla de migraciones. | Consultar migraciones aplicadas y pendientes para la D1 del ambiente; conservar los SQL ya aplicados. La migración que falla se revierte; las anteriores exitosas siguen aplicadas. Corregir mediante una migración nueva si el esquema requiere reparación. |
+| API Worker o configuración de sus secretos                         | D1 puede estar en el esquema nuevo mientras API, asistente y frontends siguen en revisiones anteriores.         | Comprobar /api/v1/health/ready y el SHA que reporta; continuar con una corrección hacia delante compatible con el esquema aplicado.                                                                                                                          |
+| Asistente Worker, storefront Worker o Admin Pages                  | Uno o más servicios pueden servir la revisión nueva y los demás la anterior.                                    | Consultar /healthz y /readyz del asistente, /build-info.json del storefront y Admin, y registrar el SHA por servicio. Desplegar la revisión compatible que falta.                                                                                            |
+| Smoke o catálogo                                                   | Los servicios pueden estar desplegados aunque la ejecución termine fallida.                                     | Tratar el release como incompleto. Revisar las respuestas y SHA de cada verificación; no reportar éxito por HTTP 200 aislado.                                                                                                                                |
 
 Ejemplo: si D1 y API terminaron correctamente pero falló el deploy del asistente, el snapshot debe quedar `partial`, con `lastSuccessfulStage=api` y `firstIncompleteStage=assistant`. Verifica las migraciones de D1 y el SHA servido por la API y el asistente antes de reintentar. El resultado del paso de API indica que se intentó una mutación; no vuelvas a desplegarla a ciegas ni reviertas D1. Corrige la causa y reanuda el SHA autorizado; después vuelve a ejecutar el smoke de todos los servicios.\n\nLos mensajes del workflow identifican el último paso completado, pero la ejecución puede haber aplicado varias migraciones antes de fallar en una posterior. Confirma siempre el estado de D1 en Cloudflare antes de reanudar.
 
@@ -31,6 +31,26 @@ Ejemplo: si D1 y API terminaron correctamente pero falló el deploy del asistent
 3. Si la rama avanzó, no intentes desplegar el SHA anterior: prepara una corrección en una rama nueva, actualiza **develop** mediante PR y deja que CI/despliegue operen con el SHA vigente.
 4. No edites ni borres migraciones ya aplicadas para hacer que el deploy pase. Cada reparación del esquema entra como nueva migración, probada y compatible con el código que sigue activo.
 5. Tras la recuperación, ejecuta y conserva el smoke completo: API readiness y revisión, asistente liveness/readiness y revisión, storefront y Admin con build-info.json del SHA esperado, y los checks adicionales del ambiente. El portafolio se verifica como servicio independiente.
+
+## Prueba controlada de recuperación en desarrollo
+
+Para certificar el caso de fallo posterior a una mutación, ejecutar manualmente
+`Deploy Aether development` desde el head vigente de `develop` con el input
+`recovery_drill_fail_after_api=true`. El workflow exige CI de push exitoso para
+ese SHA y usa los recursos de desarrollo. Aplica migraciones pendientes, despliega
+la API y falla deliberadamente antes de desplegar el asistente. Producción no
+acepta este input.
+
+El run debe concluir `failure` y su snapshot `partial`, con
+`lastSuccessfulStage=api` y `firstIncompleteStage=assistant`. Inspeccionar el
+historial de migraciones D1 del ambiente y los SHA servidos por API, asistente,
+storefront y Admin. Después, mientras `develop` conserve el mismo head y su CI
+siga verde, volver a ejecutar el workflow sin el input de fallo. Conservar ambos
+run IDs y verificar `status=verified`, el smoke y las revisiones exactas.
+
+El input no se usa en el deploy automático ni en producción. Un fallo por otro
+motivo se investiga con su evidencia propia; la prueba no autoriza un rollback
+de D1 ni omitir los controles de SHA.
 
 ## Límites del rollback
 
@@ -52,7 +72,6 @@ No ejecutes comandos contra D1 sin revisar antes el nombre e ID del ambiente. Co
 Si `Publish Aether packages` publicó y verificó los paquetes y sus etiquetas, pero falló al crear el manifiesto, no vuelvas a publicar el mismo número de versión. Ejecuta `Publish Aether packages` manualmente sobre `main`, deja `dry_run` desactivado y proporciona el SHA completo de la release en `resume_release_sha`.
 
 La reanudación exige que el SHA pertenezca al historial actual de `main`, que exista CI de push exitoso para ese SHA y para el `main` actual, y que no hayan cambiado los paquetes ni sus dependencias de build desde la release. La ejecución omite `pnpm changeset publish`, vuelve a verificar las versiones del registro y sus etiquetas, crea o valida el manifiesto usando las migraciones de la revisión original y continúa con la entrega al cliente configurado. Si cambió una entrada de build o el manifiesto inmutable existente tiene otro contenido, la ejecución se detiene para una recuperación revisada.
-
 
 Para una reanudación manual, la automatización ejecuta sus validadores y scripts desde la punta actual de `main`; el SHA indicado en `resume_release_sha` identifica los paquetes, etiquetas y migraciones originales. La verificación de etiquetas debe compararlas con ese SHA original, no con el checkout actual. Esta separación también permite ejecutar el validador agregado después del release interrumpido.
 
