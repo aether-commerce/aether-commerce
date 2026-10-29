@@ -1,5 +1,11 @@
 # @aether-commerce/api-worker
 
+## 0.8.4
+
+### Patch Changes
+
+- e9245b6: Limit stale catalog snapshots after changes while preserving generation-based cache coherence.
+
 ## 0.8.3
 
 ### Patch Changes
