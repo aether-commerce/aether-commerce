@@ -21,6 +21,11 @@ export function hasSuccessfulPushCiRun(sha, runs) {
   );
 }
 
+export function areRecoveryBuildInputsSafe(paths, manifestOnly) {
+  return paths.length === 0 ||
+    (manifestOnly && paths.every((path) => path === "package.json" || path === "pnpm-lock.yaml"));
+}
+
 export function packageReleaseResumeErrors(context) {
   const errors = [];
   if (context.eventName !== "workflow_dispatch") errors.push("release resume requires workflow_dispatch");
@@ -95,7 +100,11 @@ async function run() {
       "tsconfig.json",
       "tsconfig.base.json"
     ]);
-    buildInputsUnchanged = changedInputs.length === 0;
+    const paths = changedInputs.split(/\r?\n/).filter(Boolean);
+    // Manifest-only recovery cannot publish versions and compares every changed
+    // package to its registry artifact before writing a manifest. This permits
+    // repair tooling dependencies to change while package source stays intact.
+    buildInputsUnchanged = areRecoveryBuildInputsSafe(paths, process.env.RELEASE_MANIFEST_ONLY === "true");
   }
 
   const [releaseCiVerified, currentMainCiVerified] = await Promise.all([
