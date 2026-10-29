@@ -375,8 +375,14 @@ test("a partially published release resumes only missing release versions", () =
     { name: "@aether-commerce/api-worker", version: "1.2.0", changedInRelease: true, published: true },
     { name: "@aether-commerce/migrations", version: "1.2.0", changedInRelease: true, published: false }
   ];
-  assert.deepEqual(planPackagePublishResume(release), ["@aether-commerce/migrations@1.2.0"]);
+  const checked = [];
+  assert.deepEqual(planPackagePublishResume(release, (pkg) => checked.push(pkg.name)), ["@aether-commerce/migrations@1.2.0"]);
+  assert.deepEqual(checked, ["@aether-commerce/api-worker"]);
   assert.deepEqual(planPackagePublishResume(release.map((pkg) => ({ ...pkg, published: true }))), []);
+  assert.throws(
+    () => planPackagePublishResume(release, () => { throw new Error("integrity mismatch"); }),
+    /integrity mismatch/
+  );
   assert.throws(
     () => planPackagePublishResume([...release, { name: "@aether-commerce/other", version: "9.0.0", changedInRelease: false, published: false }]),
     /Unrelated unpublished version/
