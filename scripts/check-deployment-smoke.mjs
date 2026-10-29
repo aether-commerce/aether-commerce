@@ -59,7 +59,7 @@ async function withRetry(label, operation, { attempts, retryDelayMs }) {
   throw new Error(`${label} failed: ${lastError?.message ?? "unknown error"}`);
 }
 
-async function readJson(fetcher, url, label, options) {
+async function readJson(fetcher, url, label, options, validate = () => {}) {
   return withRetry(
     label,
     async () => {
@@ -67,11 +67,14 @@ async function readJson(fetcher, url, label, options) {
       if (!response.headers.get("content-type")?.includes("application/json")) {
         throw new Error(`${url.href} did not return JSON.`);
       }
+      let body;
       try {
-        return await response.json();
+        body = await response.json();
       } catch {
         throw new Error(`${url.href} returned invalid JSON.`);
       }
+      validate(body);
+      return body;
     },
     options
   );
@@ -141,21 +144,23 @@ async function checkBuildInfo(fetcher, baseUrl, service, environment, revision, 
 
 async function checkApi(fetcher, apiUrl, revision, options) {
   const url = new URL("/api/v1/health/ready", apiUrl);
-  const body = await readJson(fetcher, url, "API readiness", options);
-  if (body.success !== true || body.data?.status !== "ok") {
-    throw new Error("API readiness did not report status=ok.");
-  }
-  assertRevision(body.data.revision, revision, "API");
+  const body = await readJson(fetcher, url, "API readiness", options, (value) => {
+    if (value.success !== true || value.data?.status !== "ok") {
+      throw new Error("API readiness did not report status=ok.");
+    }
+    assertRevision(value.data.revision, revision, "API");
+  });
   return { status: "ok", revision: body.data.revision };
 }
 
 async function checkAssistant(fetcher, assistantUrl, revision, options) {
   const healthUrl = new URL("/healthz", assistantUrl);
-  const health = await readJson(fetcher, healthUrl, "assistant liveness", options);
-  if (health.status !== "ok" || health.service !== "aether-ai") {
-    throw new Error("Assistant liveness did not identify the healthy Aether assistant.");
-  }
-  assertRevision(health.revision, revision, "assistant");
+  const health = await readJson(fetcher, healthUrl, "assistant liveness", options, (value) => {
+    if (value.status !== "ok" || value.service !== "aether-ai") {
+      throw new Error("Assistant liveness did not identify the healthy Aether assistant.");
+    }
+    assertRevision(value.revision, revision, "assistant");
+  });
 
   const readinessUrl = new URL("/readyz", assistantUrl);
   const readiness = await readJson(fetcher, readinessUrl, "assistant readiness", options);
