@@ -188,7 +188,9 @@ export async function checkDeploymentSmoke(
     portfolio: requireHttpUrl("NEXT_PUBLIC_PORTFOLIO_URL", portfolioUrl)
   };
   const retryOptions = {
-    attempts: options.attempts ?? 3,
+    // Edge revisions can converge after the initial few seconds following a
+    // deploy. Keep the wait bounded and still require the exact revision.
+    attempts: options.attempts ?? 12,
     retryDelayMs: options.retryDelayMs ?? 3000
   };
 

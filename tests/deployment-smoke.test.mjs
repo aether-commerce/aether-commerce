@@ -136,6 +136,24 @@ test("deployment smoke retries stale API and assistant revisions and still requi
   }), /API serves revision/);
 });
 
+test("default retry window allows a delayed revision but rejects persistent staleness", async () => {
+  let calls = 0;
+  const fetcher = async (input, options) => {
+    const url = new URL(input);
+    if (url.hostname === "store.example.test" && url.pathname === "/build-info.json") {
+      calls += 1;
+      return json({ schemaVersion: 1, service: "aether-storefront", environment: "production", revision: calls <= 5 ? "e".repeat(40) : revision });
+    }
+    return makeFetcher()(input, options);
+  };
+  const result = await checkDeploymentSmoke(config, fetcher, { retryDelayMs: 0 });
+  assert.equal(result.status, "verified");
+  assert.equal(calls, 6);
+  await assert.rejects(checkDeploymentSmoke(config, makeFetcher({ storefrontRevision: "e".repeat(40) }), {
+    retryDelayMs: 0
+  }), /aether-storefront serves revision/);
+});
+
 test("deployment smoke rejects an unready assistant", async () => {
   const fetcher = async (input) => {
     const url = new URL(input);
