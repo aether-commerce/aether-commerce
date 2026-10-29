@@ -6,6 +6,12 @@ on:
     types: [completed]
     branches: [develop]
   workflow_dispatch:
+    inputs:
+      recovery_drill_fail_after_api:
+        description: Development-only drill; fail after API deployment and before assistant deployment
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -153,6 +159,10 @@ jobs:
           AI_OPERATIONS_TOKEN: ${{ secrets.AI_OPERATIONS_TOKEN }}
           AETHER_SETTINGS_ENCRYPTION_KEY: ${{ secrets.AETHER_SETTINGS_ENCRYPTION_KEY }}
         run: |
+          if [ "${{ github.event_name }}" = 'workflow_dispatch' ] && [ "${{ inputs.recovery_drill_fail_after_api }}" = 'true' ]; then
+            echo '::error::Intentional development recovery drill: API deployed; assistant deployment withheld.'
+            exit 42
+          fi
           umask 077
           trap 'rm -f .ai-secrets.json' EXIT
           node -e "const fs=require('fs'); const keys=['GEMINI_API_KEY','AI_OPERATIONS_TOKEN','AETHER_SETTINGS_ENCRYPTION_KEY']; const out={}; for (const key of keys) if (process.env[key]) out[key]=process.env[key]; if (Object.keys(out).length) fs.writeFileSync('.ai-secrets.json', JSON.stringify(out));"

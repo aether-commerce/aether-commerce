@@ -51,7 +51,9 @@
     "publish:packages": "changeset publish",
     "validate": "pnpm typecheck && pnpm lint && pnpm test:unit && pnpm test && pnpm check:boundaries && pnpm check:migration-distribution && pnpm test:client-template && pnpm openapi:check",
     "release:status": "node scripts/release-coordinator.mjs status",
-    "release:plan": "node scripts/release-coordinator.mjs plan"
+    "release:plan": "node scripts/release-coordinator.mjs plan",
+    "release:verify": "node scripts/release-coordinator.mjs verify",
+    "release:resume": "node scripts/release-coordinator.mjs resume"
   },
   "devDependencies": {
     "@aether-commerce/agent-core": "workspace:^",

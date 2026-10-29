@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { nextBuildArguments } from "../templates/client/scripts/next-build.mjs";
 import { assertReleaseCommitAvailable } from "../scripts/create-release-manifest.mjs";
+import { planPackagePublishResume } from "../scripts/check-package-publish-resume.mjs";
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
@@ -363,9 +364,29 @@ test("client package distribution waits for successful main push CI and uses its
   assert.ok(workflow.includes('git rev-list -n 1 "refs/tags/$tag")" != "$RELEASE_SHA"'));
   assert.doesNotMatch(workflow, /git rev-parse HEAD/);
   assert.match(workflow, /resume_release_sha:/);
-  assert.match(workflow, /inputs\.resume_release_sha == '' && steps\.release\.outputs\.needed == 'true'/);
+  assert.match(workflow, /node scripts\/check-package-publish-resume\.mjs/);
+  assert.match(workflow, /if: \$\{\{ !inputs\.dry_run && steps\.release\.outputs\.needed == 'true' \}\}/);
   assert.match(workflow, /git diff --name-only .*RELEASE_SHA/);
   assert.doesNotMatch(workflow, /^\s{2}push:/m);
+});
+
+test("a partially published release resumes only missing release versions", () => {
+  const release = [
+    { name: "@aether-commerce/api-worker", version: "1.2.0", changedInRelease: true, published: true },
+    { name: "@aether-commerce/migrations", version: "1.2.0", changedInRelease: true, published: false }
+  ];
+  const checked = [];
+  assert.deepEqual(planPackagePublishResume(release, (pkg) => checked.push(pkg.name)), ["@aether-commerce/migrations@1.2.0"]);
+  assert.deepEqual(checked, ["@aether-commerce/api-worker"]);
+  assert.deepEqual(planPackagePublishResume(release.map((pkg) => ({ ...pkg, published: true }))), []);
+  assert.throws(
+    () => planPackagePublishResume(release, () => { throw new Error("integrity mismatch"); }),
+    /integrity mismatch/
+  );
+  assert.throws(
+    () => planPackagePublishResume([...release, { name: "@aether-commerce/other", version: "9.0.0", changedInRelease: false, published: false }]),
+    /Unrelated unpublished version/
+  );
 });
 
 test("main package publishing consumes only releases prepared on develop", () => {
