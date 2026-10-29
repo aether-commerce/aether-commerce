@@ -16,6 +16,11 @@ on:
         description: Resume missing packages, manifest and client delivery for an authorized main release SHA
         required: false
         type: string
+      manifest_only:
+        description: Recover a manifest only after verifying that every changed package was already published
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -58,6 +63,7 @@ jobs:
         if: ${{ inputs.resume_release_sha != '' }}
         env:
           RELEASE_SHA: ${{ inputs.resume_release_sha }}
+          RELEASE_MANIFEST_ONLY: ${{ inputs.manifest_only }}
           GH_TOKEN: ${{ github.token }}
         run: node scripts/check-package-release-resume.mjs
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
@@ -75,6 +81,10 @@ jobs:
           RELEASE_SHA: ${{ github.event.workflow_run.head_sha || inputs.resume_release_sha || github.sha }}
         shell: bash
         run: |
+          if [ "${{ inputs.manifest_only }}" = "true" ] && { [ -z "${{ inputs.resume_release_sha }}" ] || [ "${{ inputs.dry_run }}" = "true" ]; }; then
+            echo '::error::Manifest-only recovery requires a release SHA and cannot be combined with dry_run.'
+            exit 1
+          fi
           changed="$(git diff --name-only "${RELEASE_SHA}^" "$RELEASE_SHA")"
           pending_changeset="$(find .changeset -maxdepth 1 -type f -name '*.md' ! -name README.md -print -quit)"
           if [ -n "$pending_changeset" ]; then
@@ -98,8 +108,15 @@ jobs:
       - name: Verify package archives
         if: ${{ inputs.dry_run && steps.release.outputs.needed == 'true' }}
         run: pnpm --filter "./packages/*" exec pnpm pack --pack-destination "${{ runner.temp }}/aether-packages"
+      - name: Verify existing packages for manifest-only recovery
+        if: ${{ inputs.manifest_only && steps.release.outputs.needed == 'true' }}
+        run: node scripts/check-package-publish-resume.mjs
+        env:
+          RELEASE_SHA: ${{ inputs.resume_release_sha }}
+          RELEASE_MANIFEST_ONLY: 'true'
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Publish packages
-        if: ${{ !inputs.dry_run && steps.release.outputs.needed == 'true' }}
+        if: ${{ !inputs.dry_run && !inputs.manifest_only && steps.release.outputs.needed == 'true' }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

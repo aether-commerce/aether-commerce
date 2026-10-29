@@ -379,6 +379,10 @@ test("a partially published release resumes only missing release versions", () =
   assert.deepEqual(planPackagePublishResume(release, (pkg) => checked.push(pkg.name)), ["@aether-commerce/migrations@1.2.0"]);
   assert.deepEqual(checked, ["@aether-commerce/api-worker"]);
   assert.deepEqual(planPackagePublishResume(release.map((pkg) => ({ ...pkg, published: true }))), []);
+  const recoveryChecks = [];
+  assert.deepEqual(planPackagePublishResume(release.map((pkg) => ({ ...pkg, published: true })), (pkg) => recoveryChecks.push(pkg.name), true), []);
+  assert.deepEqual(recoveryChecks, ["@aether-commerce/api-worker", "@aether-commerce/migrations"]);
+  assert.throws(() => planPackagePublishResume(release, () => {}, true), /requires every release package to be published/);
   assert.throws(
     () => planPackagePublishResume(release, () => { throw new Error("integrity mismatch"); }),
     /integrity mismatch/

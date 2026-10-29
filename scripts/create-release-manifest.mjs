@@ -5,6 +5,7 @@ import { dirname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createReleaseManifest, sha256, serializeReleaseManifest } from "./release-manifest.mjs";
+import { verifyWorkspacePackage } from "./package-archive-integrity.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -20,8 +21,8 @@ function maybeGitShow(revision, path) {
   }
 }
 
-export function shouldVerifyWorkspaceTarball(changedInRelease, resumeRelease = false) {
-  return changedInRelease && !resumeRelease;
+export function shouldVerifyWorkspaceTarball(changedInRelease, _resumeRelease = false) {
+  return changedInRelease;
 }
 
 function packageDist(name, version, packageDirectory, changedInRelease, resumeRelease) {
@@ -56,22 +57,7 @@ function packageDist(name, version, packageDirectory, changedInRelease, resumeRe
 }
 
 function verifyWorkspaceTarball(name, version, packageDirectory, expectedIntegrity) {
-  const directory = mkdtempSync(join(tmpdir(), "aether-source-package-"));
-  try {
-    execFileSync("pnpm", ["pack", "--pack-destination", directory], {
-      cwd: packageDirectory,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"]
-    });
-    const archive = readdirSync(directory).find((filename) => filename.endsWith(".tgz"));
-    if (!archive) throw new Error(`Workspace pack did not produce a tarball for ${name}@${version}.`);
-    const digest = `sha512-${createHash("sha512").update(readFileSync(join(directory, archive))).digest("base64")}`;
-    if (!expectedIntegrity.split(/\s+/).includes(digest)) {
-      throw new Error(`Workspace tarball differs from the published registry artifact for ${name}@${version}.`);
-    }
-  } finally {
-    rmSync(directory, { recursive: true, force: true });
-  }
+  verifyWorkspacePackage(name, version, packageDirectory, expectedIntegrity);
 }
 
 function verifyPublishedTarball(name, version, expectedIntegrity) {

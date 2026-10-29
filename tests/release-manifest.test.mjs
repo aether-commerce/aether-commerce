@@ -103,10 +103,10 @@ test("release manifest rejects a changed package whose version tag is missing", 
   }), /newly released package must have its release tag/);
 });
 
-test("workspace tarball comparison runs for publication and is skipped for manifest recovery", () => {
+test("workspace tarball comparison also runs during manifest recovery", () => {
   assert.equal(shouldVerifyWorkspaceTarball(true), true);
   assert.equal(shouldVerifyWorkspaceTarball(false), false);
-  assert.equal(shouldVerifyWorkspaceTarball(true, true), false);
+  assert.equal(shouldVerifyWorkspaceTarball(true, true), true);
 });
 
 test("client migration snapshot hashes the exact published migration set", () => {
