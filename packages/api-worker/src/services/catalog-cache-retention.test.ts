@@ -1,13 +1,18 @@
-import { DatabaseSync, type SQLInputValue } from "node:sqlite";
+import type { DatabaseSync as SqliteDatabase, SQLInputValue } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 import type { Product } from "@aether-commerce/schemas";
 import type { Env } from "../types";
 import { __testables } from "./catalog";
 
+// node:sqlite is available on CI's Node 22; Node 20 remains supported for
+// development and still runs the other cache regression tests.
+const sqliteModule = await import("node:sqlite").catch(() => null);
+
 // Execute the production SQL against SQLite instead of duplicating its logic
 // in a fake D1 implementation. D1 uses SQLite and exposes the same statements.
 function createDatabase() {
-  const sqlite = new DatabaseSync(":memory:");
+  if (!sqliteModule) throw new Error("SQLite is unavailable in this Node version");
+  const sqlite: SqliteDatabase = new sqliteModule.DatabaseSync(":memory:");
   sqlite.exec(`create table products_cache (
     id text primary key, source text not null, payload_json text not null,
     expires_at text not null, created_at text default CURRENT_TIMESTAMP,
@@ -28,7 +33,7 @@ function createDatabase() {
   return { sqlite, DB };
 }
 
-describe("catalog snapshot retention", () => {
+describe.skipIf(!sqliteModule)("catalog snapshot retention", () => {
   it("removes older snapshots without touching another store or its generation", async () => {
     const { sqlite, DB } = createDatabase();
     const env = { DB, STORE_ID: "shop" } as unknown as Env;
