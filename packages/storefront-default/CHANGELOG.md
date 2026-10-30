@@ -1,5 +1,12 @@
 # @aether-commerce/storefront-default
 
+## 0.5.16
+
+### Patch Changes
+
+- Updated dependencies [29f14ba]
+  - @aether-commerce/api-client@0.2.4
+
 ## 0.5.15
 
 ### Patch Changes

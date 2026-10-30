@@ -111,11 +111,12 @@ test("resume waits for an existing run and never dispatches without successful e
   );
 });
 
-test("package recovery requires an immutable manifest and never republishes from resume", () => {
+test("package recovery dispatches the guarded workflow for an interrupted publication", () => {
   const noManifest = decideResume(
     verification({ publication: { status: "failed" }, manifest: { status: "missing" } })
   );
-  assert.equal(noManifest.action, "block");
+  assert.equal(noManifest.workflow, "publish-packages.yml");
+  assert.deepEqual(noManifest.inputs, { resume_release_sha: sha });
   const recovered = decideResume(
     verification({ publication: { status: "failed" }, manifest: { status: "success" } })
   );

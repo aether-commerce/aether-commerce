@@ -123,9 +123,17 @@ jobs:
           if [ -n "${{ inputs.resume_release_sha }}" ]; then
             node scripts/check-package-publish-resume.mjs
           fi
+          drill="$(node scripts/t19-drill.mjs)"
+          if [ "$drill" = "enabled" ]; then
+            pnpm --dir packages/migrations publish --no-git-checks
+            echo '::error::T19 controlled interruption after publishing the migrations package.'
+            exit 75
+          fi
           pnpm publish:packages
         env:
           RELEASE_SHA: ${{ github.event.workflow_run.head_sha || inputs.resume_release_sha || github.sha }}
+          RELEASE_RESUME_SHA: ${{ inputs.resume_release_sha }}
+          AETHER_T19_DRILL_HEAD: ${{ vars.AETHER_T19_DRILL_HEAD }}
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Verify package publication and ensure release tags
         if: ${{ !inputs.dry_run && steps.release.outputs.needed == 'true' }}
