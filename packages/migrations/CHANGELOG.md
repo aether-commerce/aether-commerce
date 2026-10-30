@@ -1,5 +1,11 @@
 # @aether-commerce/migrations
 
+## 0.4.6
+
+### Patch Changes
+
+- 29f14ba: Document API client setup and clarify that synchronizing migration files does not apply them to D1.
+
 ## 0.4.5
 
 ### Patch Changes
