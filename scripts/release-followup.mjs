@@ -85,17 +85,11 @@ export function decideResume(verification) {
       reason: "Retry the production deploy for the current main SHA."
     };
   if (["failed", "missing"].includes(phases.publication.status)) {
-    if (phases.manifest.status !== "success")
-      return {
-        action: "block",
-        reason:
-          "Package publication is incomplete; the resume workflow only verifies already published packages."
-      };
     return {
       action: "dispatch",
       workflow: "publish-packages.yml",
       inputs: { resume_release_sha: verification.releaseSha },
-      reason: "Retry manifest and client delivery without republishing packages."
+      reason: "Resume the release; the workflow verifies existing packages before publishing missing versions and creating the manifest."
     };
   }
   if (phases.manifest.status === "missing")
