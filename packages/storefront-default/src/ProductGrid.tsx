@@ -13,6 +13,8 @@ import { useLanguage } from "./LanguageProvider";
 import { ProductCard, ProductCardSkeleton } from "./ProductCard";
 import { StorefrontLink } from "./StorefrontLink";
 import type { CatalogPagination } from "./catalog-server";
+import type { StorefrontPageSeo } from "@aether-commerce/config-schema";
+import { resolveStorefrontSeoText } from "./seo";
 
 type ApiProducts = {
   success: true;
@@ -70,6 +72,7 @@ export function ProductGrid({
   initialFlag = "",
   initialSort,
   heading,
+  localizedCopy,
   eyebrow,
   description,
   pageSize = 12,
@@ -84,6 +87,7 @@ export function ProductGrid({
   initialFlag?: "featured" | "deal" | "new" | "";
   initialSort?: SortValue;
   heading?: string;
+  localizedCopy?: Pick<StorefrontPageSeo, "heading" | "intro"> | undefined;
   eyebrow?: string;
   description?: string;
   pageSize?: number;
@@ -417,15 +421,16 @@ export function ProductGrid({
   );
 
   const Heading = headingLevel === "h1" ? "h1" : "h2";
+  const intro = resolveStorefrontSeoText(localizedCopy?.intro, locale, description);
 
   return (
     <section className="aether-shell py-8" aria-labelledby="catalog-heading">
       <div className="mb-5">
         {eyebrow ? <p className="text-sm font-semibold uppercase text-accent">{eyebrow}</p> : null}
         <Heading id="catalog-heading" className={`${eyebrow ? "mt-1" : ""} text-2xl font-semibold tracking-normal text-zinc-950 md:text-4xl`}>
-          {heading ?? t.premiumCatalog}
+          {resolveStorefrontSeoText(localizedCopy?.heading, locale, heading ?? t.premiumCatalog)}
         </Heading>
-        {description ? <p className="mt-3 max-w-2xl text-base leading-7 text-zinc-600">{description}</p> : null}
+        {intro ? <p className="mt-3 max-w-2xl text-base leading-7 text-zinc-600">{intro}</p> : null}
       </div>
 
       {!compact ? (

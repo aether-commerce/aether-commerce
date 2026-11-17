@@ -1,6 +1,15 @@
 import { fetchCatalogCategorySection, fetchCatalogProducts, HomePage } from "@aether-commerce/storefront-default";
 import { legalPolicyVersion } from "../../../config/legal";
 import { clientConfiguration } from "../../../src/configuration";
+import { configuredPageMetadata, storefrontLocale, storefrontSiteName } from "./seo-config";
+
+export const metadata = configuredPageMetadata(
+  clientConfiguration.seo?.home,
+  "/",
+  storefrontLocale === "es"
+    ? { title: "Tienda en línea", description: `Explora el catálogo de ${storefrontSiteName}.` }
+    : { title: "Online store", description: `Explore the ${storefrontSiteName} catalog.` }
+);
 
 /**
  * Default home page - keep this file as-is to use the default skin, or

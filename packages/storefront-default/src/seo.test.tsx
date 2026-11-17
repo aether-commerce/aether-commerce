@@ -1,16 +1,35 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { Product } from "@aether-commerce/schemas";
+import { storefrontSeoConfigSchema } from "@aether-commerce/config-schema";
 import {
   absoluteStorefrontUrl,
   buildProductJsonLd,
   buildBreadcrumbJsonLd,
   resolveStorefrontUrl,
+  resolveStorefrontSeoText,
   normalizeStorefrontPath,
   StorefrontJsonLd
 } from "./seo";
 
 describe("storefront search markup", () => {
+  it("resolves tenant copy in the active locale and preserves localized fallbacks", () => {
+    const config = storefrontSeoConfigSchema.parse({
+      catalog: { title: { es: "  Accesorios de la tienda  " } },
+      categories: {
+        "handmade-jewelry": { heading: { en: "Handmade jewelry" }, intro: { es: " " } }
+      }
+    });
+    expect(resolveStorefrontSeoText(config.catalog?.title, "es", "Catálogo"))
+      .toBe("Accesorios de la tienda");
+    expect(resolveStorefrontSeoText(config.catalog?.title, "en", "Catalog")).toBe("Catalog");
+    expect(resolveStorefrontSeoText(config.categories?.["handmade-jewelry"]?.heading, "en", "Jewelry"))
+      .toBe("Handmade jewelry");
+    expect(resolveStorefrontSeoText(config.categories?.["handmade-jewelry"]?.intro, "es", undefined))
+      .toBeUndefined();
+    expect(storefrontSeoConfigSchema.safeParse({ catalog: { city: "Unknown" } }).success).toBe(false);
+  });
+
   it("keeps canonical paths, query parameters and fragments separate under a base path", () => {
     expect(
       absoluteStorefrontUrl(

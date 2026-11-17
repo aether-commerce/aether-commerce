@@ -2,6 +2,8 @@
 
 The storefront-default package owns reusable catalog reads, canonical URL construction, safe Product/Offer JSON-LD, breadcrumbs and sitemap generation. Each merchant owns its domain, language, titles, descriptions, category aliases, editorial content and verified delivery information.
 
+Generated clients can set optional SEO copy in `config/seo.ts`. Use `home`, `catalog`, `categoryIndex`, or `categories[publicSlug]`. Each entry accepts `title` and `description` for metadata, and `heading` and `intro` for visible content. Set individual fields with `{ es: "...", en: "..." }`; omitted translations use that language's storefront defaults. Keep the domain in `NEXT_PUBLIC_AETHER_STOREFRONT_URL` and use actual category slugs from the shop.
+
 Pass initialLocale="es" to LanguageProvider to render Spanish in the server response and first client render. Without this prop, the previous English-first/browser-detection behavior remains compatible. A saved visitor choice overrides the configured language after hydration. Storage failures must not prevent browsing or language selection. Do not hide the document while detecting language.
 
 Load categories with fetchCatalogCategoryBySlug; use the returned entity name rather than deriving a title from its slug. A missing entity maps to notFound(), and unavailable catalog data remains a retryable server error. Apply the same distinction to product routes. Check status before parsing an API error body.
