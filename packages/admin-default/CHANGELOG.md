@@ -1,5 +1,12 @@
 # @aether-commerce/admin-default
 
+## 0.6.2
+
+### Patch Changes
+
+- Updated dependencies [e527d43]
+  - @aether-commerce/config-schema@0.3.0
+
 ## 0.6.1
 
 ### Patch Changes
