@@ -7,10 +7,14 @@ import type { Product } from "@aether-commerce/schemas";
 import { useStorefrontConfig } from "./AetherStorefrontProvider";
 import { useLanguage } from "./LanguageProvider";
 import { StorefrontLink } from "./StorefrontLink";
+import { resolveStorefrontSeoText } from "./seo";
 
 export function Hero({ initialProducts }: { initialProducts?: Product[] | undefined } = {}) {
-  const { t } = useLanguage();
+  const { locale, t } = useLanguage();
   const { config, apiBaseUrl } = useStorefrontConfig();
+  const seo = config.seo?.home;
+  const heading = resolveStorefrontSeoText(seo?.heading, locale, t.heroTitle);
+  const intro = resolveStorefrontSeoText(seo?.intro, locale, t.heroDescription);
   const [products, setProducts] = useState<Product[]>(initialProducts ?? []);
 
   useEffect(() => {
@@ -31,8 +35,8 @@ export function Hero({ initialProducts }: { initialProducts?: Product[] | undefi
       <div className="aether-shell grid items-center gap-6 lg:grid-cols-[1.1fr_0.9fr] lg:gap-10">
         <div>
           <p className="text-sm font-semibold uppercase tracking-wide text-accent">{config.brand.name}</p>
-          <h1 className="mt-2 text-3xl font-semibold leading-tight text-zinc-950 sm:mt-3 sm:text-4xl lg:text-5xl">{t.heroTitle}</h1>
-          <p className="mt-3 max-w-xl text-base leading-7 text-zinc-600">{t.heroDescription}</p>
+          <h1 className="mt-2 text-3xl font-semibold leading-tight text-zinc-950 sm:mt-3 sm:text-4xl lg:text-5xl">{heading}</h1>
+          <p className="mt-3 max-w-xl text-base leading-7 text-zinc-600">{intro}</p>
           <div className="mt-5 flex flex-wrap gap-3 sm:mt-7">
             <StorefrontLink
               href="/products"

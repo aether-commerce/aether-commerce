@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { absoluteStorefrontUrl, resolveStorefrontUrl } from "@aether-commerce/storefront-default";
+import type { StorefrontPageSeo } from "@aether-commerce/config-schema";
+import { absoluteStorefrontUrl, resolveStorefrontSeoText, resolveStorefrontUrl } from "@aether-commerce/storefront-default";
 import { clientConfiguration } from "../../../src/configuration";
 
 export const storefrontLocale = clientConfiguration.store.locale.toLowerCase().startsWith("es")
@@ -20,6 +21,23 @@ export const storefrontMetadataBase = new URL(
 export const storefrontSiteName = clientConfiguration.brand.name;
 export const analyticsMeasurementId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID?.trim();
 export const googleSiteVerification = process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION?.trim();
+
+export function configuredPageMetadata(
+  copy: StorefrontPageSeo | undefined,
+  path: string,
+  defaults: { title: string; description: string }
+): Metadata {
+  const title = resolveStorefrontSeoText(copy?.title, storefrontLocale, defaults.title);
+  return {
+    ...pageMetadata(
+      title,
+      resolveStorefrontSeoText(copy?.description, storefrontLocale, defaults.description),
+      false,
+      path
+    ),
+    title: { absolute: `${title} | ${storefrontSiteName}` }
+  };
+}
 
 export function pageMetadata(
   title: string,

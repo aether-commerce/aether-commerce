@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
+import { renderToStaticMarkup } from "react-dom/server";
+import type { ComponentProps } from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { AetherStorefrontProvider } from "./AetherStorefrontProvider";
@@ -27,19 +29,36 @@ const testConfig = {
   navigation: {}
 } as const;
 
-function renderCatalog(locale: "en" | "es" = "en") {
-  return render(
+function catalog(locale: "en" | "es", props: ComponentProps<typeof ProductGrid> = {}) {
+  return (
     <AetherStorefrontProvider config={testConfig} apiBaseUrl="https://api.example.com">
       <LanguageProvider initialLocale={locale}>
         <CartProvider>
           <FavoritesProvider customerId={null}>
-            <ProductGrid />
+            <ProductGrid {...props} />
           </FavoritesProvider>
         </CartProvider>
       </LanguageProvider>
     </AetherStorefrontProvider>
   );
 }
+
+describe("ProductGrid initial HTML", () => {
+  it.each([
+    ["es", "Catálogo de accesorios", "Encuentra tu próxima pieza."],
+    ["en", "Accessories catalog", "Find your next piece."]
+  ] as const)("renders the configured %s heading and introduction on the server", (locale, heading, intro) => {
+    const html = renderToStaticMarkup(catalog(locale, {
+      headingLevel: "h1",
+      localizedCopy: {
+        heading: { es: "Catálogo de accesorios", en: "Accessories catalog" },
+        intro: { es: "Encuentra tu próxima pieza.", en: "Find your next piece." }
+      }
+    }));
+    expect(html).toMatch(new RegExp(`<h1[^>]*>${heading}</h1>`));
+    expect(html).toContain(`>${intro}</p>`);
+  });
+});
 
 describe("ProductGrid catalog failures", () => {
   beforeEach(() => window.localStorage.clear());
@@ -56,7 +75,7 @@ describe("ProductGrid catalog failures", () => {
       }
       return Promise.resolve(Response.json({ success: true, data: [] }));
     }));
-    renderCatalog();
+    render(catalog("en"));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Products are temporarily unavailable");
     expect(screen.queryByText("0 results")).not.toBeInTheDocument();
@@ -72,7 +91,7 @@ describe("ProductGrid catalog failures", () => {
     vi.stubGlobal("fetch", vi.fn((url: string) => Promise.resolve(url.includes("/catalog/products?")
       ? new Response("unavailable", { status: 500 })
       : Response.json({ success: true, data: [] }))));
-    renderCatalog("es");
+    render(catalog("es"));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Los productos no están disponibles por ahora");
     expect(screen.getByRole("button", { name: "Reintentar" })).toBeInTheDocument();

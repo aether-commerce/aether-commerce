@@ -5,6 +5,7 @@ import { checkoutConfig } from "../config/checkout";
 import { features } from "../config/features";
 import { integrations } from "../config/integrations";
 import { navigationConfig } from "../config/navigation";
+import { seoConfig } from "../config/seo";
 import { storeConfig } from "../config/store";
 import { themeConfig } from "../config/theme";
 
@@ -17,5 +18,6 @@ export const clientConfiguration = defineClientConfiguration({
   checkout: checkoutConfig,
   integrations,
   agent: agentConfig,
-  navigation: navigationConfig
+  navigation: navigationConfig,
+  seo: seoConfig
 });
