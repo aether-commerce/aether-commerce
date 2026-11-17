@@ -1,4 +1,23 @@
 import type { Product } from "@aether-commerce/schemas";
+import type { StorefrontPageSeo } from "@aether-commerce/config-schema";
+
+export function resolveStorefrontSeoText(
+  text: StorefrontPageSeo["title"],
+  locale: "es" | "en",
+  fallback: string
+): string;
+export function resolveStorefrontSeoText(
+  text: StorefrontPageSeo["title"],
+  locale: "es" | "en",
+  fallback: string | undefined
+): string | undefined;
+export function resolveStorefrontSeoText(
+  text: StorefrontPageSeo["title"],
+  locale: "es" | "en",
+  fallback: string | undefined
+) {
+  return text?.[locale]?.trim() || fallback;
+}
 
 export function normalizeStorefrontPath(path: string) {
   const normalized = path.startsWith("/") ? path : `/${path}`;

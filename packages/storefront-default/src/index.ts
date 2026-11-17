@@ -123,7 +123,7 @@ export {
 } from "./LegalDocument";
 
 export { fetchCatalogCategoryBySlug, type CategoryLookup } from "./catalog-server";
-export { buildBreadcrumbJsonLd, isIndexableProduct } from "./seo";
+export { buildBreadcrumbJsonLd, isIndexableProduct, resolveStorefrontSeoText } from "./seo";
 export { buildStorefrontSitemap, type StorefrontSitemapOptions } from "./sitemap-server";
 
 export { CatalogUnavailablePage } from "./CatalogUnavailablePage";

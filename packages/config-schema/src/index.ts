@@ -110,6 +110,20 @@ export const navigationConfigSchema = z
   })
   .strict();
 
+export const storefrontPageSeoSchema = z.object({
+  title: localizedTextSchema.optional(),
+  description: localizedTextSchema.optional(),
+  heading: localizedTextSchema.optional(),
+  intro: localizedTextSchema.optional()
+}).strict();
+
+export const storefrontSeoConfigSchema = z.object({
+  home: storefrontPageSeoSchema.optional(),
+  catalog: storefrontPageSeoSchema.optional(),
+  categoryIndex: storefrontPageSeoSchema.optional(),
+  categories: z.record(z.string().min(1), storefrontPageSeoSchema).optional()
+}).strict();
+
 export const clientConfigurationSchema = z
   .object({
     brand: brandConfigSchema,
@@ -119,7 +133,8 @@ export const clientConfigurationSchema = z
     checkout: checkoutConfigSchema,
     integrations: integrationConfigSchema,
     agent: agentConfigSchema,
-    navigation: navigationConfigSchema
+    navigation: navigationConfigSchema,
+    seo: storefrontSeoConfigSchema.optional()
   })
   .strict();
 
@@ -131,6 +146,8 @@ export type CheckoutConfig = z.output<typeof checkoutConfigSchema>;
 export type IntegrationConfig = z.output<typeof integrationConfigSchema>;
 export type AgentConfig = z.output<typeof agentConfigSchema>;
 export type NavigationConfig = z.output<typeof navigationConfigSchema>;
+export type StorefrontPageSeo = z.output<typeof storefrontPageSeoSchema>;
+export type StorefrontSeoConfig = z.output<typeof storefrontSeoConfigSchema>;
 export type ClientConfiguration = z.output<typeof clientConfigurationSchema>;
 
 /** Validates a client implementation at module boundaries without exposing secrets. */
